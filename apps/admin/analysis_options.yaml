@@ -1,0 +1,17 @@
+include: package:flutter_lints/flutter.yaml
+
+analyzer:
+  exclude:
+    - "**/*.g.dart"
+    - "**/*.freezed.dart"
+  errors:
+    invalid_annotation_target: ignore
+
+linter:
+  rules:
+    prefer_single_quotes: true
+    avoid_print: true
+    unnecessary_lambdas: true
+    always_use_package_imports: false
+    use_super_parameters: true
+    unused_element_parameter: false

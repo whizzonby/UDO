@@ -1,0 +1,72 @@
+name: udo_admin
+description: Udo — Wedding planning & coordination admin app
+publish_to: 'none'
+
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.10.7
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # State management
+  flutter_riverpod: ^2.6.1
+  riverpod_annotation: ^2.6.1
+
+  # Navigation
+  go_router: ^14.8.1
+
+  # Fonts
+  google_fonts: ^6.2.1
+
+  # HTTP & networking
+  dio: ^5.8.0+1
+  pretty_dio_logger: ^1.4.0
+
+  # Secure storage
+  flutter_secure_storage: ^9.2.4
+
+  # Local preferences
+  shared_preferences: ^2.5.3
+
+  # Social auth
+  google_sign_in: ^6.2.2
+  sign_in_with_apple: ^6.1.4
+
+  # Images
+  cached_network_image: ^3.4.1
+  flutter_svg: ^2.0.17
+
+  # Data classes
+  freezed_annotation: ^3.0.0
+  json_annotation: ^4.9.0
+
+  # Utilities
+  intl: ^0.20.2
+  uuid: ^4.5.1
+  equatable: ^2.0.7
+
+  cupertino_icons: ^1.0.8
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+
+  # Code generation
+  build_runner: ^2.4.15
+  freezed: ^3.0.0
+  json_serializable: ^6.9.5
+  riverpod_generator: ^2.6.5
+  custom_lint: ^0.7.5
+  riverpod_lint: ^2.6.5
+
+flutter:
+  uses-material-design: true
+
+  assets:
+    - assets/images/
+    - assets/icons/
+    - assets/animations/
