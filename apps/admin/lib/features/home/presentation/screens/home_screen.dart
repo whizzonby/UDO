@@ -17,6 +17,7 @@ import '../widgets/upcoming_events_card.dart';
 import '../sheets/guest_overview_sheet.dart';
 import '../sheets/plan_sheet.dart';
 import '../sheets/budget_sheet.dart';
+import '../../../plan/presentation/screens/plan_screen.dart';
 
 // ─── Root screen — manages tab navigation ────────────────────────────────────
 
@@ -47,7 +48,7 @@ class _HomeScreenState extends State<HomeScreen> {
         index: _currentTab,
         children: [
           const HomeDashboard(),
-          _ComingSoon(label: 'Plan', icon: Icons.checklist_rounded),
+          const PlanScreen(),
           _ComingSoon(label: 'Guests', icon: Icons.people_rounded),
           _ComingSoon(label: 'Live', icon: Icons.radio_button_checked_rounded),
           _ComingSoon(label: 'Gallery', icon: Icons.photo_library_rounded),
