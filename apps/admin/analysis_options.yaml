@@ -14,4 +14,3 @@ linter:
     unnecessary_lambdas: true
     always_use_package_imports: false
     use_super_parameters: true
-    unused_element_parameter: false
