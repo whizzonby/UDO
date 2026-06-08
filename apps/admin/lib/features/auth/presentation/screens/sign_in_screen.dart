@@ -156,7 +156,7 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
                 Align(
                   alignment: Alignment.centerRight,
                   child: TextButton(
-                    onPressed: () {/* TODO: forgot password */},
+                    onPressed: () => context.push(AppRoutes.forgotPassword),
                     child: Text(
                       'Forgot password?',
                       style: GoogleFonts.dmSans(

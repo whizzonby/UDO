@@ -4,6 +4,7 @@ import 'package:riverpod_annotation/riverpod_annotation.dart';
 import '../../features/auth/domain/auth_state.dart';
 import '../../features/auth/presentation/providers/auth_provider.dart';
 import '../../features/auth/presentation/screens/splash_screen.dart';
+import '../../features/auth/presentation/screens/forgot_password_screen.dart';
 import '../../features/auth/presentation/screens/sign_in_screen.dart';
 import '../../features/auth/presentation/screens/sign_up_screen.dart';
 import '../../features/onboarding/presentation/screens/onboarding_screen.dart';
@@ -64,6 +65,10 @@ GoRouter appRouter(Ref ref) {
         builder: (context, _) => const SignUpScreen(),
       ),
       GoRoute(
+        path: AppRoutes.forgotPassword,
+        builder: (context, _) => const ForgotPasswordScreen(),
+      ),
+      GoRoute(
         path: AppRoutes.onboarding,
         builder: (context, _) => const OnboardingScreen(),
       ),
@@ -79,6 +84,7 @@ abstract final class AppRoutes {
   static const String splash = '/';
   static const String signIn = '/sign-in';
   static const String signUp = '/sign-up';
+  static const String forgotPassword = '/forgot-password';
   static const String onboarding = '/onboarding';
   static const String home = '/home';
 }
