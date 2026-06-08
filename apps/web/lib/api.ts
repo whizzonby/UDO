@@ -70,9 +70,11 @@ export interface RegistryItem {
 }
 
 export interface CashFund {
+  id: string;
   title: string;
   description: string | null;
   target_amount: number | null;
+  raised_amount: number;
   share_token: string;
 }
 
@@ -137,4 +139,10 @@ export const guestApi = {
 
   getMessages: (token: string) =>
     guestFetch<{ messages: Message[] }>(token, '/messages'),
+
+  contribute: (token: string, data: { amount: number; name?: string; message?: string }) =>
+    guestFetch<{ checkout_url: string }>(token, '/fund/contribute', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
 };

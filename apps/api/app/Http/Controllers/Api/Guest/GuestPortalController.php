@@ -9,6 +9,8 @@ use App\Models\GalleryItem;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
+use Stripe\Checkout\Session as StripeSession;
+use Stripe\Stripe;
 
 /**
  * Public guest-portal endpoints — no auth, resolved via guest token.
@@ -181,9 +183,11 @@ class GuestPortalController extends Controller
                 'claimed_by_name'=> $i->claimed_by_name,
             ])->values(),
             'fund' => ($fund && $fund->is_active) ? [
+                'id'            => $fund->id,
                 'title'         => $fund->title,
                 'description'   => $fund->description,
                 'target_amount' => $fund->target_amount,
+                'raised_amount' => (float) $fund->raised_amount,
                 'share_token'   => $fund->share_token,
             ] : null,
         ]);
@@ -245,6 +249,61 @@ class GuestPortalController extends Controller
             'image_url' => $item->image_url,
             'caption'   => $item->caption,
         ], 201);
+    }
+
+    // POST /guest-portal/{token}/fund/contribute
+    public function contribute(Request $request, string $token): JsonResponse
+    {
+        $guest   = $this->resolveGuest($token);
+        $wedding = $guest->wedding;
+
+        $data = $request->validate([
+            'amount'   => 'required|numeric|min:1|max:100000',
+            'name'     => 'nullable|string|max:200',
+            'message'  => 'nullable|string|max:500',
+        ]);
+
+        $fund = $wedding->registryCashFund;
+        if (!$fund || !$fund->is_active) {
+            return response()->json(['error' => 'Cash fund is not available'], 422);
+        }
+
+        $currency      = strtolower($wedding->currency ?? 'usd');
+        $amountInCents = (int) round((float) $data['amount'] * 100);
+        $guestWebUrl   = rtrim(config('app.guest_web_url', 'https://udo.app'), '/');
+
+        Stripe::setApiKey(config('services.stripe.secret'));
+
+        $session = StripeSession::create([
+            'mode'        => 'payment',
+            'line_items'  => [[
+                'price_data' => [
+                    'currency'     => $currency,
+                    'unit_amount'  => $amountInCents,
+                    'product_data' => ['name' => $fund->title],
+                ],
+                'quantity' => 1,
+            ]],
+            'success_url'    => "{$guestWebUrl}/g/{$token}/registry/success?session_id={CHECKOUT_SESSION_ID}",
+            'cancel_url'     => "{$guestWebUrl}/g/{$token}/registry",
+            'customer_email' => $guest->email,
+            'metadata'       => [
+                'cash_fund_id'     => $fund->id,
+                'guest_token'      => $token,
+                'contributor_name' => $data['name'] ?? $guest->full_name,
+            ],
+        ]);
+
+        $fund->contributions()->create([
+            'stripe_session_id' => $session->id,
+            'amount'            => $data['amount'],
+            'currency'          => $currency,
+            'status'            => 'pending',
+            'contributor_name'  => $data['name'] ?? null,
+            'message'           => $data['message'] ?? null,
+        ]);
+
+        return response()->json(['checkout_url' => $session->url]);
     }
 
     // GET /guest-portal/{token}/messages

@@ -17,17 +17,22 @@ use App\Http\Controllers\Api\Plan\BudgetController;
 use App\Http\Controllers\Api\Plan\TaskController;
 use App\Http\Controllers\Api\Plan\TimelineController;
 use App\Http\Controllers\Api\Plan\VendorController;
+use App\Http\Controllers\Api\Stripe\StripeWebhookController;
 use Illuminate\Support\Facades\Route;
+
+// ── Stripe webhook (public — verified via Stripe-Signature header) ────────────
+Route::post('/stripe/webhook', [StripeWebhookController::class, 'handle']);
 
 // ── Guest Portal (public — token-based, no auth) ──────────────────────────────
 Route::prefix('guest-portal/{token}')->group(function () {
-    Route::get('/',          [GuestPortalController::class, 'show']);
-    Route::post('/rsvp',     [GuestPortalController::class, 'rsvp']);
-    Route::get('/schedule',  [GuestPortalController::class, 'schedule']);
-    Route::get('/registry',  [GuestPortalController::class, 'registry']);
-    Route::get('/gallery',   [GuestPortalController::class, 'gallery']);
-    Route::post('/gallery',  [GuestPortalController::class, 'uploadPhoto']);
-    Route::get('/messages',  [GuestPortalController::class, 'messages']);
+    Route::get('/',                   [GuestPortalController::class, 'show']);
+    Route::post('/rsvp',              [GuestPortalController::class, 'rsvp']);
+    Route::get('/schedule',           [GuestPortalController::class, 'schedule']);
+    Route::get('/registry',           [GuestPortalController::class, 'registry']);
+    Route::get('/gallery',            [GuestPortalController::class, 'gallery']);
+    Route::post('/gallery',           [GuestPortalController::class, 'uploadPhoto']);
+    Route::get('/messages',           [GuestPortalController::class, 'messages']);
+    Route::post('/fund/contribute',   [GuestPortalController::class, 'contribute']);
 });
 
 // ── Auth (public) ─────────────────────────────────────────────────────────────

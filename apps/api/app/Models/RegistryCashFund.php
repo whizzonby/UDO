@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Str;
 
 class RegistryCashFund extends Model
@@ -13,11 +14,12 @@ class RegistryCashFund extends Model
 
     protected $fillable = [
         'wedding_id', 'title', 'description',
-        'target_amount', 'is_active', 'share_token',
+        'target_amount', 'raised_amount', 'is_active', 'share_token',
     ];
 
     protected $casts = [
         'target_amount' => 'decimal:2',
+        'raised_amount' => 'decimal:2',
         'is_active'     => 'boolean',
     ];
 
@@ -34,5 +36,10 @@ class RegistryCashFund extends Model
     public function wedding(): BelongsTo
     {
         return $this->belongsTo(Wedding::class);
+    }
+
+    public function contributions(): HasMany
+    {
+        return $this->hasMany(CashFundContribution::class, 'cash_fund_id');
     }
 }

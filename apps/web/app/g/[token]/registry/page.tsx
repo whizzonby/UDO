@@ -2,6 +2,7 @@ import { notFound } from 'next/navigation';
 import { Gift, ExternalLink, Heart } from 'lucide-react';
 import { guestApi } from '@/lib/api';
 import { formatCurrency } from '@/lib/utils';
+import { ContributeForm } from './contribute-form';
 
 export default async function RegistryPage({
   params,
@@ -57,20 +58,30 @@ export default async function RegistryPage({
                 )}
               </div>
             </div>
-            {data.fund.target_amount && (
-              <p className="text-white/70 text-xs mb-4">
-                Goal: {formatCurrency(data.fund.target_amount)}
-              </p>
+
+            {/* Progress bar */}
+            {data.fund.target_amount && data.fund.target_amount > 0 && (
+              <div className="mb-4">
+                <div className="flex justify-between items-baseline mb-1.5">
+                  <span className="text-white/90 text-sm font-semibold">
+                    {formatCurrency(data.fund.raised_amount)} raised
+                  </span>
+                  <span className="text-white/60 text-xs">
+                    of {formatCurrency(data.fund.target_amount)}
+                  </span>
+                </div>
+                <div className="h-1.5 bg-white/20 rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-white rounded-full transition-all"
+                    style={{
+                      width: `${Math.min(100, (data.fund.raised_amount / data.fund.target_amount) * 100).toFixed(1)}%`,
+                    }}
+                  />
+                </div>
+              </div>
             )}
-            <a
-              href={`https://udo.app/fund/${data.fund.share_token}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-2 bg-white/20 hover:bg-white/30 transition-colors rounded-xl px-4 py-2.5 text-sm font-semibold"
-            >
-              Contribute
-              <ExternalLink size={14} />
-            </a>
+
+            <ContributeForm token={token} fund={data.fund} />
           </div>
         )}
 
