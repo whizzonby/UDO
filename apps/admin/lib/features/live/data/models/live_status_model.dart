@@ -4,6 +4,19 @@ part 'live_status_model.freezed.dart';
 part 'live_status_model.g.dart';
 
 @freezed
+abstract class LiveActivity with _$LiveActivity {
+  const factory LiveActivity({
+    required String type,        // 'check_in' | 'rsvp' | 'announcement'
+    required String actorName,
+    required String description,
+    required String occurredAt,
+  }) = _LiveActivity;
+
+  factory LiveActivity.fromJson(Map<String, dynamic> json) =>
+      _$LiveActivityFromJson(json);
+}
+
+@freezed
 abstract class LiveStatus with _$LiveStatus {
   const factory LiveStatus({
     @Default(false) bool isLive,

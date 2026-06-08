@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../../core/constants/app_colors.dart';
+import '../../../../core/constants/app_typography.dart';
 import '../../data/models/live_status_model.dart';
 import '../providers/live_provider.dart';
 import '../../../guests/data/models/guest_model.dart';
@@ -832,33 +833,8 @@ class _UpdatesTabState extends ConsumerState<_UpdatesTab> {
         ]),
       ),
 
-      // Announcement history via messages
-      Expanded(
-        child: Center(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 40),
-            child: Column(mainAxisSize: MainAxisSize.min, children: [
-              const Icon(Icons.campaign_outlined,
-                  size: 44, color: AppColors.grey300),
-              const SizedBox(height: 12),
-              Text('Day-of announcements',
-                  style: GoogleFonts.playfairDisplay(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w700,
-                      color: AppColors.grey700)),
-              const SizedBox(height: 6),
-              Text(
-                'Send quick updates above — your guests will see them on their guest page.',
-                style: GoogleFonts.dmSans(
-                    fontSize: 13,
-                    color: AppColors.grey500,
-                    height: 1.5),
-                textAlign: TextAlign.center,
-              ),
-            ]),
-          ),
-        ),
-      ),
+      // Live activity feed
+      Expanded(child: _ActivityFeed()),
     ]);
   }
 
@@ -990,6 +966,129 @@ class _UpcomingEventRow extends StatelessWidget {
       return '${months[dt.month]} ${dt.day}';
     } catch (_) {
       return iso;
+    }
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ACTIVITY FEED — polls every 15 s, shows check-ins, RSVPs, announcements
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _ActivityFeed extends ConsumerWidget {
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final async = ref.watch(liveActivitiesProvider);
+
+    return async.when(
+      loading: () => const Center(
+        child: CircularProgressIndicator(color: AppColors.pinkGradientStart),
+      ),
+      error: (_, __) => _emptyFeed(),
+      data: (activities) {
+        if (activities.isEmpty) return _emptyFeed();
+        return ListView.builder(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 40),
+          itemCount: activities.length,
+          itemBuilder: (_, i) => _ActivityRow(activity: activities[i]),
+        );
+      },
+    );
+  }
+
+  Widget _emptyFeed() => Center(
+    child: Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 40),
+      child: Column(mainAxisSize: MainAxisSize.min, children: [
+        const Icon(Icons.campaign_outlined, size: 44, color: AppColors.grey300),
+        const SizedBox(height: 12),
+        Text('No activity yet',
+            style: GoogleFonts.playfairDisplay(
+                fontSize: 16, fontWeight: FontWeight.w700, color: AppColors.grey700)),
+        const SizedBox(height: 6),
+        Text(
+          'Check-ins, RSVPs, and announcements will appear here as they happen.',
+          style: GoogleFonts.dmSans(
+              fontSize: 13, color: AppColors.grey500, height: 1.5),
+          textAlign: TextAlign.center,
+        ),
+      ]),
+    ),
+  );
+}
+
+class _ActivityRow extends StatelessWidget {
+  const _ActivityRow({required this.activity});
+  final LiveActivity activity;
+
+  IconData get _icon => switch (activity.type) {
+    'check_in'     => Icons.how_to_reg_rounded,
+    'rsvp'         => Icons.favorite_rounded,
+    'announcement' => Icons.campaign_rounded,
+    _              => Icons.circle_outlined,
+  };
+
+  Color get _color => switch (activity.type) {
+    'check_in'     => AppColors.teal,
+    'rsvp'         => AppColors.pinkGradientStart,
+    'announcement' => const Color(0xFF8B5CF6),
+    _              => AppColors.grey400,
+  };
+
+  @override
+  Widget build(BuildContext context) {
+
+    final color = _color;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        // Icon circle
+        Container(
+          width: 36,
+          height: 36,
+          decoration: BoxDecoration(
+            color: color.withValues(alpha: 0.1),
+            shape: BoxShape.circle,
+          ),
+          child: Icon(_icon, size: 16, color: color),
+        ),
+        const SizedBox(width: 12),
+
+        // Content
+        Expanded(
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            RichText(
+              text: TextSpan(
+                style: GoogleFonts.dmSans(fontSize: 13, color: AppColors.grey700),
+                children: [
+                  TextSpan(
+                    text: activity.actorName,
+                    style: const TextStyle(fontWeight: FontWeight.w600),
+                  ),
+                  TextSpan(text: '  ${activity.description}'),
+                ],
+              ),
+            ),
+            const SizedBox(height: 2),
+            Text(
+              _relativeTime(activity.occurredAt),
+              style: AppTypography.caption,
+            ),
+          ]),
+        ),
+      ]),
+    );
+  }
+
+  String _relativeTime(String iso) {
+    try {
+      final dt = DateTime.parse(iso);
+      final diff = DateTime.now().difference(dt);
+      if (diff.inSeconds < 60) return 'just now';
+      if (diff.inMinutes < 60) return '${diff.inMinutes}m ago';
+      if (diff.inHours < 24) return '${diff.inHours}h ago';
+      return '${diff.inDays}d ago';
+    } catch (_) {
+      return '';
     }
   }
 }

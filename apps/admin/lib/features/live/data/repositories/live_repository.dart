@@ -12,6 +12,7 @@ LiveRepository liveRepository(Ref ref) =>
 
 abstract class LiveRepository {
   Future<LiveStatus> getStatus();
+  Future<List<LiveActivity>> getActivity();
   Future<void> activate();
   Future<void> deactivate();
   Future<void> checkInGuest(String guestId);
@@ -25,6 +26,15 @@ class ApiLiveRepository implements LiveRepository {
   Future<LiveStatus> getStatus() async {
     final resp = await _dio.get('/live/status');
     return LiveStatus.fromJson(resp.data as Map<String, dynamic>);
+  }
+
+  @override
+  Future<List<LiveActivity>> getActivity() async {
+    final resp = await _dio.get('/live/activity');
+    final list = (resp.data['activities'] as List<dynamic>);
+    return list
+        .map((e) => LiveActivity.fromJson(e as Map<String, dynamic>))
+        .toList();
   }
 
   @override

@@ -34,8 +34,8 @@ class LiveController extends Controller
             ->map(fn ($e) => [
                 'id'          => $e->id,
                 'title'       => $e->title,
-                'time'        => $e->time,
-                'category'    => $e->category,
+                'time'        => $e->start_time,
+                'category'    => null,
                 'location'    => $e->location,
                 'description' => $e->description,
                 'event_date'  => $e->event_date?->toDateString(),
@@ -50,8 +50,8 @@ class LiveController extends Controller
             ->map(fn ($e) => [
                 'id'          => $e->id,
                 'title'       => $e->title,
-                'time'        => $e->time,
-                'category'    => $e->category,
+                'time'        => $e->start_time,
+                'category'    => null,
                 'location'    => $e->location,
                 'event_date'  => $e->event_date?->toDateString(),
             ]);
@@ -69,6 +69,63 @@ class LiveController extends Controller
             'day_events'        => $dayEvents,
             'upcoming_events'   => $upcomingEvents,
         ]);
+    }
+
+    // GET /live/activity — unified real-time activity feed
+    public function activity(Request $request): JsonResponse
+    {
+        $wedding = $this->wedding($request);
+
+        $checkIns = $wedding->guests()
+            ->whereNotNull('checked_in_at')
+            ->orderByDesc('checked_in_at')
+            ->limit(20)
+            ->get(['first_name', 'last_name', 'checked_in_at'])
+            ->map(fn ($g) => [
+                'type'        => 'check_in',
+                'actor_name'  => trim("{$g->first_name} {$g->last_name}"),
+                'description' => 'arrived and checked in',
+                'occurred_at' => $g->checked_in_at->toIso8601String(),
+            ]);
+
+        $rsvps = $wedding->guests()
+            ->whereNotNull('rsvp_responded_at')
+            ->orderByDesc('rsvp_responded_at')
+            ->limit(20)
+            ->get(['first_name', 'last_name', 'rsvp_status', 'rsvp_responded_at'])
+            ->map(fn ($g) => [
+                'type'        => 'rsvp',
+                'actor_name'  => trim("{$g->first_name} {$g->last_name}"),
+                'description' => match ($g->rsvp_status) {
+                    'attending' => 'is attending 🎉',
+                    'declined'  => "can't make it 😢",
+                    'maybe'     => 'is still deciding',
+                    default     => 'responded',
+                },
+                'occurred_at' => $g->rsvp_responded_at->toIso8601String(),
+            ]);
+
+        $announcements = $wedding->guestMessages()
+            ->where('channel', 'in_app')
+            ->orderByDesc('created_at')
+            ->limit(10)
+            ->get(['body', 'created_at'])
+            ->map(fn ($m) => [
+                'type'        => 'announcement',
+                'actor_name'  => 'You',
+                'description' => $m->body,
+                'occurred_at' => $m->created_at->toIso8601String(),
+            ]);
+
+        $feed = collect()
+            ->merge($checkIns)
+            ->merge($rsvps)
+            ->merge($announcements)
+            ->sortByDesc('occurred_at')
+            ->values()
+            ->take(30);
+
+        return response()->json(['activities' => $feed]);
     }
 
     // POST /live/activate

@@ -86,6 +86,7 @@ Route::middleware('auth:sanctum')->group(function () {
     // Live — day-of coordination
     Route::prefix('live')->group(function () {
         Route::get('/status',       [LiveController::class, 'status']);
+        Route::get('/activity',     [LiveController::class, 'activity']);
         Route::post('/activate',    [LiveController::class, 'activate']);
         Route::post('/deactivate',  [LiveController::class, 'deactivate']);
     });

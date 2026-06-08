@@ -4,6 +4,19 @@ import '../../data/repositories/live_repository.dart';
 
 part 'live_provider.g.dart';
 
+// Polls /live/activity every 15 s — cancels automatically when no longer watched.
+@riverpod
+Stream<List<LiveActivity>> liveActivities(Ref ref) async* {
+  while (true) {
+    try {
+      yield await ref.read(liveRepositoryProvider).getActivity();
+    } catch (_) {
+      yield const [];
+    }
+    await Future.delayed(const Duration(seconds: 15));
+  }
+}
+
 enum LiveLoadStatus { loading, loaded, error }
 
 class LiveState {
