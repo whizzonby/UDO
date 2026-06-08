@@ -1,0 +1,29 @@
+@import "tailwindcss";
+
+@theme {
+  --color-udo-pink: #FF4D8C;
+  --color-udo-pink-dark: #D4006A;
+  --color-udo-blush: #FFF0F5;
+  --color-udo-cream: #FAF0EC;
+  --color-udo-teal: #2A9D8F;
+  --color-udo-grey-50: #FAFAFA;
+  --color-udo-grey-100: #F5F5F5;
+  --color-udo-grey-200: #EEEEEE;
+  --color-udo-grey-400: #BBBBBB;
+  --color-udo-grey-500: #888888;
+  --color-udo-grey-700: #333333;
+
+  --font-display: var(--font-playfair), Georgia, serif;
+  --font-body: var(--font-dm-sans), system-ui, sans-serif;
+}
+
+html {
+  font-family: var(--font-body);
+  background-color: #ffffff;
+  color: var(--color-udo-grey-700);
+}
+
+body {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}

@@ -10,6 +10,7 @@ use App\Http\Controllers\Api\Guests\GuestController;
 use App\Http\Controllers\Api\Experience\ExperienceController;
 use App\Http\Controllers\Api\Live\LiveController;
 use App\Http\Controllers\Api\Gallery\GalleryController;
+use App\Http\Controllers\Api\Guest\GuestPortalController;
 use App\Http\Controllers\Api\Registry\RegistryController;
 use App\Http\Controllers\Api\Messages\MessagesController;
 use App\Http\Controllers\Api\Plan\BudgetController;
@@ -17,6 +18,17 @@ use App\Http\Controllers\Api\Plan\TaskController;
 use App\Http\Controllers\Api\Plan\TimelineController;
 use App\Http\Controllers\Api\Plan\VendorController;
 use Illuminate\Support\Facades\Route;
+
+// ── Guest Portal (public — token-based, no auth) ──────────────────────────────
+Route::prefix('guest-portal/{token}')->group(function () {
+    Route::get('/',          [GuestPortalController::class, 'show']);
+    Route::post('/rsvp',     [GuestPortalController::class, 'rsvp']);
+    Route::get('/schedule',  [GuestPortalController::class, 'schedule']);
+    Route::get('/registry',  [GuestPortalController::class, 'registry']);
+    Route::get('/gallery',   [GuestPortalController::class, 'gallery']);
+    Route::post('/gallery',  [GuestPortalController::class, 'uploadPhoto']);
+    Route::get('/messages',  [GuestPortalController::class, 'messages']);
+});
 
 // ── Auth (public) ─────────────────────────────────────────────────────────────
 Route::prefix('auth')->group(function () {
