@@ -10,10 +10,10 @@ abstract class UserModel with _$UserModel {
     required String name,
     required String email,
     String? phone,
-    String? avatar,
-    @Default(false) bool emailVerified,
+    @JsonKey(name: 'avatar_url') String? avatarUrl,
+    @JsonKey(name: 'email_verified_at') DateTime? emailVerifiedAt,
     @Default(false) bool onboardingComplete,
-    DateTime? createdAt,
+    @JsonKey(name: 'created_at') DateTime? createdAt,
   }) = _UserModel;
 
   factory UserModel.fromJson(Map<String, dynamic> json) =>

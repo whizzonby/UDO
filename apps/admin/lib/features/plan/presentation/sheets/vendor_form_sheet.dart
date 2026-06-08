@@ -59,7 +59,7 @@ class _VendorFormSheetState extends ConsumerState<VendorFormSheet> {
             : '');
     _notesCtrl = TextEditingController(text: v?.notes ?? '');
     _category = v?.category ?? kVendorCategories.first;
-    _status = v?.status ?? VendorStatus.potential;
+    _status = v?.status ?? VendorStatus.shortlisted;
   }
 
   @override
@@ -344,9 +344,10 @@ class _VendorFormSheetState extends ConsumerState<VendorFormSheet> {
   }
 
   Color _statusColor(VendorStatus s) => switch (s) {
-        VendorStatus.potential => AppColors.grey400,
+        VendorStatus.shortlisted => AppColors.grey400,
         VendorStatus.booked => const Color(0xFFF59E0B),
         VendorStatus.confirmed => AppColors.teal,
+        VendorStatus.paid => AppColors.forestGreen,
         VendorStatus.cancelled => AppColors.dustyRose,
       };
 }

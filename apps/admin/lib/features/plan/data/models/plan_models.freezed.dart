@@ -15,7 +15,7 @@ T _$identity<T>(T value) => value;
 /// @nodoc
 mixin _$PlanTask {
 
- String get id; String get title; String get category; TaskPriority get priority; bool get isComplete; DateTime? get dueDate; String? get notes;
+ String get id; String get title; String get category; TaskPriority get priority;@JsonKey(name: 'is_complete') bool get isComplete;@JsonKey(name: 'due_date') DateTime? get dueDate;@JsonKey(name: 'description') String? get notes;
 /// Create a copy of PlanTask
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -48,7 +48,7 @@ abstract mixin class $PlanTaskCopyWith<$Res>  {
   factory $PlanTaskCopyWith(PlanTask value, $Res Function(PlanTask) _then) = _$PlanTaskCopyWithImpl;
 @useResult
 $Res call({
- String id, String title, String category, TaskPriority priority, bool isComplete, DateTime? dueDate, String? notes
+ String id, String title, String category, TaskPriority priority,@JsonKey(name: 'is_complete') bool isComplete,@JsonKey(name: 'due_date') DateTime? dueDate,@JsonKey(name: 'description') String? notes
 });
 
 
@@ -159,7 +159,7 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String id,  String title,  String category,  TaskPriority priority,  bool isComplete,  DateTime? dueDate,  String? notes)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String id,  String title,  String category,  TaskPriority priority, @JsonKey(name: 'is_complete')  bool isComplete, @JsonKey(name: 'due_date')  DateTime? dueDate, @JsonKey(name: 'description')  String? notes)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _PlanTask() when $default != null:
 return $default(_that.id,_that.title,_that.category,_that.priority,_that.isComplete,_that.dueDate,_that.notes);case _:
@@ -180,7 +180,7 @@ return $default(_that.id,_that.title,_that.category,_that.priority,_that.isCompl
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String id,  String title,  String category,  TaskPriority priority,  bool isComplete,  DateTime? dueDate,  String? notes)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String id,  String title,  String category,  TaskPriority priority, @JsonKey(name: 'is_complete')  bool isComplete, @JsonKey(name: 'due_date')  DateTime? dueDate, @JsonKey(name: 'description')  String? notes)  $default,) {final _that = this;
 switch (_that) {
 case _PlanTask():
 return $default(_that.id,_that.title,_that.category,_that.priority,_that.isComplete,_that.dueDate,_that.notes);case _:
@@ -200,7 +200,7 @@ return $default(_that.id,_that.title,_that.category,_that.priority,_that.isCompl
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String id,  String title,  String category,  TaskPriority priority,  bool isComplete,  DateTime? dueDate,  String? notes)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String id,  String title,  String category,  TaskPriority priority, @JsonKey(name: 'is_complete')  bool isComplete, @JsonKey(name: 'due_date')  DateTime? dueDate, @JsonKey(name: 'description')  String? notes)?  $default,) {final _that = this;
 switch (_that) {
 case _PlanTask() when $default != null:
 return $default(_that.id,_that.title,_that.category,_that.priority,_that.isComplete,_that.dueDate,_that.notes);case _:
@@ -215,16 +215,16 @@ return $default(_that.id,_that.title,_that.category,_that.priority,_that.isCompl
 @JsonSerializable()
 
 class _PlanTask implements PlanTask {
-  const _PlanTask({required this.id, required this.title, required this.category, this.priority = TaskPriority.medium, this.isComplete = false, this.dueDate, this.notes});
+  const _PlanTask({required this.id, required this.title, required this.category, this.priority = TaskPriority.medium, @JsonKey(name: 'is_complete') this.isComplete = false, @JsonKey(name: 'due_date') this.dueDate, @JsonKey(name: 'description') this.notes});
   factory _PlanTask.fromJson(Map<String, dynamic> json) => _$PlanTaskFromJson(json);
 
 @override final  String id;
 @override final  String title;
 @override final  String category;
 @override@JsonKey() final  TaskPriority priority;
-@override@JsonKey() final  bool isComplete;
-@override final  DateTime? dueDate;
-@override final  String? notes;
+@override@JsonKey(name: 'is_complete') final  bool isComplete;
+@override@JsonKey(name: 'due_date') final  DateTime? dueDate;
+@override@JsonKey(name: 'description') final  String? notes;
 
 /// Create a copy of PlanTask
 /// with the given fields replaced by the non-null parameter values.
@@ -259,7 +259,7 @@ abstract mixin class _$PlanTaskCopyWith<$Res> implements $PlanTaskCopyWith<$Res>
   factory _$PlanTaskCopyWith(_PlanTask value, $Res Function(_PlanTask) _then) = __$PlanTaskCopyWithImpl;
 @override @useResult
 $Res call({
- String id, String title, String category, TaskPriority priority, bool isComplete, DateTime? dueDate, String? notes
+ String id, String title, String category, TaskPriority priority,@JsonKey(name: 'is_complete') bool isComplete,@JsonKey(name: 'due_date') DateTime? dueDate,@JsonKey(name: 'description') String? notes
 });
 
 
@@ -296,7 +296,7 @@ as String?,
 /// @nodoc
 mixin _$Vendor {
 
- String get id; String get name; String get category; VendorStatus get status; String? get contactName; String? get contactPhone; String? get contactEmail; double get contractAmount; double get paidAmount; String? get notes;
+ String get id; String get name; String get category; VendorStatus get status;@JsonKey(name: 'contact_name') String? get contactName;@JsonKey(name: 'contact_phone') String? get contactPhone;@JsonKey(name: 'contact_email') String? get contactEmail;@JsonKey(name: 'contract_amount') double get contractAmount;@JsonKey(name: 'deposit_amount') double get paidAmount; String? get notes;
 /// Create a copy of Vendor
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -329,7 +329,7 @@ abstract mixin class $VendorCopyWith<$Res>  {
   factory $VendorCopyWith(Vendor value, $Res Function(Vendor) _then) = _$VendorCopyWithImpl;
 @useResult
 $Res call({
- String id, String name, String category, VendorStatus status, String? contactName, String? contactPhone, String? contactEmail, double contractAmount, double paidAmount, String? notes
+ String id, String name, String category, VendorStatus status,@JsonKey(name: 'contact_name') String? contactName,@JsonKey(name: 'contact_phone') String? contactPhone,@JsonKey(name: 'contact_email') String? contactEmail,@JsonKey(name: 'contract_amount') double contractAmount,@JsonKey(name: 'deposit_amount') double paidAmount, String? notes
 });
 
 
@@ -443,7 +443,7 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String id,  String name,  String category,  VendorStatus status,  String? contactName,  String? contactPhone,  String? contactEmail,  double contractAmount,  double paidAmount,  String? notes)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String id,  String name,  String category,  VendorStatus status, @JsonKey(name: 'contact_name')  String? contactName, @JsonKey(name: 'contact_phone')  String? contactPhone, @JsonKey(name: 'contact_email')  String? contactEmail, @JsonKey(name: 'contract_amount')  double contractAmount, @JsonKey(name: 'deposit_amount')  double paidAmount,  String? notes)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _Vendor() when $default != null:
 return $default(_that.id,_that.name,_that.category,_that.status,_that.contactName,_that.contactPhone,_that.contactEmail,_that.contractAmount,_that.paidAmount,_that.notes);case _:
@@ -464,7 +464,7 @@ return $default(_that.id,_that.name,_that.category,_that.status,_that.contactNam
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String id,  String name,  String category,  VendorStatus status,  String? contactName,  String? contactPhone,  String? contactEmail,  double contractAmount,  double paidAmount,  String? notes)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String id,  String name,  String category,  VendorStatus status, @JsonKey(name: 'contact_name')  String? contactName, @JsonKey(name: 'contact_phone')  String? contactPhone, @JsonKey(name: 'contact_email')  String? contactEmail, @JsonKey(name: 'contract_amount')  double contractAmount, @JsonKey(name: 'deposit_amount')  double paidAmount,  String? notes)  $default,) {final _that = this;
 switch (_that) {
 case _Vendor():
 return $default(_that.id,_that.name,_that.category,_that.status,_that.contactName,_that.contactPhone,_that.contactEmail,_that.contractAmount,_that.paidAmount,_that.notes);case _:
@@ -484,7 +484,7 @@ return $default(_that.id,_that.name,_that.category,_that.status,_that.contactNam
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String id,  String name,  String category,  VendorStatus status,  String? contactName,  String? contactPhone,  String? contactEmail,  double contractAmount,  double paidAmount,  String? notes)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String id,  String name,  String category,  VendorStatus status, @JsonKey(name: 'contact_name')  String? contactName, @JsonKey(name: 'contact_phone')  String? contactPhone, @JsonKey(name: 'contact_email')  String? contactEmail, @JsonKey(name: 'contract_amount')  double contractAmount, @JsonKey(name: 'deposit_amount')  double paidAmount,  String? notes)?  $default,) {final _that = this;
 switch (_that) {
 case _Vendor() when $default != null:
 return $default(_that.id,_that.name,_that.category,_that.status,_that.contactName,_that.contactPhone,_that.contactEmail,_that.contractAmount,_that.paidAmount,_that.notes);case _:
@@ -499,18 +499,18 @@ return $default(_that.id,_that.name,_that.category,_that.status,_that.contactNam
 @JsonSerializable()
 
 class _Vendor implements Vendor {
-  const _Vendor({required this.id, required this.name, required this.category, this.status = VendorStatus.potential, this.contactName, this.contactPhone, this.contactEmail, this.contractAmount = 0.0, this.paidAmount = 0.0, this.notes});
+  const _Vendor({required this.id, required this.name, required this.category, this.status = VendorStatus.shortlisted, @JsonKey(name: 'contact_name') this.contactName, @JsonKey(name: 'contact_phone') this.contactPhone, @JsonKey(name: 'contact_email') this.contactEmail, @JsonKey(name: 'contract_amount') this.contractAmount = 0.0, @JsonKey(name: 'deposit_amount') this.paidAmount = 0.0, this.notes});
   factory _Vendor.fromJson(Map<String, dynamic> json) => _$VendorFromJson(json);
 
 @override final  String id;
 @override final  String name;
 @override final  String category;
 @override@JsonKey() final  VendorStatus status;
-@override final  String? contactName;
-@override final  String? contactPhone;
-@override final  String? contactEmail;
-@override@JsonKey() final  double contractAmount;
-@override@JsonKey() final  double paidAmount;
+@override@JsonKey(name: 'contact_name') final  String? contactName;
+@override@JsonKey(name: 'contact_phone') final  String? contactPhone;
+@override@JsonKey(name: 'contact_email') final  String? contactEmail;
+@override@JsonKey(name: 'contract_amount') final  double contractAmount;
+@override@JsonKey(name: 'deposit_amount') final  double paidAmount;
 @override final  String? notes;
 
 /// Create a copy of Vendor
@@ -546,7 +546,7 @@ abstract mixin class _$VendorCopyWith<$Res> implements $VendorCopyWith<$Res> {
   factory _$VendorCopyWith(_Vendor value, $Res Function(_Vendor) _then) = __$VendorCopyWithImpl;
 @override @useResult
 $Res call({
- String id, String name, String category, VendorStatus status, String? contactName, String? contactPhone, String? contactEmail, double contractAmount, double paidAmount, String? notes
+ String id, String name, String category, VendorStatus status,@JsonKey(name: 'contact_name') String? contactName,@JsonKey(name: 'contact_phone') String? contactPhone,@JsonKey(name: 'contact_email') String? contactEmail,@JsonKey(name: 'contract_amount') double contractAmount,@JsonKey(name: 'deposit_amount') double paidAmount, String? notes
 });
 
 
@@ -586,7 +586,7 @@ as String?,
 /// @nodoc
 mixin _$TimelineEvent {
 
- String get id; String get title; DateTime get date; String? get time; String? get description; String? get category; String? get location; bool get isCompleted;
+ String get id; String get title;@JsonKey(name: 'event_date') DateTime get date;@JsonKey(name: 'start_time') String? get time;@JsonKey(name: 'end_time') String? get endTime; String? get description; String? get category; String? get location; bool get isCompleted;
 /// Create a copy of TimelineEvent
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -599,16 +599,16 @@ $TimelineEventCopyWith<TimelineEvent> get copyWith => _$TimelineEventCopyWithImp
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is TimelineEvent&&(identical(other.id, id) || other.id == id)&&(identical(other.title, title) || other.title == title)&&(identical(other.date, date) || other.date == date)&&(identical(other.time, time) || other.time == time)&&(identical(other.description, description) || other.description == description)&&(identical(other.category, category) || other.category == category)&&(identical(other.location, location) || other.location == location)&&(identical(other.isCompleted, isCompleted) || other.isCompleted == isCompleted));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is TimelineEvent&&(identical(other.id, id) || other.id == id)&&(identical(other.title, title) || other.title == title)&&(identical(other.date, date) || other.date == date)&&(identical(other.time, time) || other.time == time)&&(identical(other.endTime, endTime) || other.endTime == endTime)&&(identical(other.description, description) || other.description == description)&&(identical(other.category, category) || other.category == category)&&(identical(other.location, location) || other.location == location)&&(identical(other.isCompleted, isCompleted) || other.isCompleted == isCompleted));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,id,title,date,time,description,category,location,isCompleted);
+int get hashCode => Object.hash(runtimeType,id,title,date,time,endTime,description,category,location,isCompleted);
 
 @override
 String toString() {
-  return 'TimelineEvent(id: $id, title: $title, date: $date, time: $time, description: $description, category: $category, location: $location, isCompleted: $isCompleted)';
+  return 'TimelineEvent(id: $id, title: $title, date: $date, time: $time, endTime: $endTime, description: $description, category: $category, location: $location, isCompleted: $isCompleted)';
 }
 
 
@@ -619,7 +619,7 @@ abstract mixin class $TimelineEventCopyWith<$Res>  {
   factory $TimelineEventCopyWith(TimelineEvent value, $Res Function(TimelineEvent) _then) = _$TimelineEventCopyWithImpl;
 @useResult
 $Res call({
- String id, String title, DateTime date, String? time, String? description, String? category, String? location, bool isCompleted
+ String id, String title,@JsonKey(name: 'event_date') DateTime date,@JsonKey(name: 'start_time') String? time,@JsonKey(name: 'end_time') String? endTime, String? description, String? category, String? location, bool isCompleted
 });
 
 
@@ -636,12 +636,13 @@ class _$TimelineEventCopyWithImpl<$Res>
 
 /// Create a copy of TimelineEvent
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? title = null,Object? date = null,Object? time = freezed,Object? description = freezed,Object? category = freezed,Object? location = freezed,Object? isCompleted = null,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? title = null,Object? date = null,Object? time = freezed,Object? endTime = freezed,Object? description = freezed,Object? category = freezed,Object? location = freezed,Object? isCompleted = null,}) {
   return _then(_self.copyWith(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String,title: null == title ? _self.title : title // ignore: cast_nullable_to_non_nullable
 as String,date: null == date ? _self.date : date // ignore: cast_nullable_to_non_nullable
 as DateTime,time: freezed == time ? _self.time : time // ignore: cast_nullable_to_non_nullable
+as String?,endTime: freezed == endTime ? _self.endTime : endTime // ignore: cast_nullable_to_non_nullable
 as String?,description: freezed == description ? _self.description : description // ignore: cast_nullable_to_non_nullable
 as String?,category: freezed == category ? _self.category : category // ignore: cast_nullable_to_non_nullable
 as String?,location: freezed == location ? _self.location : location // ignore: cast_nullable_to_non_nullable
@@ -731,10 +732,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String id,  String title,  DateTime date,  String? time,  String? description,  String? category,  String? location,  bool isCompleted)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String id,  String title, @JsonKey(name: 'event_date')  DateTime date, @JsonKey(name: 'start_time')  String? time, @JsonKey(name: 'end_time')  String? endTime,  String? description,  String? category,  String? location,  bool isCompleted)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _TimelineEvent() when $default != null:
-return $default(_that.id,_that.title,_that.date,_that.time,_that.description,_that.category,_that.location,_that.isCompleted);case _:
+return $default(_that.id,_that.title,_that.date,_that.time,_that.endTime,_that.description,_that.category,_that.location,_that.isCompleted);case _:
   return orElse();
 
 }
@@ -752,10 +753,10 @@ return $default(_that.id,_that.title,_that.date,_that.time,_that.description,_th
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String id,  String title,  DateTime date,  String? time,  String? description,  String? category,  String? location,  bool isCompleted)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String id,  String title, @JsonKey(name: 'event_date')  DateTime date, @JsonKey(name: 'start_time')  String? time, @JsonKey(name: 'end_time')  String? endTime,  String? description,  String? category,  String? location,  bool isCompleted)  $default,) {final _that = this;
 switch (_that) {
 case _TimelineEvent():
-return $default(_that.id,_that.title,_that.date,_that.time,_that.description,_that.category,_that.location,_that.isCompleted);case _:
+return $default(_that.id,_that.title,_that.date,_that.time,_that.endTime,_that.description,_that.category,_that.location,_that.isCompleted);case _:
   throw StateError('Unexpected subclass');
 
 }
@@ -772,10 +773,10 @@ return $default(_that.id,_that.title,_that.date,_that.time,_that.description,_th
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String id,  String title,  DateTime date,  String? time,  String? description,  String? category,  String? location,  bool isCompleted)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String id,  String title, @JsonKey(name: 'event_date')  DateTime date, @JsonKey(name: 'start_time')  String? time, @JsonKey(name: 'end_time')  String? endTime,  String? description,  String? category,  String? location,  bool isCompleted)?  $default,) {final _that = this;
 switch (_that) {
 case _TimelineEvent() when $default != null:
-return $default(_that.id,_that.title,_that.date,_that.time,_that.description,_that.category,_that.location,_that.isCompleted);case _:
+return $default(_that.id,_that.title,_that.date,_that.time,_that.endTime,_that.description,_that.category,_that.location,_that.isCompleted);case _:
   return null;
 
 }
@@ -787,13 +788,14 @@ return $default(_that.id,_that.title,_that.date,_that.time,_that.description,_th
 @JsonSerializable()
 
 class _TimelineEvent implements TimelineEvent {
-  const _TimelineEvent({required this.id, required this.title, required this.date, this.time, this.description, this.category, this.location, this.isCompleted = false});
+  const _TimelineEvent({required this.id, required this.title, @JsonKey(name: 'event_date') required this.date, @JsonKey(name: 'start_time') this.time, @JsonKey(name: 'end_time') this.endTime, this.description, this.category, this.location, this.isCompleted = false});
   factory _TimelineEvent.fromJson(Map<String, dynamic> json) => _$TimelineEventFromJson(json);
 
 @override final  String id;
 @override final  String title;
-@override final  DateTime date;
-@override final  String? time;
+@override@JsonKey(name: 'event_date') final  DateTime date;
+@override@JsonKey(name: 'start_time') final  String? time;
+@override@JsonKey(name: 'end_time') final  String? endTime;
 @override final  String? description;
 @override final  String? category;
 @override final  String? location;
@@ -812,16 +814,16 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _TimelineEvent&&(identical(other.id, id) || other.id == id)&&(identical(other.title, title) || other.title == title)&&(identical(other.date, date) || other.date == date)&&(identical(other.time, time) || other.time == time)&&(identical(other.description, description) || other.description == description)&&(identical(other.category, category) || other.category == category)&&(identical(other.location, location) || other.location == location)&&(identical(other.isCompleted, isCompleted) || other.isCompleted == isCompleted));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _TimelineEvent&&(identical(other.id, id) || other.id == id)&&(identical(other.title, title) || other.title == title)&&(identical(other.date, date) || other.date == date)&&(identical(other.time, time) || other.time == time)&&(identical(other.endTime, endTime) || other.endTime == endTime)&&(identical(other.description, description) || other.description == description)&&(identical(other.category, category) || other.category == category)&&(identical(other.location, location) || other.location == location)&&(identical(other.isCompleted, isCompleted) || other.isCompleted == isCompleted));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,id,title,date,time,description,category,location,isCompleted);
+int get hashCode => Object.hash(runtimeType,id,title,date,time,endTime,description,category,location,isCompleted);
 
 @override
 String toString() {
-  return 'TimelineEvent(id: $id, title: $title, date: $date, time: $time, description: $description, category: $category, location: $location, isCompleted: $isCompleted)';
+  return 'TimelineEvent(id: $id, title: $title, date: $date, time: $time, endTime: $endTime, description: $description, category: $category, location: $location, isCompleted: $isCompleted)';
 }
 
 
@@ -832,7 +834,7 @@ abstract mixin class _$TimelineEventCopyWith<$Res> implements $TimelineEventCopy
   factory _$TimelineEventCopyWith(_TimelineEvent value, $Res Function(_TimelineEvent) _then) = __$TimelineEventCopyWithImpl;
 @override @useResult
 $Res call({
- String id, String title, DateTime date, String? time, String? description, String? category, String? location, bool isCompleted
+ String id, String title,@JsonKey(name: 'event_date') DateTime date,@JsonKey(name: 'start_time') String? time,@JsonKey(name: 'end_time') String? endTime, String? description, String? category, String? location, bool isCompleted
 });
 
 
@@ -849,12 +851,13 @@ class __$TimelineEventCopyWithImpl<$Res>
 
 /// Create a copy of TimelineEvent
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? id = null,Object? title = null,Object? date = null,Object? time = freezed,Object? description = freezed,Object? category = freezed,Object? location = freezed,Object? isCompleted = null,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? id = null,Object? title = null,Object? date = null,Object? time = freezed,Object? endTime = freezed,Object? description = freezed,Object? category = freezed,Object? location = freezed,Object? isCompleted = null,}) {
   return _then(_TimelineEvent(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String,title: null == title ? _self.title : title // ignore: cast_nullable_to_non_nullable
 as String,date: null == date ? _self.date : date // ignore: cast_nullable_to_non_nullable
 as DateTime,time: freezed == time ? _self.time : time // ignore: cast_nullable_to_non_nullable
+as String?,endTime: freezed == endTime ? _self.endTime : endTime // ignore: cast_nullable_to_non_nullable
 as String?,description: freezed == description ? _self.description : description // ignore: cast_nullable_to_non_nullable
 as String?,category: freezed == category ? _self.category : category // ignore: cast_nullable_to_non_nullable
 as String?,location: freezed == location ? _self.location : location // ignore: cast_nullable_to_non_nullable
@@ -870,7 +873,7 @@ as bool,
 /// @nodoc
 mixin _$BudgetItem {
 
- String get id; String get title; String get category; double get budgetedAmount; double get paidAmount; String? get vendorId; String? get notes;
+ String get id;@JsonKey(name: 'name') String get title; String get category;@JsonKey(name: 'budgeted_amount') double get budgetedAmount;@JsonKey(name: 'actual_amount') double get paidAmount;@JsonKey(name: 'vendor_id') String? get vendorId; String? get notes;
 /// Create a copy of BudgetItem
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -903,7 +906,7 @@ abstract mixin class $BudgetItemCopyWith<$Res>  {
   factory $BudgetItemCopyWith(BudgetItem value, $Res Function(BudgetItem) _then) = _$BudgetItemCopyWithImpl;
 @useResult
 $Res call({
- String id, String title, String category, double budgetedAmount, double paidAmount, String? vendorId, String? notes
+ String id,@JsonKey(name: 'name') String title, String category,@JsonKey(name: 'budgeted_amount') double budgetedAmount,@JsonKey(name: 'actual_amount') double paidAmount,@JsonKey(name: 'vendor_id') String? vendorId, String? notes
 });
 
 
@@ -1014,7 +1017,7 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String id,  String title,  String category,  double budgetedAmount,  double paidAmount,  String? vendorId,  String? notes)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String id, @JsonKey(name: 'name')  String title,  String category, @JsonKey(name: 'budgeted_amount')  double budgetedAmount, @JsonKey(name: 'actual_amount')  double paidAmount, @JsonKey(name: 'vendor_id')  String? vendorId,  String? notes)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _BudgetItem() when $default != null:
 return $default(_that.id,_that.title,_that.category,_that.budgetedAmount,_that.paidAmount,_that.vendorId,_that.notes);case _:
@@ -1035,7 +1038,7 @@ return $default(_that.id,_that.title,_that.category,_that.budgetedAmount,_that.p
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String id,  String title,  String category,  double budgetedAmount,  double paidAmount,  String? vendorId,  String? notes)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String id, @JsonKey(name: 'name')  String title,  String category, @JsonKey(name: 'budgeted_amount')  double budgetedAmount, @JsonKey(name: 'actual_amount')  double paidAmount, @JsonKey(name: 'vendor_id')  String? vendorId,  String? notes)  $default,) {final _that = this;
 switch (_that) {
 case _BudgetItem():
 return $default(_that.id,_that.title,_that.category,_that.budgetedAmount,_that.paidAmount,_that.vendorId,_that.notes);case _:
@@ -1055,7 +1058,7 @@ return $default(_that.id,_that.title,_that.category,_that.budgetedAmount,_that.p
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String id,  String title,  String category,  double budgetedAmount,  double paidAmount,  String? vendorId,  String? notes)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String id, @JsonKey(name: 'name')  String title,  String category, @JsonKey(name: 'budgeted_amount')  double budgetedAmount, @JsonKey(name: 'actual_amount')  double paidAmount, @JsonKey(name: 'vendor_id')  String? vendorId,  String? notes)?  $default,) {final _that = this;
 switch (_that) {
 case _BudgetItem() when $default != null:
 return $default(_that.id,_that.title,_that.category,_that.budgetedAmount,_that.paidAmount,_that.vendorId,_that.notes);case _:
@@ -1070,15 +1073,15 @@ return $default(_that.id,_that.title,_that.category,_that.budgetedAmount,_that.p
 @JsonSerializable()
 
 class _BudgetItem implements BudgetItem {
-  const _BudgetItem({required this.id, required this.title, required this.category, this.budgetedAmount = 0.0, this.paidAmount = 0.0, this.vendorId, this.notes});
+  const _BudgetItem({required this.id, @JsonKey(name: 'name') required this.title, required this.category, @JsonKey(name: 'budgeted_amount') this.budgetedAmount = 0.0, @JsonKey(name: 'actual_amount') this.paidAmount = 0.0, @JsonKey(name: 'vendor_id') this.vendorId, this.notes});
   factory _BudgetItem.fromJson(Map<String, dynamic> json) => _$BudgetItemFromJson(json);
 
 @override final  String id;
-@override final  String title;
+@override@JsonKey(name: 'name') final  String title;
 @override final  String category;
-@override@JsonKey() final  double budgetedAmount;
-@override@JsonKey() final  double paidAmount;
-@override final  String? vendorId;
+@override@JsonKey(name: 'budgeted_amount') final  double budgetedAmount;
+@override@JsonKey(name: 'actual_amount') final  double paidAmount;
+@override@JsonKey(name: 'vendor_id') final  String? vendorId;
 @override final  String? notes;
 
 /// Create a copy of BudgetItem
@@ -1114,7 +1117,7 @@ abstract mixin class _$BudgetItemCopyWith<$Res> implements $BudgetItemCopyWith<$
   factory _$BudgetItemCopyWith(_BudgetItem value, $Res Function(_BudgetItem) _then) = __$BudgetItemCopyWithImpl;
 @override @useResult
 $Res call({
- String id, String title, String category, double budgetedAmount, double paidAmount, String? vendorId, String? notes
+ String id,@JsonKey(name: 'name') String title, String category,@JsonKey(name: 'budgeted_amount') double budgetedAmount,@JsonKey(name: 'actual_amount') double paidAmount,@JsonKey(name: 'vendor_id') String? vendorId, String? notes
 });
 
 
@@ -1350,7 +1353,7 @@ return $default(_that.tasks,_that.vendors,_that.budgetItems,_that.timeline,_that
 @JsonSerializable()
 
 class _PlanData implements PlanData {
-  const _PlanData({required final  List<PlanTask> tasks, required final  List<Vendor> vendors, required final  List<BudgetItem> budgetItems, required final  List<TimelineEvent> timeline, this.totalBudget = 45000.0, this.currency = 'USD'}): _tasks = tasks,_vendors = vendors,_budgetItems = budgetItems,_timeline = timeline;
+  const _PlanData({required final  List<PlanTask> tasks, required final  List<Vendor> vendors, required final  List<BudgetItem> budgetItems, required final  List<TimelineEvent> timeline, this.totalBudget = 0.0, this.currency = 'USD'}): _tasks = tasks,_vendors = vendors,_budgetItems = budgetItems,_timeline = timeline;
   factory _PlanData.fromJson(Map<String, dynamic> json) => _$PlanDataFromJson(json);
 
  final  List<PlanTask> _tasks;

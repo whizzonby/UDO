@@ -11,12 +11,14 @@ _UserModel _$UserModelFromJson(Map<String, dynamic> json) => _UserModel(
   name: json['name'] as String,
   email: json['email'] as String,
   phone: json['phone'] as String?,
-  avatar: json['avatar'] as String?,
-  emailVerified: json['emailVerified'] as bool? ?? false,
-  onboardingComplete: json['onboardingComplete'] as bool? ?? false,
-  createdAt: json['createdAt'] == null
+  avatarUrl: json['avatar_url'] as String?,
+  emailVerifiedAt: json['email_verified_at'] == null
       ? null
-      : DateTime.parse(json['createdAt'] as String),
+      : DateTime.parse(json['email_verified_at'] as String),
+  onboardingComplete: json['onboardingComplete'] as bool? ?? false,
+  createdAt: json['created_at'] == null
+      ? null
+      : DateTime.parse(json['created_at'] as String),
 );
 
 Map<String, dynamic> _$UserModelToJson(_UserModel instance) =>
@@ -25,8 +27,8 @@ Map<String, dynamic> _$UserModelToJson(_UserModel instance) =>
       'name': instance.name,
       'email': instance.email,
       'phone': instance.phone,
-      'avatar': instance.avatar,
-      'emailVerified': instance.emailVerified,
+      'avatar_url': instance.avatarUrl,
+      'email_verified_at': instance.emailVerifiedAt?.toIso8601String(),
       'onboardingComplete': instance.onboardingComplete,
-      'createdAt': instance.createdAt?.toIso8601String(),
+      'created_at': instance.createdAt?.toIso8601String(),
     };

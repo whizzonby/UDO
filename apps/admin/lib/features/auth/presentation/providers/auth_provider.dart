@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:sign_in_with_apple/sign_in_with_apple.dart';
+import '../../../onboarding/data/models/onboarding_data.dart';
 import '../../data/datasources/auth_remote_datasource.dart';
 import '../../domain/auth_state.dart';
 
@@ -156,6 +157,18 @@ class AuthStateNotifier extends _$AuthStateNotifier {
 
   void completeOnboarding(dynamic user) {
     state = AuthState.authenticated(user);
+  }
+
+  Future<void> submitOnboarding(OnboardingData data) async {
+    state = const AuthState.loading();
+    try {
+      final datasource = ref.read(authRemoteDatasourceProvider);
+      await datasource.submitOnboarding(data);
+      await _checkStoredAuth();
+    } catch (e) {
+      state = const AuthState.onboarding();
+      rethrow;
+    }
   }
 }
 

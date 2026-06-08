@@ -228,9 +228,10 @@ class _VendorCard extends ConsumerWidget {
   final Vendor vendor;
 
   static const _statusColors = {
-    VendorStatus.potential: AppColors.grey400,
+    VendorStatus.shortlisted: AppColors.grey400,
     VendorStatus.booked: Color(0xFFF59E0B),
     VendorStatus.confirmed: AppColors.teal,
+    VendorStatus.paid: AppColors.forestGreen,
     VendorStatus.cancelled: AppColors.dustyRose,
   };
 

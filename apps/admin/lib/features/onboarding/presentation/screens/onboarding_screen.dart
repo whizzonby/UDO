@@ -7,6 +7,7 @@ import '../../../../core/constants/app_spacing.dart';
 import '../../../../core/constants/app_typography.dart';
 import '../../../../core/widgets/primary_button.dart';
 import '../../../../core/widgets/udo_logo.dart';
+import '../../../auth/presentation/providers/auth_provider.dart';
 import '../providers/onboarding_provider.dart';
 import '../widgets/onboarding_progress_bar.dart';
 import '../widgets/selection_card.dart';
@@ -788,11 +789,39 @@ class _WeddingVibesStep extends ConsumerWidget {
 
 // ─── Step 13: All set ─────────────────────────────────────────────────────
 
-class _AllSetStep extends ConsumerWidget {
+class _AllSetStep extends ConsumerStatefulWidget {
   const _AllSetStep();
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<_AllSetStep> createState() => _AllSetStepState();
+}
+
+class _AllSetStepState extends ConsumerState<_AllSetStep> {
+  bool _submitting = false;
+  String? _error;
+
+  Future<void> _submit() async {
+    setState(() {
+      _submitting = true;
+      _error = null;
+    });
+    try {
+      final data = ref.read(onboardingNotifierProvider);
+      await ref
+          .read(authStateNotifierProvider.notifier)
+          .submitOnboarding(data);
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _submitting = false;
+          _error = 'Something went wrong. Please try again.';
+        });
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final data = ref.watch(onboardingNotifierProvider);
 
     return Padding(
@@ -815,10 +844,20 @@ class _AllSetStep extends ConsumerWidget {
             style: AppTypography.bodyLarge,
             textAlign: TextAlign.center,
           ),
+          if (_error != null) ...[
+            const SizedBox(height: 16),
+            Text(
+              _error!,
+              style: AppTypography.bodyMedium
+                  .copyWith(color: AppColors.dustyRose),
+              textAlign: TextAlign.center,
+            ),
+          ],
           const SizedBox(height: 48),
           PrimaryButton(
-            label: 'Take me to my wedding',
-            onPressed: () {/* TODO: submit onboarding → API, then navigate to Home */},
+            label:
+                _submitting ? 'Setting up your wedding…' : 'Take me to my wedding',
+            onPressed: _submitting ? null : _submit,
           ),
         ],
       ),

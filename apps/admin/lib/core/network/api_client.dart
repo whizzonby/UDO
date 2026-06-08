@@ -8,7 +8,7 @@ part 'api_client.g.dart';
 
 const String _baseUrl = String.fromEnvironment(
   'API_BASE_URL',
-  defaultValue: 'http://localhost:8000/api/v1',
+  defaultValue: 'http://localhost:8000/api',
 );
 
 const String _tokenKey = 'udo_auth_token';

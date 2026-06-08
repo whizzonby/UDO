@@ -42,21 +42,21 @@ class PlanNotifier extends _$PlanNotifier {
   }
 
   Future<void> addTask(PlanTask task) async {
-    await ref.read(planRepositoryProvider).addTask(task);
+    final created = await ref.read(planRepositoryProvider).addTask(task);
     final loaded = state.mapOrNull(loaded: (s) => s);
     if (loaded != null) {
       state = PlanState.loaded(
-        loaded.data.copyWith(tasks: [...loaded.data.tasks, task]),
+        loaded.data.copyWith(tasks: [...loaded.data.tasks, created]),
       );
     }
   }
 
   Future<void> updateTask(PlanTask task) async {
-    await ref.read(planRepositoryProvider).updateTask(task);
+    final updated = await ref.read(planRepositoryProvider).updateTask(task);
     final loaded = state.mapOrNull(loaded: (s) => s);
     if (loaded != null) {
       final tasks =
-          loaded.data.tasks.map((t) => t.id == task.id ? task : t).toList();
+          loaded.data.tasks.map((t) => t.id == task.id ? updated : t).toList();
       state = PlanState.loaded(loaded.data.copyWith(tasks: tasks));
     }
   }
@@ -74,21 +74,22 @@ class PlanNotifier extends _$PlanNotifier {
   // ─── Vendor mutations ───────────────────────────────────────────────────────
 
   Future<void> addVendor(Vendor vendor) async {
-    await ref.read(planRepositoryProvider).addVendor(vendor);
+    final created = await ref.read(planRepositoryProvider).addVendor(vendor);
     final loaded = state.mapOrNull(loaded: (s) => s);
     if (loaded != null) {
       state = PlanState.loaded(
-        loaded.data.copyWith(vendors: [...loaded.data.vendors, vendor]),
+        loaded.data.copyWith(vendors: [...loaded.data.vendors, created]),
       );
     }
   }
 
   Future<void> updateVendor(Vendor vendor) async {
-    await ref.read(planRepositoryProvider).updateVendor(vendor);
+    final updated =
+        await ref.read(planRepositoryProvider).updateVendor(vendor);
     final loaded = state.mapOrNull(loaded: (s) => s);
     if (loaded != null) {
       final vendors = loaded.data.vendors
-          .map((v) => v.id == vendor.id ? vendor : v)
+          .map((v) => v.id == vendor.id ? updated : v)
           .toList();
       state = PlanState.loaded(loaded.data.copyWith(vendors: vendors));
     }
@@ -107,22 +108,24 @@ class PlanNotifier extends _$PlanNotifier {
   // ─── Budget mutations ───────────────────────────────────────────────────────
 
   Future<void> addBudgetItem(BudgetItem item) async {
-    await ref.read(planRepositoryProvider).addBudgetItem(item);
+    final created =
+        await ref.read(planRepositoryProvider).addBudgetItem(item);
     final loaded = state.mapOrNull(loaded: (s) => s);
     if (loaded != null) {
       state = PlanState.loaded(
         loaded.data
-            .copyWith(budgetItems: [...loaded.data.budgetItems, item]),
+            .copyWith(budgetItems: [...loaded.data.budgetItems, created]),
       );
     }
   }
 
   Future<void> updateBudgetItem(BudgetItem item) async {
-    await ref.read(planRepositoryProvider).updateBudgetItem(item);
+    final updated =
+        await ref.read(planRepositoryProvider).updateBudgetItem(item);
     final loaded = state.mapOrNull(loaded: (s) => s);
     if (loaded != null) {
       final items = loaded.data.budgetItems
-          .map((b) => b.id == item.id ? item : b)
+          .map((b) => b.id == item.id ? updated : b)
           .toList();
       state = PlanState.loaded(loaded.data.copyWith(budgetItems: items));
     }
@@ -142,10 +145,11 @@ class PlanNotifier extends _$PlanNotifier {
   // ─── Timeline mutations ─────────────────────────────────────────────────────
 
   Future<void> addTimelineEvent(TimelineEvent event) async {
-    await ref.read(planRepositoryProvider).addTimelineEvent(event);
+    final created =
+        await ref.read(planRepositoryProvider).addTimelineEvent(event);
     final loaded = state.mapOrNull(loaded: (s) => s);
     if (loaded != null) {
-      final events = [...loaded.data.timeline, event]
+      final events = [...loaded.data.timeline, created]
         ..sort((a, b) => a.date.compareTo(b.date));
       state = PlanState.loaded(loaded.data.copyWith(timeline: events));
     }

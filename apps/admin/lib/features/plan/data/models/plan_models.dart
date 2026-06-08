@@ -47,9 +47,9 @@ abstract class PlanTask with _$PlanTask {
     required String title,
     required String category,
     @Default(TaskPriority.medium) TaskPriority priority,
-    @Default(false) bool isComplete,
-    DateTime? dueDate,
-    String? notes,
+    @JsonKey(name: 'is_complete') @Default(false) bool isComplete,
+    @JsonKey(name: 'due_date') DateTime? dueDate,
+    @JsonKey(name: 'description') String? notes,
   }) = _PlanTask;
 
   factory PlanTask.fromJson(Map<String, dynamic> json) =>
@@ -74,12 +74,12 @@ abstract class Vendor with _$Vendor {
     required String id,
     required String name,
     required String category,
-    @Default(VendorStatus.potential) VendorStatus status,
-    String? contactName,
-    String? contactPhone,
-    String? contactEmail,
-    @Default(0.0) double contractAmount,
-    @Default(0.0) double paidAmount,
+    @Default(VendorStatus.shortlisted) VendorStatus status,
+    @JsonKey(name: 'contact_name') String? contactName,
+    @JsonKey(name: 'contact_phone') String? contactPhone,
+    @JsonKey(name: 'contact_email') String? contactEmail,
+    @JsonKey(name: 'contract_amount') @Default(0.0) double contractAmount,
+    @JsonKey(name: 'deposit_amount') @Default(0.0) double paidAmount,
     String? notes,
   }) = _Vendor;
 
@@ -89,18 +89,20 @@ abstract class Vendor with _$Vendor {
 
 @JsonEnum(valueField: 'value')
 enum VendorStatus {
-  potential('potential'),
+  shortlisted('shortlisted'),
   booked('booked'),
   confirmed('confirmed'),
+  paid('paid'),
   cancelled('cancelled');
 
   const VendorStatus(this.value);
   final String value;
 
   String get label => switch (this) {
-        VendorStatus.potential => 'Potential',
+        VendorStatus.shortlisted => 'Shortlisted',
         VendorStatus.booked => 'Booked',
         VendorStatus.confirmed => 'Confirmed',
+        VendorStatus.paid => 'Paid',
         VendorStatus.cancelled => 'Cancelled',
       };
 }
@@ -112,8 +114,9 @@ abstract class TimelineEvent with _$TimelineEvent {
   const factory TimelineEvent({
     required String id,
     required String title,
-    required DateTime date,
-    String? time,
+    @JsonKey(name: 'event_date') required DateTime date,
+    @JsonKey(name: 'start_time') String? time,
+    @JsonKey(name: 'end_time') String? endTime,
     String? description,
     String? category,
     String? location,
@@ -130,11 +133,11 @@ abstract class TimelineEvent with _$TimelineEvent {
 abstract class BudgetItem with _$BudgetItem {
   const factory BudgetItem({
     required String id,
-    required String title,
+    @JsonKey(name: 'name') required String title,
     required String category,
-    @Default(0.0) double budgetedAmount,
-    @Default(0.0) double paidAmount,
-    String? vendorId,
+    @JsonKey(name: 'budgeted_amount') @Default(0.0) double budgetedAmount,
+    @JsonKey(name: 'actual_amount') @Default(0.0) double paidAmount,
+    @JsonKey(name: 'vendor_id') String? vendorId,
     String? notes,
   }) = _BudgetItem;
 
@@ -151,7 +154,7 @@ abstract class PlanData with _$PlanData {
     required List<Vendor> vendors,
     required List<BudgetItem> budgetItems,
     required List<TimelineEvent> timeline,
-    @Default(45000.0) double totalBudget,
+    @Default(0.0) double totalBudget,
     @Default('USD') String currency,
   }) = _PlanData;
 
