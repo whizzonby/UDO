@@ -47,6 +47,7 @@ class AuthRemoteDatasource {
       'name': name,
       'email': email,
       'password': password,
+      'password_confirmation': password,
     });
     return _parseAuthResponse(response.data as Map<String, dynamic>);
   }
