@@ -1,4 +1,3 @@
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import '../../data/repositories/guests_repository.dart';
 import '../../domain/guests_state.dart';
@@ -92,6 +91,100 @@ class GuestsOverviewNotifier extends _$GuestsOverviewNotifier {
   }
 
   Future<void> refresh() async => _load();
+}
+
+// ─── Invitations ──────────────────────────────────────────────────────────────
+
+enum InvitationsStatus { loading, loaded, error, busy }
+
+class InvitationsState {
+  const InvitationsState({
+    this.status = InvitationsStatus.loading,
+    this.guests = const [],
+    this.error,
+  });
+
+  final InvitationsStatus status;
+  final List<GuestModel> guests;
+  final String? error;
+
+  List<GuestModel> get notInvited =>
+      guests.where((g) => g.invitationSentAt == null).toList();
+  List<GuestModel> get awaiting => guests
+      .where((g) => g.invitationSentAt != null && g.rsvpRespondedAt == null)
+      .toList();
+  List<GuestModel> get responded =>
+      guests.where((g) => g.rsvpRespondedAt != null).toList();
+
+  InvitationsState copyWith({
+    InvitationsStatus? status,
+    List<GuestModel>? guests,
+    String? error,
+  }) =>
+      InvitationsState(
+        status: status ?? this.status,
+        guests: guests ?? this.guests,
+        error: error ?? this.error,
+      );
+}
+
+@riverpod
+class InvitationsNotifier extends _$InvitationsNotifier {
+  @override
+  InvitationsState build() {
+    _load();
+    return const InvitationsState();
+  }
+
+  Future<void> _load() async {
+    try {
+      final result =
+          await ref.read(guestsRepositoryProvider).getGuests();
+      state = InvitationsState(
+        status: InvitationsStatus.loaded,
+        guests: result.guests,
+      );
+    } catch (e) {
+      state = InvitationsState(
+        status: InvitationsStatus.error,
+        error: e.toString(),
+      );
+    }
+  }
+
+  Future<void> refresh() => _load();
+
+  Future<void> markInvited(String id) async {
+    state = state.copyWith(status: InvitationsStatus.busy);
+    try {
+      final updated =
+          await ref.read(guestsRepositoryProvider).markInvited(id);
+      state = state.copyWith(
+        status: InvitationsStatus.loaded,
+        guests: state.guests
+            .map((g) => g.id == id ? updated : g)
+            .toList(),
+      );
+    } catch (_) {
+      state = state.copyWith(status: InvitationsStatus.loaded);
+    }
+  }
+
+  Future<void> bulkInviteAll() async {
+    state = state.copyWith(status: InvitationsStatus.busy);
+    try {
+      await ref
+          .read(guestsRepositoryProvider)
+          .bulkInvite(inviteAllUninvited: true);
+      await _load();
+    } catch (_) {
+      state = state.copyWith(status: InvitationsStatus.loaded);
+    }
+  }
+
+  Future<String> regenerateToken(String id) async {
+    return ref.read(guestsRepositoryProvider).regenerateToken(id);
+  }
 }
 
 // ─── Guest Detail ─────────────────────────────────────────────────────────────

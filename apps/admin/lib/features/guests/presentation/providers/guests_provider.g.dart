@@ -7,7 +7,7 @@ part of 'guests_provider.dart';
 // **************************************************************************
 
 String _$guestsListNotifierHash() =>
-    r'39545e15d7257e079dba932aaf89930a5e28c87b';
+    r'f3c3cca839ad1be4e2a137845f5aba2be252cc7d';
 
 /// See also [GuestsListNotifier].
 @ProviderFor(GuestsListNotifier)
@@ -43,8 +43,25 @@ final guestsOverviewNotifierProvider =
     );
 
 typedef _$GuestsOverviewNotifier = AutoDisposeNotifier<GuestsOverviewState>;
+String _$invitationsNotifierHash() =>
+    r'8c4439373c306d590926b45c29c91c5b8bff3f3a';
+
+/// See also [InvitationsNotifier].
+@ProviderFor(InvitationsNotifier)
+final invitationsNotifierProvider =
+    AutoDisposeNotifierProvider<InvitationsNotifier, InvitationsState>.internal(
+      InvitationsNotifier.new,
+      name: r'invitationsNotifierProvider',
+      debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
+          ? null
+          : _$invitationsNotifierHash,
+      dependencies: null,
+      allTransitiveDependencies: null,
+    );
+
+typedef _$InvitationsNotifier = AutoDisposeNotifier<InvitationsState>;
 String _$guestDetailNotifierHash() =>
-    r'6913a14e5065fd96978fed3a42ae7472a364d16b';
+    r'c8b573e22bb94f56d610831e36a13fa734af7a99';
 
 /// See also [GuestDetailNotifier].
 @ProviderFor(GuestDetailNotifier)

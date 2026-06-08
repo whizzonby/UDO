@@ -23,6 +23,7 @@ abstract class GuestsRepository {
   Future<void> deleteGuest(String id);
   Future<GuestModel> markInvited(String id);
   Future<String> regenerateToken(String id);
+  Future<int> bulkInvite({List<String>? guestIds, bool inviteAllUninvited = false});
 }
 
 class ApiGuestsRepository implements GuestsRepository {
@@ -110,5 +111,17 @@ class ApiGuestsRepository implements GuestsRepository {
   Future<String> regenerateToken(String id) async {
     final resp = await _dio.post('/guests/$id/regenerate-token');
     return (resp.data as Map<String, dynamic>)['token'] as String;
+  }
+
+  @override
+  Future<int> bulkInvite({
+    List<String>? guestIds,
+    bool inviteAllUninvited = false,
+  }) async {
+    final resp = await _dio.post('/guests/bulk-invite', data: {
+      if (guestIds != null) 'guest_ids': guestIds,
+      if (inviteAllUninvited) 'invite_all_uninvited': true,
+    });
+    return ((resp.data as Map<String, dynamic>)['updated'] as int?) ?? 0;
   }
 }

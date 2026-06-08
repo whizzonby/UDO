@@ -7,6 +7,7 @@ use App\Http\Controllers\Api\Auth\RegisterController;
 use App\Http\Controllers\Api\HomeController;
 use App\Http\Controllers\Api\OnboardingController;
 use App\Http\Controllers\Api\Guests\GuestController;
+use App\Http\Controllers\Api\Experience\ExperienceController;
 use App\Http\Controllers\Api\Plan\BudgetController;
 use App\Http\Controllers\Api\Plan\TaskController;
 use App\Http\Controllers\Api\Plan\TimelineController;
@@ -36,6 +37,7 @@ Route::middleware('auth:sanctum')->group(function () {
     // Guests — named routes before wildcard to avoid capture of 'overview' etc.
     Route::prefix('guests')->group(function () {
         Route::get('/overview',                  [GuestController::class, 'overview']);
+        Route::post('/bulk-invite',              [GuestController::class, 'bulkInvite']);
         Route::get('/',                          [GuestController::class, 'index']);
         Route::post('/',                         [GuestController::class, 'store']);
         Route::get('/{guest}',                   [GuestController::class, 'show']);
@@ -44,6 +46,12 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::delete('/{guest}',                [GuestController::class, 'destroy']);
         Route::post('/{guest}/mark-invited',     [GuestController::class, 'markInvited']);
         Route::post('/{guest}/regenerate-token', [GuestController::class, 'regenerateToken']);
+    });
+
+    // Guest Experience config
+    Route::prefix('experience')->group(function () {
+        Route::get('/',  [ExperienceController::class, 'show']);
+        Route::put('/',  [ExperienceController::class, 'update']);
     });
 
     // Plan

@@ -186,6 +186,32 @@ class GuestController extends Controller
         return response()->json(['guest' => $this->formatGuest($guest->fresh())]);
     }
 
+    // POST /guests/bulk-invite
+    public function bulkInvite(Request $request): JsonResponse
+    {
+        $wedding = $this->wedding($request);
+
+        $data = $request->validate([
+            'guest_ids' => 'nullable|array',
+            'guest_ids.*' => 'string',
+            'invite_all_uninvited' => 'boolean',
+        ]);
+
+        $query = $wedding->guests();
+
+        if (!empty($data['invite_all_uninvited'])) {
+            $query->whereNull('invitation_sent_at');
+        } elseif (!empty($data['guest_ids'])) {
+            $query->whereIn('id', $data['guest_ids']);
+        } else {
+            return response()->json(['updated' => 0]);
+        }
+
+        $updated = $query->update(['invitation_sent_at' => now()]);
+
+        return response()->json(['updated' => $updated]);
+    }
+
     private function authorizeGuest(Request $request, Guest $guest): void
     {
         $wedding = $this->wedding($request);

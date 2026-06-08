@@ -76,4 +76,9 @@ class Wedding extends Model
     {
         return $this->hasMany(Guest::class);
     }
+
+    public function experienceConfig(): HasOne
+    {
+        return $this->hasOne(WeddingExperienceConfig::class);
+    }
 }
