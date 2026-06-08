@@ -57,6 +57,7 @@ class LiveController extends Controller
             ]);
 
         return response()->json([
+            'wedding_id'        => $wedding->id,
             'is_live'           => $wedding->status === 'live',
             'wedding_date'      => $wedding->wedding_date?->toDateString(),
             'days_until'        => $daysUntil,

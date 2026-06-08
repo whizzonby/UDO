@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api\Guest;
 
+use App\Events\ActivityRecorded;
 use App\Http\Controllers\Controller;
 use App\Jobs\SendRsvpConfirmationSms;
 use App\Jobs\SendRsvpNotification;
@@ -128,6 +129,18 @@ class GuestPortalController extends Controller
         $fresh = $guest->fresh();
         SendRsvpNotification::dispatch($fresh, $guest->wedding);
         SendRsvpConfirmationSms::dispatch($fresh);
+        ActivityRecorded::dispatch(
+            $guest->wedding_id,
+            'rsvp',
+            trim("{$guest->first_name} {$guest->last_name}"),
+            match ($data['status']) {
+                'attending' => 'is attending 🎉',
+                'declined'  => "can't make it 😢",
+                'maybe'     => 'is still deciding',
+                default     => 'responded',
+            },
+            now()->toIso8601String(),
+        );
 
         return response()->json([
             'success'     => true,
@@ -332,11 +345,12 @@ class GuestPortalController extends Controller
             ->get();
 
         return response()->json([
-            'messages' => $msgs->map(fn ($m) => [
-                'id'         => $m->id,
-                'subject'    => $m->subject,
-                'body'       => $m->body,
-                'sent_at'    => $m->created_at?->toIso8601String(),
+            'wedding_id' => $wedding->id,
+            'messages'   => $msgs->map(fn ($m) => [
+                'id'      => $m->id,
+                'subject' => $m->subject,
+                'body'    => $m->body,
+                'sent_at' => $m->created_at?->toIso8601String(),
             ])->values(),
         ]);
     }

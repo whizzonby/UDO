@@ -13,9 +13,283 @@ part of 'live_status_model.dart';
 T _$identity<T>(T value) => value;
 
 /// @nodoc
+mixin _$LiveActivity {
+
+ String get type;// 'check_in' | 'rsvp' | 'announcement'
+ String get actorName; String get description; String get occurredAt;
+/// Create a copy of LiveActivity
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$LiveActivityCopyWith<LiveActivity> get copyWith => _$LiveActivityCopyWithImpl<LiveActivity>(this as LiveActivity, _$identity);
+
+  /// Serializes this LiveActivity to a JSON map.
+  Map<String, dynamic> toJson();
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is LiveActivity&&(identical(other.type, type) || other.type == type)&&(identical(other.actorName, actorName) || other.actorName == actorName)&&(identical(other.description, description) || other.description == description)&&(identical(other.occurredAt, occurredAt) || other.occurredAt == occurredAt));
+}
+
+@JsonKey(includeFromJson: false, includeToJson: false)
+@override
+int get hashCode => Object.hash(runtimeType,type,actorName,description,occurredAt);
+
+@override
+String toString() {
+  return 'LiveActivity(type: $type, actorName: $actorName, description: $description, occurredAt: $occurredAt)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $LiveActivityCopyWith<$Res>  {
+  factory $LiveActivityCopyWith(LiveActivity value, $Res Function(LiveActivity) _then) = _$LiveActivityCopyWithImpl;
+@useResult
+$Res call({
+ String type, String actorName, String description, String occurredAt
+});
+
+
+
+
+}
+/// @nodoc
+class _$LiveActivityCopyWithImpl<$Res>
+    implements $LiveActivityCopyWith<$Res> {
+  _$LiveActivityCopyWithImpl(this._self, this._then);
+
+  final LiveActivity _self;
+  final $Res Function(LiveActivity) _then;
+
+/// Create a copy of LiveActivity
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') @override $Res call({Object? type = null,Object? actorName = null,Object? description = null,Object? occurredAt = null,}) {
+  return _then(_self.copyWith(
+type: null == type ? _self.type : type // ignore: cast_nullable_to_non_nullable
+as String,actorName: null == actorName ? _self.actorName : actorName // ignore: cast_nullable_to_non_nullable
+as String,description: null == description ? _self.description : description // ignore: cast_nullable_to_non_nullable
+as String,occurredAt: null == occurredAt ? _self.occurredAt : occurredAt // ignore: cast_nullable_to_non_nullable
+as String,
+  ));
+}
+
+}
+
+
+/// Adds pattern-matching-related methods to [LiveActivity].
+extension LiveActivityPatterns on LiveActivity {
+/// A variant of `map` that fallback to returning `orElse`.
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case final Subclass value:
+///     return ...;
+///   case _:
+///     return orElse();
+/// }
+/// ```
+
+@optionalTypeArgs TResult maybeMap<TResult extends Object?>(TResult Function( _LiveActivity value)?  $default,{required TResult orElse(),}){
+final _that = this;
+switch (_that) {
+case _LiveActivity() when $default != null:
+return $default(_that);case _:
+  return orElse();
+
+}
+}
+/// A `switch`-like method, using callbacks.
+///
+/// Callbacks receives the raw object, upcasted.
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case final Subclass value:
+///     return ...;
+///   case final Subclass2 value:
+///     return ...;
+/// }
+/// ```
+
+@optionalTypeArgs TResult map<TResult extends Object?>(TResult Function( _LiveActivity value)  $default,){
+final _that = this;
+switch (_that) {
+case _LiveActivity():
+return $default(_that);case _:
+  throw StateError('Unexpected subclass');
+
+}
+}
+/// A variant of `map` that fallback to returning `null`.
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case final Subclass value:
+///     return ...;
+///   case _:
+///     return null;
+/// }
+/// ```
+
+@optionalTypeArgs TResult? mapOrNull<TResult extends Object?>(TResult? Function( _LiveActivity value)?  $default,){
+final _that = this;
+switch (_that) {
+case _LiveActivity() when $default != null:
+return $default(_that);case _:
+  return null;
+
+}
+}
+/// A variant of `when` that fallback to an `orElse` callback.
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case Subclass(:final field):
+///     return ...;
+///   case _:
+///     return orElse();
+/// }
+/// ```
+
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String type,  String actorName,  String description,  String occurredAt)?  $default,{required TResult orElse(),}) {final _that = this;
+switch (_that) {
+case _LiveActivity() when $default != null:
+return $default(_that.type,_that.actorName,_that.description,_that.occurredAt);case _:
+  return orElse();
+
+}
+}
+/// A `switch`-like method, using callbacks.
+///
+/// As opposed to `map`, this offers destructuring.
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case Subclass(:final field):
+///     return ...;
+///   case Subclass2(:final field2):
+///     return ...;
+/// }
+/// ```
+
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String type,  String actorName,  String description,  String occurredAt)  $default,) {final _that = this;
+switch (_that) {
+case _LiveActivity():
+return $default(_that.type,_that.actorName,_that.description,_that.occurredAt);case _:
+  throw StateError('Unexpected subclass');
+
+}
+}
+/// A variant of `when` that fallback to returning `null`
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case Subclass(:final field):
+///     return ...;
+///   case _:
+///     return null;
+/// }
+/// ```
+
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String type,  String actorName,  String description,  String occurredAt)?  $default,) {final _that = this;
+switch (_that) {
+case _LiveActivity() when $default != null:
+return $default(_that.type,_that.actorName,_that.description,_that.occurredAt);case _:
+  return null;
+
+}
+}
+
+}
+
+/// @nodoc
+@JsonSerializable()
+
+class _LiveActivity implements LiveActivity {
+  const _LiveActivity({required this.type, required this.actorName, required this.description, required this.occurredAt});
+  factory _LiveActivity.fromJson(Map<String, dynamic> json) => _$LiveActivityFromJson(json);
+
+@override final  String type;
+// 'check_in' | 'rsvp' | 'announcement'
+@override final  String actorName;
+@override final  String description;
+@override final  String occurredAt;
+
+/// Create a copy of LiveActivity
+/// with the given fields replaced by the non-null parameter values.
+@override @JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+_$LiveActivityCopyWith<_LiveActivity> get copyWith => __$LiveActivityCopyWithImpl<_LiveActivity>(this, _$identity);
+
+@override
+Map<String, dynamic> toJson() {
+  return _$LiveActivityToJson(this, );
+}
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _LiveActivity&&(identical(other.type, type) || other.type == type)&&(identical(other.actorName, actorName) || other.actorName == actorName)&&(identical(other.description, description) || other.description == description)&&(identical(other.occurredAt, occurredAt) || other.occurredAt == occurredAt));
+}
+
+@JsonKey(includeFromJson: false, includeToJson: false)
+@override
+int get hashCode => Object.hash(runtimeType,type,actorName,description,occurredAt);
+
+@override
+String toString() {
+  return 'LiveActivity(type: $type, actorName: $actorName, description: $description, occurredAt: $occurredAt)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class _$LiveActivityCopyWith<$Res> implements $LiveActivityCopyWith<$Res> {
+  factory _$LiveActivityCopyWith(_LiveActivity value, $Res Function(_LiveActivity) _then) = __$LiveActivityCopyWithImpl;
+@override @useResult
+$Res call({
+ String type, String actorName, String description, String occurredAt
+});
+
+
+
+
+}
+/// @nodoc
+class __$LiveActivityCopyWithImpl<$Res>
+    implements _$LiveActivityCopyWith<$Res> {
+  __$LiveActivityCopyWithImpl(this._self, this._then);
+
+  final _LiveActivity _self;
+  final $Res Function(_LiveActivity) _then;
+
+/// Create a copy of LiveActivity
+/// with the given fields replaced by the non-null parameter values.
+@override @pragma('vm:prefer-inline') $Res call({Object? type = null,Object? actorName = null,Object? description = null,Object? occurredAt = null,}) {
+  return _then(_LiveActivity(
+type: null == type ? _self.type : type // ignore: cast_nullable_to_non_nullable
+as String,actorName: null == actorName ? _self.actorName : actorName // ignore: cast_nullable_to_non_nullable
+as String,description: null == description ? _self.description : description // ignore: cast_nullable_to_non_nullable
+as String,occurredAt: null == occurredAt ? _self.occurredAt : occurredAt // ignore: cast_nullable_to_non_nullable
+as String,
+  ));
+}
+
+
+}
+
+
+/// @nodoc
 mixin _$LiveStatus {
 
- bool get isLive; String? get weddingDate; int? get daysUntil; String? get partnerOneName; String? get partnerTwoName; String? get venueName; int get totalGuests; int get checkedInCount; int get attendingCount; List<LiveEvent> get dayEvents; List<LiveEvent> get upcomingEvents;
+ String? get weddingId; bool get isLive; String? get weddingDate; int? get daysUntil; String? get partnerOneName; String? get partnerTwoName; String? get venueName; int get totalGuests; int get checkedInCount; int get attendingCount; List<LiveEvent> get dayEvents; List<LiveEvent> get upcomingEvents;
 /// Create a copy of LiveStatus
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -28,16 +302,16 @@ $LiveStatusCopyWith<LiveStatus> get copyWith => _$LiveStatusCopyWithImpl<LiveSta
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is LiveStatus&&(identical(other.isLive, isLive) || other.isLive == isLive)&&(identical(other.weddingDate, weddingDate) || other.weddingDate == weddingDate)&&(identical(other.daysUntil, daysUntil) || other.daysUntil == daysUntil)&&(identical(other.partnerOneName, partnerOneName) || other.partnerOneName == partnerOneName)&&(identical(other.partnerTwoName, partnerTwoName) || other.partnerTwoName == partnerTwoName)&&(identical(other.venueName, venueName) || other.venueName == venueName)&&(identical(other.totalGuests, totalGuests) || other.totalGuests == totalGuests)&&(identical(other.checkedInCount, checkedInCount) || other.checkedInCount == checkedInCount)&&(identical(other.attendingCount, attendingCount) || other.attendingCount == attendingCount)&&const DeepCollectionEquality().equals(other.dayEvents, dayEvents)&&const DeepCollectionEquality().equals(other.upcomingEvents, upcomingEvents));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is LiveStatus&&(identical(other.weddingId, weddingId) || other.weddingId == weddingId)&&(identical(other.isLive, isLive) || other.isLive == isLive)&&(identical(other.weddingDate, weddingDate) || other.weddingDate == weddingDate)&&(identical(other.daysUntil, daysUntil) || other.daysUntil == daysUntil)&&(identical(other.partnerOneName, partnerOneName) || other.partnerOneName == partnerOneName)&&(identical(other.partnerTwoName, partnerTwoName) || other.partnerTwoName == partnerTwoName)&&(identical(other.venueName, venueName) || other.venueName == venueName)&&(identical(other.totalGuests, totalGuests) || other.totalGuests == totalGuests)&&(identical(other.checkedInCount, checkedInCount) || other.checkedInCount == checkedInCount)&&(identical(other.attendingCount, attendingCount) || other.attendingCount == attendingCount)&&const DeepCollectionEquality().equals(other.dayEvents, dayEvents)&&const DeepCollectionEquality().equals(other.upcomingEvents, upcomingEvents));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,isLive,weddingDate,daysUntil,partnerOneName,partnerTwoName,venueName,totalGuests,checkedInCount,attendingCount,const DeepCollectionEquality().hash(dayEvents),const DeepCollectionEquality().hash(upcomingEvents));
+int get hashCode => Object.hash(runtimeType,weddingId,isLive,weddingDate,daysUntil,partnerOneName,partnerTwoName,venueName,totalGuests,checkedInCount,attendingCount,const DeepCollectionEquality().hash(dayEvents),const DeepCollectionEquality().hash(upcomingEvents));
 
 @override
 String toString() {
-  return 'LiveStatus(isLive: $isLive, weddingDate: $weddingDate, daysUntil: $daysUntil, partnerOneName: $partnerOneName, partnerTwoName: $partnerTwoName, venueName: $venueName, totalGuests: $totalGuests, checkedInCount: $checkedInCount, attendingCount: $attendingCount, dayEvents: $dayEvents, upcomingEvents: $upcomingEvents)';
+  return 'LiveStatus(weddingId: $weddingId, isLive: $isLive, weddingDate: $weddingDate, daysUntil: $daysUntil, partnerOneName: $partnerOneName, partnerTwoName: $partnerTwoName, venueName: $venueName, totalGuests: $totalGuests, checkedInCount: $checkedInCount, attendingCount: $attendingCount, dayEvents: $dayEvents, upcomingEvents: $upcomingEvents)';
 }
 
 
@@ -48,7 +322,7 @@ abstract mixin class $LiveStatusCopyWith<$Res>  {
   factory $LiveStatusCopyWith(LiveStatus value, $Res Function(LiveStatus) _then) = _$LiveStatusCopyWithImpl;
 @useResult
 $Res call({
- bool isLive, String? weddingDate, int? daysUntil, String? partnerOneName, String? partnerTwoName, String? venueName, int totalGuests, int checkedInCount, int attendingCount, List<LiveEvent> dayEvents, List<LiveEvent> upcomingEvents
+ String? weddingId, bool isLive, String? weddingDate, int? daysUntil, String? partnerOneName, String? partnerTwoName, String? venueName, int totalGuests, int checkedInCount, int attendingCount, List<LiveEvent> dayEvents, List<LiveEvent> upcomingEvents
 });
 
 
@@ -65,9 +339,10 @@ class _$LiveStatusCopyWithImpl<$Res>
 
 /// Create a copy of LiveStatus
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? isLive = null,Object? weddingDate = freezed,Object? daysUntil = freezed,Object? partnerOneName = freezed,Object? partnerTwoName = freezed,Object? venueName = freezed,Object? totalGuests = null,Object? checkedInCount = null,Object? attendingCount = null,Object? dayEvents = null,Object? upcomingEvents = null,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? weddingId = freezed,Object? isLive = null,Object? weddingDate = freezed,Object? daysUntil = freezed,Object? partnerOneName = freezed,Object? partnerTwoName = freezed,Object? venueName = freezed,Object? totalGuests = null,Object? checkedInCount = null,Object? attendingCount = null,Object? dayEvents = null,Object? upcomingEvents = null,}) {
   return _then(_self.copyWith(
-isLive: null == isLive ? _self.isLive : isLive // ignore: cast_nullable_to_non_nullable
+weddingId: freezed == weddingId ? _self.weddingId : weddingId // ignore: cast_nullable_to_non_nullable
+as String?,isLive: null == isLive ? _self.isLive : isLive // ignore: cast_nullable_to_non_nullable
 as bool,weddingDate: freezed == weddingDate ? _self.weddingDate : weddingDate // ignore: cast_nullable_to_non_nullable
 as String?,daysUntil: freezed == daysUntil ? _self.daysUntil : daysUntil // ignore: cast_nullable_to_non_nullable
 as int?,partnerOneName: freezed == partnerOneName ? _self.partnerOneName : partnerOneName // ignore: cast_nullable_to_non_nullable
@@ -163,10 +438,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( bool isLive,  String? weddingDate,  int? daysUntil,  String? partnerOneName,  String? partnerTwoName,  String? venueName,  int totalGuests,  int checkedInCount,  int attendingCount,  List<LiveEvent> dayEvents,  List<LiveEvent> upcomingEvents)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String? weddingId,  bool isLive,  String? weddingDate,  int? daysUntil,  String? partnerOneName,  String? partnerTwoName,  String? venueName,  int totalGuests,  int checkedInCount,  int attendingCount,  List<LiveEvent> dayEvents,  List<LiveEvent> upcomingEvents)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _LiveStatus() when $default != null:
-return $default(_that.isLive,_that.weddingDate,_that.daysUntil,_that.partnerOneName,_that.partnerTwoName,_that.venueName,_that.totalGuests,_that.checkedInCount,_that.attendingCount,_that.dayEvents,_that.upcomingEvents);case _:
+return $default(_that.weddingId,_that.isLive,_that.weddingDate,_that.daysUntil,_that.partnerOneName,_that.partnerTwoName,_that.venueName,_that.totalGuests,_that.checkedInCount,_that.attendingCount,_that.dayEvents,_that.upcomingEvents);case _:
   return orElse();
 
 }
@@ -184,10 +459,10 @@ return $default(_that.isLive,_that.weddingDate,_that.daysUntil,_that.partnerOneN
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( bool isLive,  String? weddingDate,  int? daysUntil,  String? partnerOneName,  String? partnerTwoName,  String? venueName,  int totalGuests,  int checkedInCount,  int attendingCount,  List<LiveEvent> dayEvents,  List<LiveEvent> upcomingEvents)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String? weddingId,  bool isLive,  String? weddingDate,  int? daysUntil,  String? partnerOneName,  String? partnerTwoName,  String? venueName,  int totalGuests,  int checkedInCount,  int attendingCount,  List<LiveEvent> dayEvents,  List<LiveEvent> upcomingEvents)  $default,) {final _that = this;
 switch (_that) {
 case _LiveStatus():
-return $default(_that.isLive,_that.weddingDate,_that.daysUntil,_that.partnerOneName,_that.partnerTwoName,_that.venueName,_that.totalGuests,_that.checkedInCount,_that.attendingCount,_that.dayEvents,_that.upcomingEvents);case _:
+return $default(_that.weddingId,_that.isLive,_that.weddingDate,_that.daysUntil,_that.partnerOneName,_that.partnerTwoName,_that.venueName,_that.totalGuests,_that.checkedInCount,_that.attendingCount,_that.dayEvents,_that.upcomingEvents);case _:
   throw StateError('Unexpected subclass');
 
 }
@@ -204,10 +479,10 @@ return $default(_that.isLive,_that.weddingDate,_that.daysUntil,_that.partnerOneN
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( bool isLive,  String? weddingDate,  int? daysUntil,  String? partnerOneName,  String? partnerTwoName,  String? venueName,  int totalGuests,  int checkedInCount,  int attendingCount,  List<LiveEvent> dayEvents,  List<LiveEvent> upcomingEvents)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String? weddingId,  bool isLive,  String? weddingDate,  int? daysUntil,  String? partnerOneName,  String? partnerTwoName,  String? venueName,  int totalGuests,  int checkedInCount,  int attendingCount,  List<LiveEvent> dayEvents,  List<LiveEvent> upcomingEvents)?  $default,) {final _that = this;
 switch (_that) {
 case _LiveStatus() when $default != null:
-return $default(_that.isLive,_that.weddingDate,_that.daysUntil,_that.partnerOneName,_that.partnerTwoName,_that.venueName,_that.totalGuests,_that.checkedInCount,_that.attendingCount,_that.dayEvents,_that.upcomingEvents);case _:
+return $default(_that.weddingId,_that.isLive,_that.weddingDate,_that.daysUntil,_that.partnerOneName,_that.partnerTwoName,_that.venueName,_that.totalGuests,_that.checkedInCount,_that.attendingCount,_that.dayEvents,_that.upcomingEvents);case _:
   return null;
 
 }
@@ -219,9 +494,10 @@ return $default(_that.isLive,_that.weddingDate,_that.daysUntil,_that.partnerOneN
 @JsonSerializable()
 
 class _LiveStatus implements LiveStatus {
-  const _LiveStatus({this.isLive = false, this.weddingDate, this.daysUntil, this.partnerOneName, this.partnerTwoName, this.venueName, this.totalGuests = 0, this.checkedInCount = 0, this.attendingCount = 0, final  List<LiveEvent> dayEvents = const [], final  List<LiveEvent> upcomingEvents = const []}): _dayEvents = dayEvents,_upcomingEvents = upcomingEvents;
+  const _LiveStatus({this.weddingId, this.isLive = false, this.weddingDate, this.daysUntil, this.partnerOneName, this.partnerTwoName, this.venueName, this.totalGuests = 0, this.checkedInCount = 0, this.attendingCount = 0, final  List<LiveEvent> dayEvents = const [], final  List<LiveEvent> upcomingEvents = const []}): _dayEvents = dayEvents,_upcomingEvents = upcomingEvents;
   factory _LiveStatus.fromJson(Map<String, dynamic> json) => _$LiveStatusFromJson(json);
 
+@override final  String? weddingId;
 @override@JsonKey() final  bool isLive;
 @override final  String? weddingDate;
 @override final  int? daysUntil;
@@ -259,16 +535,16 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _LiveStatus&&(identical(other.isLive, isLive) || other.isLive == isLive)&&(identical(other.weddingDate, weddingDate) || other.weddingDate == weddingDate)&&(identical(other.daysUntil, daysUntil) || other.daysUntil == daysUntil)&&(identical(other.partnerOneName, partnerOneName) || other.partnerOneName == partnerOneName)&&(identical(other.partnerTwoName, partnerTwoName) || other.partnerTwoName == partnerTwoName)&&(identical(other.venueName, venueName) || other.venueName == venueName)&&(identical(other.totalGuests, totalGuests) || other.totalGuests == totalGuests)&&(identical(other.checkedInCount, checkedInCount) || other.checkedInCount == checkedInCount)&&(identical(other.attendingCount, attendingCount) || other.attendingCount == attendingCount)&&const DeepCollectionEquality().equals(other._dayEvents, _dayEvents)&&const DeepCollectionEquality().equals(other._upcomingEvents, _upcomingEvents));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _LiveStatus&&(identical(other.weddingId, weddingId) || other.weddingId == weddingId)&&(identical(other.isLive, isLive) || other.isLive == isLive)&&(identical(other.weddingDate, weddingDate) || other.weddingDate == weddingDate)&&(identical(other.daysUntil, daysUntil) || other.daysUntil == daysUntil)&&(identical(other.partnerOneName, partnerOneName) || other.partnerOneName == partnerOneName)&&(identical(other.partnerTwoName, partnerTwoName) || other.partnerTwoName == partnerTwoName)&&(identical(other.venueName, venueName) || other.venueName == venueName)&&(identical(other.totalGuests, totalGuests) || other.totalGuests == totalGuests)&&(identical(other.checkedInCount, checkedInCount) || other.checkedInCount == checkedInCount)&&(identical(other.attendingCount, attendingCount) || other.attendingCount == attendingCount)&&const DeepCollectionEquality().equals(other._dayEvents, _dayEvents)&&const DeepCollectionEquality().equals(other._upcomingEvents, _upcomingEvents));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,isLive,weddingDate,daysUntil,partnerOneName,partnerTwoName,venueName,totalGuests,checkedInCount,attendingCount,const DeepCollectionEquality().hash(_dayEvents),const DeepCollectionEquality().hash(_upcomingEvents));
+int get hashCode => Object.hash(runtimeType,weddingId,isLive,weddingDate,daysUntil,partnerOneName,partnerTwoName,venueName,totalGuests,checkedInCount,attendingCount,const DeepCollectionEquality().hash(_dayEvents),const DeepCollectionEquality().hash(_upcomingEvents));
 
 @override
 String toString() {
-  return 'LiveStatus(isLive: $isLive, weddingDate: $weddingDate, daysUntil: $daysUntil, partnerOneName: $partnerOneName, partnerTwoName: $partnerTwoName, venueName: $venueName, totalGuests: $totalGuests, checkedInCount: $checkedInCount, attendingCount: $attendingCount, dayEvents: $dayEvents, upcomingEvents: $upcomingEvents)';
+  return 'LiveStatus(weddingId: $weddingId, isLive: $isLive, weddingDate: $weddingDate, daysUntil: $daysUntil, partnerOneName: $partnerOneName, partnerTwoName: $partnerTwoName, venueName: $venueName, totalGuests: $totalGuests, checkedInCount: $checkedInCount, attendingCount: $attendingCount, dayEvents: $dayEvents, upcomingEvents: $upcomingEvents)';
 }
 
 
@@ -279,7 +555,7 @@ abstract mixin class _$LiveStatusCopyWith<$Res> implements $LiveStatusCopyWith<$
   factory _$LiveStatusCopyWith(_LiveStatus value, $Res Function(_LiveStatus) _then) = __$LiveStatusCopyWithImpl;
 @override @useResult
 $Res call({
- bool isLive, String? weddingDate, int? daysUntil, String? partnerOneName, String? partnerTwoName, String? venueName, int totalGuests, int checkedInCount, int attendingCount, List<LiveEvent> dayEvents, List<LiveEvent> upcomingEvents
+ String? weddingId, bool isLive, String? weddingDate, int? daysUntil, String? partnerOneName, String? partnerTwoName, String? venueName, int totalGuests, int checkedInCount, int attendingCount, List<LiveEvent> dayEvents, List<LiveEvent> upcomingEvents
 });
 
 
@@ -296,9 +572,10 @@ class __$LiveStatusCopyWithImpl<$Res>
 
 /// Create a copy of LiveStatus
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? isLive = null,Object? weddingDate = freezed,Object? daysUntil = freezed,Object? partnerOneName = freezed,Object? partnerTwoName = freezed,Object? venueName = freezed,Object? totalGuests = null,Object? checkedInCount = null,Object? attendingCount = null,Object? dayEvents = null,Object? upcomingEvents = null,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? weddingId = freezed,Object? isLive = null,Object? weddingDate = freezed,Object? daysUntil = freezed,Object? partnerOneName = freezed,Object? partnerTwoName = freezed,Object? venueName = freezed,Object? totalGuests = null,Object? checkedInCount = null,Object? attendingCount = null,Object? dayEvents = null,Object? upcomingEvents = null,}) {
   return _then(_LiveStatus(
-isLive: null == isLive ? _self.isLive : isLive // ignore: cast_nullable_to_non_nullable
+weddingId: freezed == weddingId ? _self.weddingId : weddingId // ignore: cast_nullable_to_non_nullable
+as String?,isLive: null == isLive ? _self.isLive : isLive // ignore: cast_nullable_to_non_nullable
 as bool,weddingDate: freezed == weddingDate ? _self.weddingDate : weddingDate // ignore: cast_nullable_to_non_nullable
 as String?,daysUntil: freezed == daysUntil ? _self.daysUntil : daysUntil // ignore: cast_nullable_to_non_nullable
 as int?,partnerOneName: freezed == partnerOneName ? _self.partnerOneName : partnerOneName // ignore: cast_nullable_to_non_nullable

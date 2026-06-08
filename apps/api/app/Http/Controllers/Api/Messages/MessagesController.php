@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers\Api\Messages;
 
+use App\Events\ActivityRecorded;
+use App\Events\AnnouncementSent;
 use App\Http\Controllers\Controller;
 use App\Models\GuestMessage;
 use App\Models\Wedding;
@@ -52,6 +54,26 @@ class MessagesController extends Controller
             'status'           => 'sent',
             'sent_at'          => now(),
         ]);
+
+        // Push to the admin activity feed (private channel)
+        ActivityRecorded::dispatch(
+            $wedding->id,
+            'announcement',
+            'You',
+            $message->body,
+            $message->created_at->toIso8601String(),
+        );
+
+        // Push to the guest portal (public channel) for in-app messages only
+        if ($data['channel'] === 'in_app') {
+            AnnouncementSent::dispatch(
+                $wedding->id,
+                $message->id,
+                $message->subject,
+                $message->body,
+                $message->sent_at->toIso8601String(),
+            );
+        }
 
         return response()->json(['message' => $this->format($message)], 201);
     }

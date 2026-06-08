@@ -19,6 +19,7 @@ abstract class LiveActivity with _$LiveActivity {
 @freezed
 abstract class LiveStatus with _$LiveStatus {
   const factory LiveStatus({
+    String? weddingId,
     @Default(false) bool isLive,
     String? weddingDate,
     int? daysUntil,

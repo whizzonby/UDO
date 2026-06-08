@@ -1,19 +1,41 @@
 import 'package:riverpod_annotation/riverpod_annotation.dart';
+import '../../../../core/network/api_client.dart';
+import '../../../../core/network/reverb_client.dart';
 import '../../data/models/live_status_model.dart';
 import '../../data/repositories/live_repository.dart';
 
 part 'live_provider.g.dart';
 
-// Polls /live/activity every 15 s — cancels automatically when no longer watched.
+// Exposes the weddingId from the loaded status so liveActivitiesProvider
+// only restarts the WebSocket when the ID actually changes.
+@riverpod
+String? currentWeddingId(Ref ref) =>
+    ref.watch(liveNotifierProvider).status?.weddingId;
+
+// Loads historical activities via HTTP, then upgrades to a live WebSocket
+// stream on the private-wedding.{weddingId} Reverb channel.
+// Cancels automatically when no longer watched.
 @riverpod
 Stream<List<LiveActivity>> liveActivities(Ref ref) async* {
-  while (true) {
-    try {
-      yield await ref.read(liveRepositoryProvider).getActivity();
-    } catch (_) {
-      yield const [];
+  final weddingId = ref.watch(currentWeddingIdProvider);
+
+  // Fetch history first so the feed isn't empty while WS connects.
+  List<LiveActivity> current = const [];
+  try {
+    current = await ref.read(liveRepositoryProvider).getActivity();
+  } catch (_) {}
+  yield current;
+
+  if (weddingId == null) return;
+
+  final client = ReverbClient(ref.read(apiClientProvider));
+  try {
+    await for (final activity in client.activityStream(weddingId)) {
+      current = [activity, ...current.take(29)];
+      yield current;
     }
-    await Future.delayed(const Duration(seconds: 15));
+  } catch (_) {
+    // WS connection failed — stay on last HTTP snapshot.
   }
 }
 

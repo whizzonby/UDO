@@ -145,7 +145,7 @@ export const guestApi = {
     guestFetch<{ visible: boolean; items: GalleryPhoto[] }>(token, '/gallery'),
 
   getMessages: (token: string) =>
-    guestFetch<{ messages: Message[] }>(token, '/messages'),
+    guestFetch<{ wedding_id: string; messages: Message[] }>(token, '/messages'),
 
   contribute: (token: string, data: { amount: number; name?: string; message?: string }) =>
     guestFetch<{ checkout_url: string }>(token, '/fund/contribute', {

@@ -6,7 +6,24 @@ part of 'live_status_model.dart';
 // JsonSerializableGenerator
 // **************************************************************************
 
+_LiveActivity _$LiveActivityFromJson(Map<String, dynamic> json) =>
+    _LiveActivity(
+      type: json['type'] as String,
+      actorName: json['actorName'] as String,
+      description: json['description'] as String,
+      occurredAt: json['occurredAt'] as String,
+    );
+
+Map<String, dynamic> _$LiveActivityToJson(_LiveActivity instance) =>
+    <String, dynamic>{
+      'type': instance.type,
+      'actorName': instance.actorName,
+      'description': instance.description,
+      'occurredAt': instance.occurredAt,
+    };
+
 _LiveStatus _$LiveStatusFromJson(Map<String, dynamic> json) => _LiveStatus(
+  weddingId: json['weddingId'] as String?,
   isLive: json['isLive'] as bool? ?? false,
   weddingDate: json['weddingDate'] as String?,
   daysUntil: (json['daysUntil'] as num?)?.toInt(),
@@ -30,6 +47,7 @@ _LiveStatus _$LiveStatusFromJson(Map<String, dynamic> json) => _LiveStatus(
 
 Map<String, dynamic> _$LiveStatusToJson(_LiveStatus instance) =>
     <String, dynamic>{
+      'weddingId': instance.weddingId,
       'isLive': instance.isLive,
       'weddingDate': instance.weddingDate,
       'daysUntil': instance.daysUntil,

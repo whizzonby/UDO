@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api\Guests;
 
+use App\Events\ActivityRecorded;
 use App\Http\Controllers\Controller;
 use App\Jobs\SendGuestInvitation;
 use App\Jobs\SendGuestSmsInvitation;
@@ -185,6 +186,13 @@ class GuestController extends Controller
     {
         $this->authorizeGuest($request, $guest);
         $guest->update(['checked_in_at' => now()]);
+        ActivityRecorded::dispatch(
+            $guest->wedding_id,
+            'check_in',
+            trim("{$guest->first_name} {$guest->last_name}"),
+            'arrived and checked in',
+            now()->toIso8601String(),
+        );
         return response()->json(['guest' => $this->formatGuest($guest->fresh())]);
     }
 
