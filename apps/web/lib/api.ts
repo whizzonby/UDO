@@ -152,4 +152,23 @@ export const guestApi = {
       method: 'POST',
       body: JSON.stringify(data),
     }),
+
+  uploadPhoto: async (token: string, image: File, caption?: string): Promise<GalleryPhoto> => {
+    const form = new FormData();
+    form.append('image', image);
+    if (caption?.trim()) form.append('caption', caption.trim());
+    const url = `${API_URL}/guest-portal/${token}/gallery`;
+    const res = await fetch(url, {
+      method: 'POST',
+      // No Content-Type header — browser sets multipart boundary automatically
+      headers: { Accept: 'application/json' },
+      body: form,
+    });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      throw new Error((data as { message?: string }).message ?? `Upload failed (${res.status})`);
+    }
+    const data = await res.json();
+    return (data as { item: GalleryPhoto }).item;
+  },
 };

@@ -2,6 +2,7 @@ import { notFound } from 'next/navigation';
 import { Image as ImageIcon, Star } from 'lucide-react';
 import { guestApi } from '@/lib/api';
 import { formatDate } from '@/lib/utils';
+import PhotoUpload from './photo-upload';
 
 export default async function GalleryPage({
   params,
@@ -43,8 +44,11 @@ export default async function GalleryPage({
       </div>
 
       {data.items.length === 0 ? (
-        <div className="text-center py-16 px-4">
-          <p className="text-[--color-udo-grey-400] text-sm">Photos will appear here soon</p>
+        <div className="px-3 py-4 space-y-4">
+          <div className="text-center py-8">
+            <p className="text-[--color-udo-grey-400] text-sm">No photos yet — be the first!</p>
+          </div>
+          <PhotoUpload token={token} />
         </div>
       ) : (
         <div className="px-3 space-y-6">
@@ -113,14 +117,8 @@ export default async function GalleryPage({
             </section>
           )}
 
-          {/* Upload prompt */}
-          <div className="mx-1 border-2 border-dashed border-[--color-udo-grey-200] rounded-2xl p-6 text-center">
-            <ImageIcon size={24} className="text-[--color-udo-grey-300] mx-auto mb-2" />
-            <p className="text-sm font-medium text-[--color-udo-grey-500]">Have photos to share?</p>
-            <p className="text-xs text-[--color-udo-grey-400] mt-1">
-              Ask the couple how to upload your memories
-            </p>
-          </div>
+          {/* Guest photo upload */}
+          <PhotoUpload token={token} />
         </div>
       )}
     </div>
