@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api\Guests;
 
 use App\Http\Controllers\Controller;
 use App\Jobs\SendGuestInvitation;
+use App\Jobs\SendGuestSmsInvitation;
 use App\Models\Guest;
 use App\Models\Wedding;
 use Illuminate\Http\JsonResponse;
@@ -191,8 +192,10 @@ class GuestController extends Controller
     public function markInvited(Request $request, Guest $guest): JsonResponse
     {
         $this->authorizeGuest($request, $guest);
+        $fresh = $guest->fresh();
         $guest->update(['invitation_sent_at' => now()]);
-        SendGuestInvitation::dispatch($guest->fresh());
+        SendGuestInvitation::dispatch($fresh);
+        SendGuestSmsInvitation::dispatch($fresh);
         return response()->json(['guest' => $this->formatGuest($guest->fresh())]);
     }
 
@@ -217,17 +220,25 @@ class GuestController extends Controller
             return response()->json(['updated' => 0]);
         }
 
-        // Collect guests with emails before bulk-updating
-        $guestsToInvite = $query->clone()->whereNotNull('email')->get();
+        // Snapshot before bulk-update so we have the token loaded
+        $allGuests      = $query->clone()->get();
+        $guestsWithEmail = $allGuests->filter(fn ($g) => !empty($g->email));
+        $guestsWithPhone = $allGuests->filter(fn ($g) => !empty($g->phone));
 
         $updated = $query->update(['invitation_sent_at' => now()]);
 
-        // Dispatch individual jobs so each email is retried independently
-        foreach ($guestsToInvite as $guest) {
+        foreach ($guestsWithEmail as $guest) {
             SendGuestInvitation::dispatch($guest);
         }
+        foreach ($guestsWithPhone as $guest) {
+            SendGuestSmsInvitation::dispatch($guest);
+        }
 
-        return response()->json(['updated' => $updated, 'emails_queued' => $guestsToInvite->count()]);
+        return response()->json([
+            'updated'      => $updated,
+            'emails_queued' => $guestsWithEmail->count(),
+            'sms_queued'   => $guestsWithPhone->count(),
+        ]);
     }
 
     private function authorizeGuest(Request $request, Guest $guest): void

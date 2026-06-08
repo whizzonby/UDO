@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api\Guest;
 
 use App\Http\Controllers\Controller;
+use App\Jobs\SendRsvpConfirmationSms;
 use App\Jobs\SendRsvpNotification;
 use App\Models\Guest;
 use App\Models\GalleryItem;
@@ -115,7 +116,9 @@ class GuestPortalController extends Controller
                 : $guest->notes,
         ]);
 
-        SendRsvpNotification::dispatch($guest->fresh(), $guest->wedding);
+        $fresh = $guest->fresh();
+        SendRsvpNotification::dispatch($fresh, $guest->wedding);
+        SendRsvpConfirmationSms::dispatch($fresh);
 
         return response()->json([
             'success'     => true,
