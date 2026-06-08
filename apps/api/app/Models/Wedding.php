@@ -96,4 +96,9 @@ class Wedding extends Model
     {
         return $this->hasOne(RegistryCashFund::class);
     }
+
+    public function galleryItems(): HasMany
+    {
+        return $this->hasMany(GalleryItem::class)->orderBy('sort_order');
+    }
 }

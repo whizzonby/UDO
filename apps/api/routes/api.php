@@ -9,6 +9,7 @@ use App\Http\Controllers\Api\OnboardingController;
 use App\Http\Controllers\Api\Guests\GuestController;
 use App\Http\Controllers\Api\Experience\ExperienceController;
 use App\Http\Controllers\Api\Live\LiveController;
+use App\Http\Controllers\Api\Gallery\GalleryController;
 use App\Http\Controllers\Api\Registry\RegistryController;
 use App\Http\Controllers\Api\Messages\MessagesController;
 use App\Http\Controllers\Api\Plan\BudgetController;
@@ -83,6 +84,16 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::prefix('experience')->group(function () {
         Route::get('/',  [ExperienceController::class, 'show']);
         Route::put('/',  [ExperienceController::class, 'update']);
+    });
+
+    // Gallery
+    Route::prefix('gallery')->group(function () {
+        Route::get('/',                     [GalleryController::class, 'index']);
+        Route::post('/',                    [GalleryController::class, 'store']);
+        Route::post('/reorder',             [GalleryController::class, 'reorder']);
+        Route::put('/{item}',              [GalleryController::class, 'update']);
+        Route::delete('/{item}',           [GalleryController::class, 'destroy']);
+        Route::patch('/{item}/feature',    [GalleryController::class, 'feature']);
     });
 
     // Plan

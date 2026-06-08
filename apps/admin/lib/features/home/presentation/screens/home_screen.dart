@@ -18,6 +18,7 @@ import '../widgets/budget_card.dart';
 import '../../../plan/presentation/screens/plan_screen.dart';
 import '../../../guests/presentation/screens/guests_screen.dart';
 import '../../../live/presentation/screens/live_screen.dart';
+import '../../../gallery/presentation/screens/gallery_screen.dart';
 import '../../../more/presentation/screens/more_screen.dart';
 
 // ─── Root screen — manages tab navigation ────────────────────────────────────
@@ -52,7 +53,7 @@ class _HomeScreenState extends State<HomeScreen> {
           const PlanScreen(),
           const GuestsScreen(),
           const LiveScreen(),
-          _ComingSoon(label: 'Gallery', icon: Icons.photo_library_rounded),
+          const GalleryScreen(),
           const MoreScreen(),
         ],
       ),
