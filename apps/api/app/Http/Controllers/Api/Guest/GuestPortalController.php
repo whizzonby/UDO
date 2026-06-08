@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api\Guest;
 
 use App\Http\Controllers\Controller;
+use App\Jobs\SendRsvpNotification;
 use App\Models\Guest;
 use App\Models\GalleryItem;
 use Illuminate\Http\JsonResponse;
@@ -111,6 +112,8 @@ class GuestPortalController extends Controller
                     : "[Guest message]: " . $data['message_to_couple'])
                 : $guest->notes,
         ]);
+
+        SendRsvpNotification::dispatch($guest->fresh(), $guest->wedding);
 
         return response()->json([
             'success'     => true,

@@ -123,4 +123,6 @@ return [
         'store' => env('APP_MAINTENANCE_STORE', 'database'),
     ],
 
+    'guest_web_url' => env('GUEST_WEB_URL', 'https://udo.app'),
+
 ];

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api\Guests;
 
 use App\Http\Controllers\Controller;
+use App\Jobs\SendGuestInvitation;
 use App\Models\Guest;
 use App\Models\Wedding;
 use Illuminate\Http\JsonResponse;
@@ -191,6 +192,7 @@ class GuestController extends Controller
     {
         $this->authorizeGuest($request, $guest);
         $guest->update(['invitation_sent_at' => now()]);
+        SendGuestInvitation::dispatch($guest->fresh());
         return response()->json(['guest' => $this->formatGuest($guest->fresh())]);
     }
 
@@ -215,9 +217,17 @@ class GuestController extends Controller
             return response()->json(['updated' => 0]);
         }
 
+        // Collect guests with emails before bulk-updating
+        $guestsToInvite = $query->clone()->whereNotNull('email')->get();
+
         $updated = $query->update(['invitation_sent_at' => now()]);
 
-        return response()->json(['updated' => $updated]);
+        // Dispatch individual jobs so each email is retried independently
+        foreach ($guestsToInvite as $guest) {
+            SendGuestInvitation::dispatch($guest);
+        }
+
+        return response()->json(['updated' => $updated, 'emails_queued' => $guestsToInvite->count()]);
     }
 
     private function authorizeGuest(Request $request, Guest $guest): void
