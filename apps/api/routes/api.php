@@ -4,6 +4,7 @@ use App\Http\Controllers\Api\Auth\LoginController;
 use App\Http\Controllers\Api\Auth\LogoutController;
 use App\Http\Controllers\Api\Auth\MeController;
 use App\Http\Controllers\Api\Auth\RegisterController;
+use App\Http\Controllers\Api\Auth\SocialAuthController;
 use App\Http\Controllers\Api\HomeController;
 use App\Http\Controllers\Api\OnboardingController;
 use App\Http\Controllers\Api\Guests\GuestController;
@@ -38,8 +39,10 @@ Route::prefix('guest-portal/{token}')->group(function () {
 
 // ── Auth (public) ─────────────────────────────────────────────────────────────
 Route::prefix('auth')->group(function () {
-    Route::post('/register', RegisterController::class);
-    Route::post('/login',    LoginController::class);
+    Route::post('/register',       RegisterController::class);
+    Route::post('/login',          LoginController::class);
+    Route::post('/social/google',  [SocialAuthController::class, 'google']);
+    Route::post('/social/apple',   [SocialAuthController::class, 'apple']);
 });
 
 // ── Authenticated ─────────────────────────────────────────────────────────────
