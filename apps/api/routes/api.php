@@ -14,6 +14,7 @@ use App\Http\Controllers\Api\Guest\GuestPortalController;
 use App\Http\Controllers\Api\Registry\RegistryController;
 use App\Http\Controllers\Api\Messages\MessagesController;
 use App\Http\Controllers\Api\Plan\BudgetController;
+use App\Http\Controllers\Api\Plan\SeatingController;
 use App\Http\Controllers\Api\Plan\TaskController;
 use App\Http\Controllers\Api\Plan\TimelineController;
 use App\Http\Controllers\Api\Plan\VendorController;
@@ -122,5 +123,15 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::apiResource('budget',   BudgetController::class)
             ->parameters(['budget' => 'budgetItem'])
             ->except(['show']);
+
+        // Seating plan
+        Route::prefix('seating')->group(function () {
+            Route::get('/',                             [SeatingController::class, 'index']);
+            Route::post('/tables',                      [SeatingController::class, 'store']);
+            Route::put('/tables/{table}',               [SeatingController::class, 'update']);
+            Route::delete('/tables/{table}',            [SeatingController::class, 'destroy']);
+            Route::post('/tables/{table}/assign',       [SeatingController::class, 'assign']);
+            Route::delete('/tables/{table}/guests/{guest}', [SeatingController::class, 'unassign']);
+        });
     });
 });

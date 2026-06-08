@@ -9,6 +9,7 @@ import '../tabs/tasks_tab.dart';
 import '../tabs/timeline_tab.dart';
 import '../tabs/vendors_tab.dart';
 import '../tabs/budget_tab.dart';
+import '../tabs/seating_tab.dart';
 
 class PlanScreen extends ConsumerWidget {
   const PlanScreen({super.key});
@@ -18,7 +19,7 @@ class PlanScreen extends ConsumerWidget {
     final state = ref.watch(planNotifierProvider);
 
     return DefaultTabController(
-      length: 4,
+      length: 5,
       child: Scaffold(
         backgroundColor: AppColors.white,
         appBar: AppBar(
@@ -74,6 +75,7 @@ class PlanScreen extends ConsumerWidget {
               Tab(text: 'Timeline'),
               Tab(text: 'Vendors'),
               Tab(text: 'Budget'),
+              Tab(text: 'Seating'),
             ],
           ),
         ),
@@ -85,6 +87,7 @@ class PlanScreen extends ConsumerWidget {
               TimelineTab(data: s.data),
               VendorsTab(data: s.data),
               BudgetTab(data: s.data),
+              const SeatingTab(),
             ],
           ),
           error: (e) => _PlanErrorView(
