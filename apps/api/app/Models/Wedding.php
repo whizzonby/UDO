@@ -86,4 +86,14 @@ class Wedding extends Model
     {
         return $this->hasMany(GuestMessage::class)->latest();
     }
+
+    public function registryItems(): HasMany
+    {
+        return $this->hasMany(RegistryItem::class)->orderBy('sort_order');
+    }
+
+    public function registryCashFund(): HasOne
+    {
+        return $this->hasOne(RegistryCashFund::class);
+    }
 }

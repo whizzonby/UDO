@@ -9,6 +9,7 @@ use App\Http\Controllers\Api\OnboardingController;
 use App\Http\Controllers\Api\Guests\GuestController;
 use App\Http\Controllers\Api\Experience\ExperienceController;
 use App\Http\Controllers\Api\Live\LiveController;
+use App\Http\Controllers\Api\Registry\RegistryController;
 use App\Http\Controllers\Api\Messages\MessagesController;
 use App\Http\Controllers\Api\Plan\BudgetController;
 use App\Http\Controllers\Api\Plan\TaskController;
@@ -49,6 +50,19 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/{guest}/check-in',         [GuestController::class, 'checkIn']);
         Route::post('/{guest}/mark-invited',     [GuestController::class, 'markInvited']);
         Route::post('/{guest}/regenerate-token', [GuestController::class, 'regenerateToken']);
+    });
+
+    // Registry
+    Route::prefix('registry')->group(function () {
+        Route::get('/',                        [RegistryController::class, 'index']);
+        Route::get('/fund',                    [RegistryController::class, 'getFund']);
+        Route::put('/fund',                    [RegistryController::class, 'updateFund']);
+        Route::post('/items',                  [RegistryController::class, 'store']);
+        Route::put('/items/{item}',            [RegistryController::class, 'update']);
+        Route::delete('/items/{item}',         [RegistryController::class, 'destroy']);
+        Route::patch('/items/{item}/claim',    [RegistryController::class, 'claim']);
+        Route::patch('/items/{item}/unclaim',  [RegistryController::class, 'unclaim']);
+        Route::patch('/items/{item}/thank',    [RegistryController::class, 'markThanked']);
     });
 
     // Live — day-of coordination

@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../data/models/guest_model.dart';
+import '../../domain/guests_state.dart';
 import '../providers/guests_provider.dart';
 
 class LogisticsTab extends ConsumerWidget {
@@ -12,14 +13,14 @@ class LogisticsTab extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final state = ref.watch(guestsListNotifierProvider);
 
-    return state.when(
-      loading: () => const Center(
+    return state.map(
+      loading: (_) => const Center(
           child: CircularProgressIndicator(color: AppColors.pinkGradientStart)),
-      error: (e) => Center(
+      error: (s) => Center(
         child: Column(mainAxisSize: MainAxisSize.min, children: [
           const Icon(Icons.error_outline, color: AppColors.grey400, size: 40),
           const SizedBox(height: 12),
-          Text(e, style: GoogleFonts.dmSans(color: AppColors.grey500)),
+          Text(s.message, style: GoogleFonts.dmSans(color: AppColors.grey500)),
           TextButton(
             onPressed: () =>
                 ref.read(guestsListNotifierProvider.notifier).refresh(),
@@ -27,7 +28,8 @@ class LogisticsTab extends ConsumerWidget {
           ),
         ]),
       ),
-      loaded: (guests, total, __, ___) {
+      loaded: (s) {
+        final guests = s.guests;
         final transport = guests.where((g) => g.needsTransport).toList();
         final accommodation = guests.where((g) => g.needsAccommodation).toList();
         final both = guests
