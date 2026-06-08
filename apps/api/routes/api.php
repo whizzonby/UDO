@@ -8,6 +8,7 @@ use App\Http\Controllers\Api\HomeController;
 use App\Http\Controllers\Api\OnboardingController;
 use App\Http\Controllers\Api\Guests\GuestController;
 use App\Http\Controllers\Api\Experience\ExperienceController;
+use App\Http\Controllers\Api\Live\LiveController;
 use App\Http\Controllers\Api\Messages\MessagesController;
 use App\Http\Controllers\Api\Plan\BudgetController;
 use App\Http\Controllers\Api\Plan\TaskController;
@@ -45,8 +46,16 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::put('/{guest}',                   [GuestController::class, 'update']);
         Route::patch('/{guest}',                 [GuestController::class, 'update']);
         Route::delete('/{guest}',                [GuestController::class, 'destroy']);
+        Route::post('/{guest}/check-in',         [GuestController::class, 'checkIn']);
         Route::post('/{guest}/mark-invited',     [GuestController::class, 'markInvited']);
         Route::post('/{guest}/regenerate-token', [GuestController::class, 'regenerateToken']);
+    });
+
+    // Live — day-of coordination
+    Route::prefix('live')->group(function () {
+        Route::get('/status',       [LiveController::class, 'status']);
+        Route::post('/activate',    [LiveController::class, 'activate']);
+        Route::post('/deactivate',  [LiveController::class, 'deactivate']);
     });
 
     // Guest messages (broadcast)

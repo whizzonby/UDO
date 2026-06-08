@@ -178,6 +178,14 @@ class GuestController extends Controller
         return response()->json(['token' => $guest->token]);
     }
 
+    // POST /guests/{guest}/check-in
+    public function checkIn(Request $request, Guest $guest): JsonResponse
+    {
+        $this->authorizeGuest($request, $guest);
+        $guest->update(['checked_in_at' => now()]);
+        return response()->json(['guest' => $this->formatGuest($guest->fresh())]);
+    }
+
     // POST /guests/{guest}/mark-invited
     public function markInvited(Request $request, Guest $guest): JsonResponse
     {
