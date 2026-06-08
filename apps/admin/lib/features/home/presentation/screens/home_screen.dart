@@ -1,23 +1,22 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:intl/intl.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_typography.dart';
 import '../../data/models/home_stats_model.dart';
 import '../../domain/home_state.dart';
 import '../providers/home_provider.dart';
-import '../widgets/countdown_card.dart';
-import '../widgets/guest_stats_card.dart';
-import '../widgets/plan_progress_card.dart';
-import '../widgets/budget_overview_card.dart';
-import '../widgets/smart_alerts_section.dart';
-import '../widgets/quick_actions_row.dart';
-import '../widgets/upcoming_events_card.dart';
-import '../sheets/guest_overview_sheet.dart';
-import '../sheets/plan_sheet.dart';
-import '../sheets/budget_sheet.dart';
+import '../widgets/hero_card.dart';
+import '../widgets/todays_focus_section.dart';
+import '../widgets/quick_actions_grid.dart';
+import '../widgets/udo_guidance_carousel.dart';
+import '../widgets/check_in_card.dart';
+import '../widgets/progress_card.dart';
+import '../widgets/priorities_card.dart';
+import '../widgets/guests_summary_card.dart';
+import '../widgets/budget_card.dart';
 import '../../../plan/presentation/screens/plan_screen.dart';
+import '../../../guests/presentation/screens/guests_screen.dart';
 
 // ─── Root screen — manages tab navigation ────────────────────────────────────
 
@@ -49,7 +48,7 @@ class _HomeScreenState extends State<HomeScreen> {
         children: [
           const HomeDashboard(),
           const PlanScreen(),
-          _ComingSoon(label: 'Guests', icon: Icons.people_rounded),
+          const GuestsScreen(),
           _ComingSoon(label: 'Live', icon: Icons.radio_button_checked_rounded),
           _ComingSoon(label: 'Gallery', icon: Icons.photo_library_rounded),
           _ComingSoon(label: 'More', icon: Icons.menu_rounded),
@@ -201,15 +200,15 @@ class _ErrorView extends StatelessWidget {
 
 // ─── Loaded dashboard ─────────────────────────────────────────────────────────
 
-class _LoadedView extends StatelessWidget {
+class _LoadedView extends ConsumerWidget {
   const _LoadedView({required this.stats});
   final HomeStats stats;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     return RefreshIndicator(
       color: AppColors.hotPink,
-      onRefresh: Future.value,
+      onRefresh: () => ref.read(homeNotifierProvider.notifier).refresh(),
       child: CustomScrollView(
         slivers: [
           _HomeAppBar(wedding: stats.wedding),
@@ -217,44 +216,44 @@ class _LoadedView extends StatelessWidget {
             padding: const EdgeInsets.fromLTRB(20, 20, 20, 120),
             sliver: SliverList(
               delegate: SliverChildListDelegate([
-                // Countdown
-                CountdownCard(wedding: stats.wedding),
-                const SizedBox(height: 16),
-
-                // Quick actions
-                QuickActionsRow(),
+                // 1. Pink gradient hero with countdown
+                HeroCard(wedding: stats.wedding),
                 const SizedBox(height: 20),
 
-                // Smart alerts (shown before cards if present)
-                SmartAlertsSection(alerts: stats.alerts),
-                if (stats.alerts.isNotEmpty) const SizedBox(height: 20),
+                // 2. Today's focus checklist
+                TodaysFocusSection(items: stats.todaysFocus),
+                if (stats.todaysFocus.isNotEmpty) const SizedBox(height: 20),
 
-                // Guest stats
-                GuestStatsCard(
-                  overview: stats.guests,
-                  onTap: () => GuestOverviewSheet.show(context, stats.guests),
-                ),
+                // 3. Quick actions 2×2 grid
+                const QuickActionsGrid(),
+                const SizedBox(height: 24),
+
+                // 4. Udo guidance carousel
+                UdoGuidanceCarousel(prompts: stats.guidancePrompts),
+                const SizedBox(height: 24),
+
+                // 5. Emotional check-in card
+                const CheckInCard(),
+                const SizedBox(height: 16),
+
+                // 6. Progress card with category breakdown
+                ProgressCard(plan: stats.plan),
                 const SizedBox(height: 12),
 
-                // Plan progress
-                PlanProgressCard(
-                  plan: stats.plan,
-                  onTap: () => PlanSheet.show(context, stats.plan),
+                // 7. Priorities / alerts
+                PrioritiesCard(
+                  alerts: stats.alerts,
+                  priorities: stats.priorities,
                 ),
+                if (stats.alerts.isNotEmpty || stats.priorities.isNotEmpty)
+                  const SizedBox(height: 12),
+
+                // 8. Guests summary card
+                GuestsSummaryCard(overview: stats.guests),
                 const SizedBox(height: 12),
 
-                // Budget
-                BudgetOverviewCard(
-                  budget: stats.budget,
-                  onTap: () => BudgetSheet.show(context, stats.budget),
-                ),
-                const SizedBox(height: 12),
-
-                // Upcoming events
-                UpcomingEventsCard(
-                  events: stats.upcoming,
-                  onTap: () {/* TODO: navigate to Plan timeline */},
-                ),
+                // 9. Budget card
+                BudgetCard(budget: stats.budget),
               ]),
             ),
           ),
@@ -272,14 +271,6 @@ class _HomeAppBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final now = DateTime.now();
-    final hour = now.hour;
-    final greeting = hour < 12
-        ? 'Good morning'
-        : hour < 17
-            ? 'Good afternoon'
-            : 'Good evening';
-
     return SliverAppBar(
       floating: true,
       snap: true,
@@ -287,50 +278,16 @@ class _HomeAppBar extends StatelessWidget {
       elevation: 0,
       scrolledUnderElevation: 0,
       titleSpacing: 20,
-      title: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'udo',
-            style: GoogleFonts.playfairDisplay(
-              fontSize: 24,
-              fontWeight: FontWeight.w700,
-              color: AppColors.hotPink,
-              height: 1,
-            ),
-          ),
-          Text(
-            '$greeting 👋',
-            style: GoogleFonts.dmSans(
-              fontSize: 12,
-              color: AppColors.grey500,
-              fontWeight: FontWeight.w400,
-            ),
-          ),
-        ],
+      title: Text(
+        'udo',
+        style: GoogleFonts.playfairDisplay(
+          fontSize: 26,
+          fontWeight: FontWeight.w700,
+          color: AppColors.hotPink,
+          height: 1,
+        ),
       ),
       actions: [
-        if (wedding.weddingDate != null)
-          Padding(
-            padding: const EdgeInsets.only(right: 4),
-            child: Center(
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                decoration: BoxDecoration(
-                  color: AppColors.hotPink.withValues(alpha: 0.08),
-                  borderRadius: const BorderRadius.all(Radius.circular(20)),
-                ),
-                child: Text(
-                  DateFormat('d MMM yyyy').format(wedding.weddingDate!),
-                  style: GoogleFonts.dmSans(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w600,
-                    color: AppColors.hotPink,
-                  ),
-                ),
-              ),
-            ),
-          ),
         IconButton(
           icon: const Icon(Icons.notifications_none_rounded,
               color: AppColors.grey600, size: 24),
@@ -340,13 +297,15 @@ class _HomeAppBar extends StatelessWidget {
           padding: const EdgeInsets.only(right: 16),
           child: CircleAvatar(
             radius: 16,
-            backgroundColor: AppColors.grey200,
+            backgroundColor: AppColors.hotPink.withValues(alpha: 0.12),
             child: Text(
-              _initials(wedding.partnerOneName),
+              wedding.partnerOneName.isNotEmpty
+                  ? wedding.partnerOneName[0].toUpperCase()
+                  : '?',
               style: GoogleFonts.dmSans(
                 fontSize: 12,
                 fontWeight: FontWeight.w700,
-                color: AppColors.grey600,
+                color: AppColors.hotPink,
               ),
             ),
           ),
@@ -354,9 +313,6 @@ class _HomeAppBar extends StatelessWidget {
       ],
     );
   }
-
-  String _initials(String name) =>
-      name.isNotEmpty ? name[0].toUpperCase() : '?';
 }
 
 // ─── Bottom navigation ────────────────────────────────────────────────────────

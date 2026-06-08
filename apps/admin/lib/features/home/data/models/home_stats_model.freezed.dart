@@ -15,7 +15,7 @@ T _$identity<T>(T value) => value;
 /// @nodoc
 mixin _$HomeStats {
 
- WeddingInfo get wedding; GuestOverview get guests; PlanProgress get plan; BudgetOverview get budget; List<SmartAlert> get alerts; List<UpcomingEvent> get upcoming;
+ WeddingInfo get wedding; GuestOverview get guests; PlanProgress get plan; BudgetOverview get budget; List<SmartAlert> get alerts; List<UpcomingEvent> get upcoming; List<TodaysFocusItem> get todaysFocus; List<GuidancePrompt> get guidancePrompts; List<PriorityAlert> get priorities;
 /// Create a copy of HomeStats
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -28,16 +28,16 @@ $HomeStatsCopyWith<HomeStats> get copyWith => _$HomeStatsCopyWithImpl<HomeStats>
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is HomeStats&&(identical(other.wedding, wedding) || other.wedding == wedding)&&(identical(other.guests, guests) || other.guests == guests)&&(identical(other.plan, plan) || other.plan == plan)&&(identical(other.budget, budget) || other.budget == budget)&&const DeepCollectionEquality().equals(other.alerts, alerts)&&const DeepCollectionEquality().equals(other.upcoming, upcoming));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is HomeStats&&(identical(other.wedding, wedding) || other.wedding == wedding)&&(identical(other.guests, guests) || other.guests == guests)&&(identical(other.plan, plan) || other.plan == plan)&&(identical(other.budget, budget) || other.budget == budget)&&const DeepCollectionEquality().equals(other.alerts, alerts)&&const DeepCollectionEquality().equals(other.upcoming, upcoming)&&const DeepCollectionEquality().equals(other.todaysFocus, todaysFocus)&&const DeepCollectionEquality().equals(other.guidancePrompts, guidancePrompts)&&const DeepCollectionEquality().equals(other.priorities, priorities));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,wedding,guests,plan,budget,const DeepCollectionEquality().hash(alerts),const DeepCollectionEquality().hash(upcoming));
+int get hashCode => Object.hash(runtimeType,wedding,guests,plan,budget,const DeepCollectionEquality().hash(alerts),const DeepCollectionEquality().hash(upcoming),const DeepCollectionEquality().hash(todaysFocus),const DeepCollectionEquality().hash(guidancePrompts),const DeepCollectionEquality().hash(priorities));
 
 @override
 String toString() {
-  return 'HomeStats(wedding: $wedding, guests: $guests, plan: $plan, budget: $budget, alerts: $alerts, upcoming: $upcoming)';
+  return 'HomeStats(wedding: $wedding, guests: $guests, plan: $plan, budget: $budget, alerts: $alerts, upcoming: $upcoming, todaysFocus: $todaysFocus, guidancePrompts: $guidancePrompts, priorities: $priorities)';
 }
 
 
@@ -48,7 +48,7 @@ abstract mixin class $HomeStatsCopyWith<$Res>  {
   factory $HomeStatsCopyWith(HomeStats value, $Res Function(HomeStats) _then) = _$HomeStatsCopyWithImpl;
 @useResult
 $Res call({
- WeddingInfo wedding, GuestOverview guests, PlanProgress plan, BudgetOverview budget, List<SmartAlert> alerts, List<UpcomingEvent> upcoming
+ WeddingInfo wedding, GuestOverview guests, PlanProgress plan, BudgetOverview budget, List<SmartAlert> alerts, List<UpcomingEvent> upcoming, List<TodaysFocusItem> todaysFocus, List<GuidancePrompt> guidancePrompts, List<PriorityAlert> priorities
 });
 
 
@@ -65,7 +65,7 @@ class _$HomeStatsCopyWithImpl<$Res>
 
 /// Create a copy of HomeStats
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? wedding = null,Object? guests = null,Object? plan = null,Object? budget = null,Object? alerts = null,Object? upcoming = null,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? wedding = null,Object? guests = null,Object? plan = null,Object? budget = null,Object? alerts = null,Object? upcoming = null,Object? todaysFocus = null,Object? guidancePrompts = null,Object? priorities = null,}) {
   return _then(_self.copyWith(
 wedding: null == wedding ? _self.wedding : wedding // ignore: cast_nullable_to_non_nullable
 as WeddingInfo,guests: null == guests ? _self.guests : guests // ignore: cast_nullable_to_non_nullable
@@ -73,7 +73,10 @@ as GuestOverview,plan: null == plan ? _self.plan : plan // ignore: cast_nullable
 as PlanProgress,budget: null == budget ? _self.budget : budget // ignore: cast_nullable_to_non_nullable
 as BudgetOverview,alerts: null == alerts ? _self.alerts : alerts // ignore: cast_nullable_to_non_nullable
 as List<SmartAlert>,upcoming: null == upcoming ? _self.upcoming : upcoming // ignore: cast_nullable_to_non_nullable
-as List<UpcomingEvent>,
+as List<UpcomingEvent>,todaysFocus: null == todaysFocus ? _self.todaysFocus : todaysFocus // ignore: cast_nullable_to_non_nullable
+as List<TodaysFocusItem>,guidancePrompts: null == guidancePrompts ? _self.guidancePrompts : guidancePrompts // ignore: cast_nullable_to_non_nullable
+as List<GuidancePrompt>,priorities: null == priorities ? _self.priorities : priorities // ignore: cast_nullable_to_non_nullable
+as List<PriorityAlert>,
   ));
 }
 /// Create a copy of HomeStats
@@ -194,10 +197,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( WeddingInfo wedding,  GuestOverview guests,  PlanProgress plan,  BudgetOverview budget,  List<SmartAlert> alerts,  List<UpcomingEvent> upcoming)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( WeddingInfo wedding,  GuestOverview guests,  PlanProgress plan,  BudgetOverview budget,  List<SmartAlert> alerts,  List<UpcomingEvent> upcoming,  List<TodaysFocusItem> todaysFocus,  List<GuidancePrompt> guidancePrompts,  List<PriorityAlert> priorities)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _HomeStats() when $default != null:
-return $default(_that.wedding,_that.guests,_that.plan,_that.budget,_that.alerts,_that.upcoming);case _:
+return $default(_that.wedding,_that.guests,_that.plan,_that.budget,_that.alerts,_that.upcoming,_that.todaysFocus,_that.guidancePrompts,_that.priorities);case _:
   return orElse();
 
 }
@@ -215,10 +218,10 @@ return $default(_that.wedding,_that.guests,_that.plan,_that.budget,_that.alerts,
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( WeddingInfo wedding,  GuestOverview guests,  PlanProgress plan,  BudgetOverview budget,  List<SmartAlert> alerts,  List<UpcomingEvent> upcoming)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( WeddingInfo wedding,  GuestOverview guests,  PlanProgress plan,  BudgetOverview budget,  List<SmartAlert> alerts,  List<UpcomingEvent> upcoming,  List<TodaysFocusItem> todaysFocus,  List<GuidancePrompt> guidancePrompts,  List<PriorityAlert> priorities)  $default,) {final _that = this;
 switch (_that) {
 case _HomeStats():
-return $default(_that.wedding,_that.guests,_that.plan,_that.budget,_that.alerts,_that.upcoming);case _:
+return $default(_that.wedding,_that.guests,_that.plan,_that.budget,_that.alerts,_that.upcoming,_that.todaysFocus,_that.guidancePrompts,_that.priorities);case _:
   throw StateError('Unexpected subclass');
 
 }
@@ -235,10 +238,10 @@ return $default(_that.wedding,_that.guests,_that.plan,_that.budget,_that.alerts,
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( WeddingInfo wedding,  GuestOverview guests,  PlanProgress plan,  BudgetOverview budget,  List<SmartAlert> alerts,  List<UpcomingEvent> upcoming)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( WeddingInfo wedding,  GuestOverview guests,  PlanProgress plan,  BudgetOverview budget,  List<SmartAlert> alerts,  List<UpcomingEvent> upcoming,  List<TodaysFocusItem> todaysFocus,  List<GuidancePrompt> guidancePrompts,  List<PriorityAlert> priorities)?  $default,) {final _that = this;
 switch (_that) {
 case _HomeStats() when $default != null:
-return $default(_that.wedding,_that.guests,_that.plan,_that.budget,_that.alerts,_that.upcoming);case _:
+return $default(_that.wedding,_that.guests,_that.plan,_that.budget,_that.alerts,_that.upcoming,_that.todaysFocus,_that.guidancePrompts,_that.priorities);case _:
   return null;
 
 }
@@ -250,7 +253,7 @@ return $default(_that.wedding,_that.guests,_that.plan,_that.budget,_that.alerts,
 @JsonSerializable()
 
 class _HomeStats implements HomeStats {
-  const _HomeStats({required this.wedding, required this.guests, required this.plan, required this.budget, final  List<SmartAlert> alerts = const [], final  List<UpcomingEvent> upcoming = const []}): _alerts = alerts,_upcoming = upcoming;
+  const _HomeStats({required this.wedding, required this.guests, required this.plan, required this.budget, final  List<SmartAlert> alerts = const [], final  List<UpcomingEvent> upcoming = const [], final  List<TodaysFocusItem> todaysFocus = const [], final  List<GuidancePrompt> guidancePrompts = const [], final  List<PriorityAlert> priorities = const []}): _alerts = alerts,_upcoming = upcoming,_todaysFocus = todaysFocus,_guidancePrompts = guidancePrompts,_priorities = priorities;
   factory _HomeStats.fromJson(Map<String, dynamic> json) => _$HomeStatsFromJson(json);
 
 @override final  WeddingInfo wedding;
@@ -271,6 +274,27 @@ class _HomeStats implements HomeStats {
   return EqualUnmodifiableListView(_upcoming);
 }
 
+ final  List<TodaysFocusItem> _todaysFocus;
+@override@JsonKey() List<TodaysFocusItem> get todaysFocus {
+  if (_todaysFocus is EqualUnmodifiableListView) return _todaysFocus;
+  // ignore: implicit_dynamic_type
+  return EqualUnmodifiableListView(_todaysFocus);
+}
+
+ final  List<GuidancePrompt> _guidancePrompts;
+@override@JsonKey() List<GuidancePrompt> get guidancePrompts {
+  if (_guidancePrompts is EqualUnmodifiableListView) return _guidancePrompts;
+  // ignore: implicit_dynamic_type
+  return EqualUnmodifiableListView(_guidancePrompts);
+}
+
+ final  List<PriorityAlert> _priorities;
+@override@JsonKey() List<PriorityAlert> get priorities {
+  if (_priorities is EqualUnmodifiableListView) return _priorities;
+  // ignore: implicit_dynamic_type
+  return EqualUnmodifiableListView(_priorities);
+}
+
 
 /// Create a copy of HomeStats
 /// with the given fields replaced by the non-null parameter values.
@@ -285,16 +309,16 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _HomeStats&&(identical(other.wedding, wedding) || other.wedding == wedding)&&(identical(other.guests, guests) || other.guests == guests)&&(identical(other.plan, plan) || other.plan == plan)&&(identical(other.budget, budget) || other.budget == budget)&&const DeepCollectionEquality().equals(other._alerts, _alerts)&&const DeepCollectionEquality().equals(other._upcoming, _upcoming));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _HomeStats&&(identical(other.wedding, wedding) || other.wedding == wedding)&&(identical(other.guests, guests) || other.guests == guests)&&(identical(other.plan, plan) || other.plan == plan)&&(identical(other.budget, budget) || other.budget == budget)&&const DeepCollectionEquality().equals(other._alerts, _alerts)&&const DeepCollectionEquality().equals(other._upcoming, _upcoming)&&const DeepCollectionEquality().equals(other._todaysFocus, _todaysFocus)&&const DeepCollectionEquality().equals(other._guidancePrompts, _guidancePrompts)&&const DeepCollectionEquality().equals(other._priorities, _priorities));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,wedding,guests,plan,budget,const DeepCollectionEquality().hash(_alerts),const DeepCollectionEquality().hash(_upcoming));
+int get hashCode => Object.hash(runtimeType,wedding,guests,plan,budget,const DeepCollectionEquality().hash(_alerts),const DeepCollectionEquality().hash(_upcoming),const DeepCollectionEquality().hash(_todaysFocus),const DeepCollectionEquality().hash(_guidancePrompts),const DeepCollectionEquality().hash(_priorities));
 
 @override
 String toString() {
-  return 'HomeStats(wedding: $wedding, guests: $guests, plan: $plan, budget: $budget, alerts: $alerts, upcoming: $upcoming)';
+  return 'HomeStats(wedding: $wedding, guests: $guests, plan: $plan, budget: $budget, alerts: $alerts, upcoming: $upcoming, todaysFocus: $todaysFocus, guidancePrompts: $guidancePrompts, priorities: $priorities)';
 }
 
 
@@ -305,7 +329,7 @@ abstract mixin class _$HomeStatsCopyWith<$Res> implements $HomeStatsCopyWith<$Re
   factory _$HomeStatsCopyWith(_HomeStats value, $Res Function(_HomeStats) _then) = __$HomeStatsCopyWithImpl;
 @override @useResult
 $Res call({
- WeddingInfo wedding, GuestOverview guests, PlanProgress plan, BudgetOverview budget, List<SmartAlert> alerts, List<UpcomingEvent> upcoming
+ WeddingInfo wedding, GuestOverview guests, PlanProgress plan, BudgetOverview budget, List<SmartAlert> alerts, List<UpcomingEvent> upcoming, List<TodaysFocusItem> todaysFocus, List<GuidancePrompt> guidancePrompts, List<PriorityAlert> priorities
 });
 
 
@@ -322,7 +346,7 @@ class __$HomeStatsCopyWithImpl<$Res>
 
 /// Create a copy of HomeStats
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? wedding = null,Object? guests = null,Object? plan = null,Object? budget = null,Object? alerts = null,Object? upcoming = null,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? wedding = null,Object? guests = null,Object? plan = null,Object? budget = null,Object? alerts = null,Object? upcoming = null,Object? todaysFocus = null,Object? guidancePrompts = null,Object? priorities = null,}) {
   return _then(_HomeStats(
 wedding: null == wedding ? _self.wedding : wedding // ignore: cast_nullable_to_non_nullable
 as WeddingInfo,guests: null == guests ? _self.guests : guests // ignore: cast_nullable_to_non_nullable
@@ -330,7 +354,10 @@ as GuestOverview,plan: null == plan ? _self.plan : plan // ignore: cast_nullable
 as PlanProgress,budget: null == budget ? _self.budget : budget // ignore: cast_nullable_to_non_nullable
 as BudgetOverview,alerts: null == alerts ? _self._alerts : alerts // ignore: cast_nullable_to_non_nullable
 as List<SmartAlert>,upcoming: null == upcoming ? _self._upcoming : upcoming // ignore: cast_nullable_to_non_nullable
-as List<UpcomingEvent>,
+as List<UpcomingEvent>,todaysFocus: null == todaysFocus ? _self._todaysFocus : todaysFocus // ignore: cast_nullable_to_non_nullable
+as List<TodaysFocusItem>,guidancePrompts: null == guidancePrompts ? _self._guidancePrompts : guidancePrompts // ignore: cast_nullable_to_non_nullable
+as List<GuidancePrompt>,priorities: null == priorities ? _self._priorities : priorities // ignore: cast_nullable_to_non_nullable
+as List<PriorityAlert>,
   ));
 }
 
@@ -2862,6 +2889,837 @@ as String,date: null == date ? _self.date : date // ignore: cast_nullable_to_non
 as DateTime,category: null == category ? _self.category : category // ignore: cast_nullable_to_non_nullable
 as String,description: freezed == description ? _self.description : description // ignore: cast_nullable_to_non_nullable
 as String?,location: freezed == location ? _self.location : location // ignore: cast_nullable_to_non_nullable
+as String?,
+  ));
+}
+
+
+}
+
+
+/// @nodoc
+mixin _$TodaysFocusItem {
+
+ String get id; String get title; String get reason; String get actionLabel; String? get actionRoute; bool get isDone;
+/// Create a copy of TodaysFocusItem
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$TodaysFocusItemCopyWith<TodaysFocusItem> get copyWith => _$TodaysFocusItemCopyWithImpl<TodaysFocusItem>(this as TodaysFocusItem, _$identity);
+
+  /// Serializes this TodaysFocusItem to a JSON map.
+  Map<String, dynamic> toJson();
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is TodaysFocusItem&&(identical(other.id, id) || other.id == id)&&(identical(other.title, title) || other.title == title)&&(identical(other.reason, reason) || other.reason == reason)&&(identical(other.actionLabel, actionLabel) || other.actionLabel == actionLabel)&&(identical(other.actionRoute, actionRoute) || other.actionRoute == actionRoute)&&(identical(other.isDone, isDone) || other.isDone == isDone));
+}
+
+@JsonKey(includeFromJson: false, includeToJson: false)
+@override
+int get hashCode => Object.hash(runtimeType,id,title,reason,actionLabel,actionRoute,isDone);
+
+@override
+String toString() {
+  return 'TodaysFocusItem(id: $id, title: $title, reason: $reason, actionLabel: $actionLabel, actionRoute: $actionRoute, isDone: $isDone)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $TodaysFocusItemCopyWith<$Res>  {
+  factory $TodaysFocusItemCopyWith(TodaysFocusItem value, $Res Function(TodaysFocusItem) _then) = _$TodaysFocusItemCopyWithImpl;
+@useResult
+$Res call({
+ String id, String title, String reason, String actionLabel, String? actionRoute, bool isDone
+});
+
+
+
+
+}
+/// @nodoc
+class _$TodaysFocusItemCopyWithImpl<$Res>
+    implements $TodaysFocusItemCopyWith<$Res> {
+  _$TodaysFocusItemCopyWithImpl(this._self, this._then);
+
+  final TodaysFocusItem _self;
+  final $Res Function(TodaysFocusItem) _then;
+
+/// Create a copy of TodaysFocusItem
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? title = null,Object? reason = null,Object? actionLabel = null,Object? actionRoute = freezed,Object? isDone = null,}) {
+  return _then(_self.copyWith(
+id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
+as String,title: null == title ? _self.title : title // ignore: cast_nullable_to_non_nullable
+as String,reason: null == reason ? _self.reason : reason // ignore: cast_nullable_to_non_nullable
+as String,actionLabel: null == actionLabel ? _self.actionLabel : actionLabel // ignore: cast_nullable_to_non_nullable
+as String,actionRoute: freezed == actionRoute ? _self.actionRoute : actionRoute // ignore: cast_nullable_to_non_nullable
+as String?,isDone: null == isDone ? _self.isDone : isDone // ignore: cast_nullable_to_non_nullable
+as bool,
+  ));
+}
+
+}
+
+
+/// Adds pattern-matching-related methods to [TodaysFocusItem].
+extension TodaysFocusItemPatterns on TodaysFocusItem {
+/// A variant of `map` that fallback to returning `orElse`.
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case final Subclass value:
+///     return ...;
+///   case _:
+///     return orElse();
+/// }
+/// ```
+
+@optionalTypeArgs TResult maybeMap<TResult extends Object?>(TResult Function( _TodaysFocusItem value)?  $default,{required TResult orElse(),}){
+final _that = this;
+switch (_that) {
+case _TodaysFocusItem() when $default != null:
+return $default(_that);case _:
+  return orElse();
+
+}
+}
+/// A `switch`-like method, using callbacks.
+///
+/// Callbacks receives the raw object, upcasted.
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case final Subclass value:
+///     return ...;
+///   case final Subclass2 value:
+///     return ...;
+/// }
+/// ```
+
+@optionalTypeArgs TResult map<TResult extends Object?>(TResult Function( _TodaysFocusItem value)  $default,){
+final _that = this;
+switch (_that) {
+case _TodaysFocusItem():
+return $default(_that);case _:
+  throw StateError('Unexpected subclass');
+
+}
+}
+/// A variant of `map` that fallback to returning `null`.
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case final Subclass value:
+///     return ...;
+///   case _:
+///     return null;
+/// }
+/// ```
+
+@optionalTypeArgs TResult? mapOrNull<TResult extends Object?>(TResult? Function( _TodaysFocusItem value)?  $default,){
+final _that = this;
+switch (_that) {
+case _TodaysFocusItem() when $default != null:
+return $default(_that);case _:
+  return null;
+
+}
+}
+/// A variant of `when` that fallback to an `orElse` callback.
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case Subclass(:final field):
+///     return ...;
+///   case _:
+///     return orElse();
+/// }
+/// ```
+
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String id,  String title,  String reason,  String actionLabel,  String? actionRoute,  bool isDone)?  $default,{required TResult orElse(),}) {final _that = this;
+switch (_that) {
+case _TodaysFocusItem() when $default != null:
+return $default(_that.id,_that.title,_that.reason,_that.actionLabel,_that.actionRoute,_that.isDone);case _:
+  return orElse();
+
+}
+}
+/// A `switch`-like method, using callbacks.
+///
+/// As opposed to `map`, this offers destructuring.
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case Subclass(:final field):
+///     return ...;
+///   case Subclass2(:final field2):
+///     return ...;
+/// }
+/// ```
+
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String id,  String title,  String reason,  String actionLabel,  String? actionRoute,  bool isDone)  $default,) {final _that = this;
+switch (_that) {
+case _TodaysFocusItem():
+return $default(_that.id,_that.title,_that.reason,_that.actionLabel,_that.actionRoute,_that.isDone);case _:
+  throw StateError('Unexpected subclass');
+
+}
+}
+/// A variant of `when` that fallback to returning `null`
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case Subclass(:final field):
+///     return ...;
+///   case _:
+///     return null;
+/// }
+/// ```
+
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String id,  String title,  String reason,  String actionLabel,  String? actionRoute,  bool isDone)?  $default,) {final _that = this;
+switch (_that) {
+case _TodaysFocusItem() when $default != null:
+return $default(_that.id,_that.title,_that.reason,_that.actionLabel,_that.actionRoute,_that.isDone);case _:
+  return null;
+
+}
+}
+
+}
+
+/// @nodoc
+@JsonSerializable()
+
+class _TodaysFocusItem implements TodaysFocusItem {
+  const _TodaysFocusItem({required this.id, required this.title, required this.reason, required this.actionLabel, this.actionRoute, this.isDone = false});
+  factory _TodaysFocusItem.fromJson(Map<String, dynamic> json) => _$TodaysFocusItemFromJson(json);
+
+@override final  String id;
+@override final  String title;
+@override final  String reason;
+@override final  String actionLabel;
+@override final  String? actionRoute;
+@override@JsonKey() final  bool isDone;
+
+/// Create a copy of TodaysFocusItem
+/// with the given fields replaced by the non-null parameter values.
+@override @JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+_$TodaysFocusItemCopyWith<_TodaysFocusItem> get copyWith => __$TodaysFocusItemCopyWithImpl<_TodaysFocusItem>(this, _$identity);
+
+@override
+Map<String, dynamic> toJson() {
+  return _$TodaysFocusItemToJson(this, );
+}
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _TodaysFocusItem&&(identical(other.id, id) || other.id == id)&&(identical(other.title, title) || other.title == title)&&(identical(other.reason, reason) || other.reason == reason)&&(identical(other.actionLabel, actionLabel) || other.actionLabel == actionLabel)&&(identical(other.actionRoute, actionRoute) || other.actionRoute == actionRoute)&&(identical(other.isDone, isDone) || other.isDone == isDone));
+}
+
+@JsonKey(includeFromJson: false, includeToJson: false)
+@override
+int get hashCode => Object.hash(runtimeType,id,title,reason,actionLabel,actionRoute,isDone);
+
+@override
+String toString() {
+  return 'TodaysFocusItem(id: $id, title: $title, reason: $reason, actionLabel: $actionLabel, actionRoute: $actionRoute, isDone: $isDone)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class _$TodaysFocusItemCopyWith<$Res> implements $TodaysFocusItemCopyWith<$Res> {
+  factory _$TodaysFocusItemCopyWith(_TodaysFocusItem value, $Res Function(_TodaysFocusItem) _then) = __$TodaysFocusItemCopyWithImpl;
+@override @useResult
+$Res call({
+ String id, String title, String reason, String actionLabel, String? actionRoute, bool isDone
+});
+
+
+
+
+}
+/// @nodoc
+class __$TodaysFocusItemCopyWithImpl<$Res>
+    implements _$TodaysFocusItemCopyWith<$Res> {
+  __$TodaysFocusItemCopyWithImpl(this._self, this._then);
+
+  final _TodaysFocusItem _self;
+  final $Res Function(_TodaysFocusItem) _then;
+
+/// Create a copy of TodaysFocusItem
+/// with the given fields replaced by the non-null parameter values.
+@override @pragma('vm:prefer-inline') $Res call({Object? id = null,Object? title = null,Object? reason = null,Object? actionLabel = null,Object? actionRoute = freezed,Object? isDone = null,}) {
+  return _then(_TodaysFocusItem(
+id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
+as String,title: null == title ? _self.title : title // ignore: cast_nullable_to_non_nullable
+as String,reason: null == reason ? _self.reason : reason // ignore: cast_nullable_to_non_nullable
+as String,actionLabel: null == actionLabel ? _self.actionLabel : actionLabel // ignore: cast_nullable_to_non_nullable
+as String,actionRoute: freezed == actionRoute ? _self.actionRoute : actionRoute // ignore: cast_nullable_to_non_nullable
+as String?,isDone: null == isDone ? _self.isDone : isDone // ignore: cast_nullable_to_non_nullable
+as bool,
+  ));
+}
+
+
+}
+
+
+/// @nodoc
+mixin _$GuidancePrompt {
+
+ String get id; String get question; String? get context; String? get category;
+/// Create a copy of GuidancePrompt
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$GuidancePromptCopyWith<GuidancePrompt> get copyWith => _$GuidancePromptCopyWithImpl<GuidancePrompt>(this as GuidancePrompt, _$identity);
+
+  /// Serializes this GuidancePrompt to a JSON map.
+  Map<String, dynamic> toJson();
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is GuidancePrompt&&(identical(other.id, id) || other.id == id)&&(identical(other.question, question) || other.question == question)&&(identical(other.context, context) || other.context == context)&&(identical(other.category, category) || other.category == category));
+}
+
+@JsonKey(includeFromJson: false, includeToJson: false)
+@override
+int get hashCode => Object.hash(runtimeType,id,question,context,category);
+
+@override
+String toString() {
+  return 'GuidancePrompt(id: $id, question: $question, context: $context, category: $category)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $GuidancePromptCopyWith<$Res>  {
+  factory $GuidancePromptCopyWith(GuidancePrompt value, $Res Function(GuidancePrompt) _then) = _$GuidancePromptCopyWithImpl;
+@useResult
+$Res call({
+ String id, String question, String? context, String? category
+});
+
+
+
+
+}
+/// @nodoc
+class _$GuidancePromptCopyWithImpl<$Res>
+    implements $GuidancePromptCopyWith<$Res> {
+  _$GuidancePromptCopyWithImpl(this._self, this._then);
+
+  final GuidancePrompt _self;
+  final $Res Function(GuidancePrompt) _then;
+
+/// Create a copy of GuidancePrompt
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? question = null,Object? context = freezed,Object? category = freezed,}) {
+  return _then(_self.copyWith(
+id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
+as String,question: null == question ? _self.question : question // ignore: cast_nullable_to_non_nullable
+as String,context: freezed == context ? _self.context : context // ignore: cast_nullable_to_non_nullable
+as String?,category: freezed == category ? _self.category : category // ignore: cast_nullable_to_non_nullable
+as String?,
+  ));
+}
+
+}
+
+
+/// Adds pattern-matching-related methods to [GuidancePrompt].
+extension GuidancePromptPatterns on GuidancePrompt {
+/// A variant of `map` that fallback to returning `orElse`.
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case final Subclass value:
+///     return ...;
+///   case _:
+///     return orElse();
+/// }
+/// ```
+
+@optionalTypeArgs TResult maybeMap<TResult extends Object?>(TResult Function( _GuidancePrompt value)?  $default,{required TResult orElse(),}){
+final _that = this;
+switch (_that) {
+case _GuidancePrompt() when $default != null:
+return $default(_that);case _:
+  return orElse();
+
+}
+}
+/// A `switch`-like method, using callbacks.
+///
+/// Callbacks receives the raw object, upcasted.
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case final Subclass value:
+///     return ...;
+///   case final Subclass2 value:
+///     return ...;
+/// }
+/// ```
+
+@optionalTypeArgs TResult map<TResult extends Object?>(TResult Function( _GuidancePrompt value)  $default,){
+final _that = this;
+switch (_that) {
+case _GuidancePrompt():
+return $default(_that);case _:
+  throw StateError('Unexpected subclass');
+
+}
+}
+/// A variant of `map` that fallback to returning `null`.
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case final Subclass value:
+///     return ...;
+///   case _:
+///     return null;
+/// }
+/// ```
+
+@optionalTypeArgs TResult? mapOrNull<TResult extends Object?>(TResult? Function( _GuidancePrompt value)?  $default,){
+final _that = this;
+switch (_that) {
+case _GuidancePrompt() when $default != null:
+return $default(_that);case _:
+  return null;
+
+}
+}
+/// A variant of `when` that fallback to an `orElse` callback.
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case Subclass(:final field):
+///     return ...;
+///   case _:
+///     return orElse();
+/// }
+/// ```
+
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String id,  String question,  String? context,  String? category)?  $default,{required TResult orElse(),}) {final _that = this;
+switch (_that) {
+case _GuidancePrompt() when $default != null:
+return $default(_that.id,_that.question,_that.context,_that.category);case _:
+  return orElse();
+
+}
+}
+/// A `switch`-like method, using callbacks.
+///
+/// As opposed to `map`, this offers destructuring.
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case Subclass(:final field):
+///     return ...;
+///   case Subclass2(:final field2):
+///     return ...;
+/// }
+/// ```
+
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String id,  String question,  String? context,  String? category)  $default,) {final _that = this;
+switch (_that) {
+case _GuidancePrompt():
+return $default(_that.id,_that.question,_that.context,_that.category);case _:
+  throw StateError('Unexpected subclass');
+
+}
+}
+/// A variant of `when` that fallback to returning `null`
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case Subclass(:final field):
+///     return ...;
+///   case _:
+///     return null;
+/// }
+/// ```
+
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String id,  String question,  String? context,  String? category)?  $default,) {final _that = this;
+switch (_that) {
+case _GuidancePrompt() when $default != null:
+return $default(_that.id,_that.question,_that.context,_that.category);case _:
+  return null;
+
+}
+}
+
+}
+
+/// @nodoc
+@JsonSerializable()
+
+class _GuidancePrompt implements GuidancePrompt {
+  const _GuidancePrompt({required this.id, required this.question, this.context, this.category});
+  factory _GuidancePrompt.fromJson(Map<String, dynamic> json) => _$GuidancePromptFromJson(json);
+
+@override final  String id;
+@override final  String question;
+@override final  String? context;
+@override final  String? category;
+
+/// Create a copy of GuidancePrompt
+/// with the given fields replaced by the non-null parameter values.
+@override @JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+_$GuidancePromptCopyWith<_GuidancePrompt> get copyWith => __$GuidancePromptCopyWithImpl<_GuidancePrompt>(this, _$identity);
+
+@override
+Map<String, dynamic> toJson() {
+  return _$GuidancePromptToJson(this, );
+}
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _GuidancePrompt&&(identical(other.id, id) || other.id == id)&&(identical(other.question, question) || other.question == question)&&(identical(other.context, context) || other.context == context)&&(identical(other.category, category) || other.category == category));
+}
+
+@JsonKey(includeFromJson: false, includeToJson: false)
+@override
+int get hashCode => Object.hash(runtimeType,id,question,context,category);
+
+@override
+String toString() {
+  return 'GuidancePrompt(id: $id, question: $question, context: $context, category: $category)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class _$GuidancePromptCopyWith<$Res> implements $GuidancePromptCopyWith<$Res> {
+  factory _$GuidancePromptCopyWith(_GuidancePrompt value, $Res Function(_GuidancePrompt) _then) = __$GuidancePromptCopyWithImpl;
+@override @useResult
+$Res call({
+ String id, String question, String? context, String? category
+});
+
+
+
+
+}
+/// @nodoc
+class __$GuidancePromptCopyWithImpl<$Res>
+    implements _$GuidancePromptCopyWith<$Res> {
+  __$GuidancePromptCopyWithImpl(this._self, this._then);
+
+  final _GuidancePrompt _self;
+  final $Res Function(_GuidancePrompt) _then;
+
+/// Create a copy of GuidancePrompt
+/// with the given fields replaced by the non-null parameter values.
+@override @pragma('vm:prefer-inline') $Res call({Object? id = null,Object? question = null,Object? context = freezed,Object? category = freezed,}) {
+  return _then(_GuidancePrompt(
+id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
+as String,question: null == question ? _self.question : question // ignore: cast_nullable_to_non_nullable
+as String,context: freezed == context ? _self.context : context // ignore: cast_nullable_to_non_nullable
+as String?,category: freezed == category ? _self.category : category // ignore: cast_nullable_to_non_nullable
+as String?,
+  ));
+}
+
+
+}
+
+
+/// @nodoc
+mixin _$PriorityAlert {
+
+ String get id; String get title; String get body; PriorityAlertLevel get level; String? get actionLabel; String? get actionRoute; String? get amount;
+/// Create a copy of PriorityAlert
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$PriorityAlertCopyWith<PriorityAlert> get copyWith => _$PriorityAlertCopyWithImpl<PriorityAlert>(this as PriorityAlert, _$identity);
+
+  /// Serializes this PriorityAlert to a JSON map.
+  Map<String, dynamic> toJson();
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is PriorityAlert&&(identical(other.id, id) || other.id == id)&&(identical(other.title, title) || other.title == title)&&(identical(other.body, body) || other.body == body)&&(identical(other.level, level) || other.level == level)&&(identical(other.actionLabel, actionLabel) || other.actionLabel == actionLabel)&&(identical(other.actionRoute, actionRoute) || other.actionRoute == actionRoute)&&(identical(other.amount, amount) || other.amount == amount));
+}
+
+@JsonKey(includeFromJson: false, includeToJson: false)
+@override
+int get hashCode => Object.hash(runtimeType,id,title,body,level,actionLabel,actionRoute,amount);
+
+@override
+String toString() {
+  return 'PriorityAlert(id: $id, title: $title, body: $body, level: $level, actionLabel: $actionLabel, actionRoute: $actionRoute, amount: $amount)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $PriorityAlertCopyWith<$Res>  {
+  factory $PriorityAlertCopyWith(PriorityAlert value, $Res Function(PriorityAlert) _then) = _$PriorityAlertCopyWithImpl;
+@useResult
+$Res call({
+ String id, String title, String body, PriorityAlertLevel level, String? actionLabel, String? actionRoute, String? amount
+});
+
+
+
+
+}
+/// @nodoc
+class _$PriorityAlertCopyWithImpl<$Res>
+    implements $PriorityAlertCopyWith<$Res> {
+  _$PriorityAlertCopyWithImpl(this._self, this._then);
+
+  final PriorityAlert _self;
+  final $Res Function(PriorityAlert) _then;
+
+/// Create a copy of PriorityAlert
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? title = null,Object? body = null,Object? level = null,Object? actionLabel = freezed,Object? actionRoute = freezed,Object? amount = freezed,}) {
+  return _then(_self.copyWith(
+id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
+as String,title: null == title ? _self.title : title // ignore: cast_nullable_to_non_nullable
+as String,body: null == body ? _self.body : body // ignore: cast_nullable_to_non_nullable
+as String,level: null == level ? _self.level : level // ignore: cast_nullable_to_non_nullable
+as PriorityAlertLevel,actionLabel: freezed == actionLabel ? _self.actionLabel : actionLabel // ignore: cast_nullable_to_non_nullable
+as String?,actionRoute: freezed == actionRoute ? _self.actionRoute : actionRoute // ignore: cast_nullable_to_non_nullable
+as String?,amount: freezed == amount ? _self.amount : amount // ignore: cast_nullable_to_non_nullable
+as String?,
+  ));
+}
+
+}
+
+
+/// Adds pattern-matching-related methods to [PriorityAlert].
+extension PriorityAlertPatterns on PriorityAlert {
+/// A variant of `map` that fallback to returning `orElse`.
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case final Subclass value:
+///     return ...;
+///   case _:
+///     return orElse();
+/// }
+/// ```
+
+@optionalTypeArgs TResult maybeMap<TResult extends Object?>(TResult Function( _PriorityAlert value)?  $default,{required TResult orElse(),}){
+final _that = this;
+switch (_that) {
+case _PriorityAlert() when $default != null:
+return $default(_that);case _:
+  return orElse();
+
+}
+}
+/// A `switch`-like method, using callbacks.
+///
+/// Callbacks receives the raw object, upcasted.
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case final Subclass value:
+///     return ...;
+///   case final Subclass2 value:
+///     return ...;
+/// }
+/// ```
+
+@optionalTypeArgs TResult map<TResult extends Object?>(TResult Function( _PriorityAlert value)  $default,){
+final _that = this;
+switch (_that) {
+case _PriorityAlert():
+return $default(_that);case _:
+  throw StateError('Unexpected subclass');
+
+}
+}
+/// A variant of `map` that fallback to returning `null`.
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case final Subclass value:
+///     return ...;
+///   case _:
+///     return null;
+/// }
+/// ```
+
+@optionalTypeArgs TResult? mapOrNull<TResult extends Object?>(TResult? Function( _PriorityAlert value)?  $default,){
+final _that = this;
+switch (_that) {
+case _PriorityAlert() when $default != null:
+return $default(_that);case _:
+  return null;
+
+}
+}
+/// A variant of `when` that fallback to an `orElse` callback.
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case Subclass(:final field):
+///     return ...;
+///   case _:
+///     return orElse();
+/// }
+/// ```
+
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String id,  String title,  String body,  PriorityAlertLevel level,  String? actionLabel,  String? actionRoute,  String? amount)?  $default,{required TResult orElse(),}) {final _that = this;
+switch (_that) {
+case _PriorityAlert() when $default != null:
+return $default(_that.id,_that.title,_that.body,_that.level,_that.actionLabel,_that.actionRoute,_that.amount);case _:
+  return orElse();
+
+}
+}
+/// A `switch`-like method, using callbacks.
+///
+/// As opposed to `map`, this offers destructuring.
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case Subclass(:final field):
+///     return ...;
+///   case Subclass2(:final field2):
+///     return ...;
+/// }
+/// ```
+
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String id,  String title,  String body,  PriorityAlertLevel level,  String? actionLabel,  String? actionRoute,  String? amount)  $default,) {final _that = this;
+switch (_that) {
+case _PriorityAlert():
+return $default(_that.id,_that.title,_that.body,_that.level,_that.actionLabel,_that.actionRoute,_that.amount);case _:
+  throw StateError('Unexpected subclass');
+
+}
+}
+/// A variant of `when` that fallback to returning `null`
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case Subclass(:final field):
+///     return ...;
+///   case _:
+///     return null;
+/// }
+/// ```
+
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String id,  String title,  String body,  PriorityAlertLevel level,  String? actionLabel,  String? actionRoute,  String? amount)?  $default,) {final _that = this;
+switch (_that) {
+case _PriorityAlert() when $default != null:
+return $default(_that.id,_that.title,_that.body,_that.level,_that.actionLabel,_that.actionRoute,_that.amount);case _:
+  return null;
+
+}
+}
+
+}
+
+/// @nodoc
+@JsonSerializable()
+
+class _PriorityAlert implements PriorityAlert {
+  const _PriorityAlert({required this.id, required this.title, required this.body, required this.level, this.actionLabel, this.actionRoute, this.amount});
+  factory _PriorityAlert.fromJson(Map<String, dynamic> json) => _$PriorityAlertFromJson(json);
+
+@override final  String id;
+@override final  String title;
+@override final  String body;
+@override final  PriorityAlertLevel level;
+@override final  String? actionLabel;
+@override final  String? actionRoute;
+@override final  String? amount;
+
+/// Create a copy of PriorityAlert
+/// with the given fields replaced by the non-null parameter values.
+@override @JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+_$PriorityAlertCopyWith<_PriorityAlert> get copyWith => __$PriorityAlertCopyWithImpl<_PriorityAlert>(this, _$identity);
+
+@override
+Map<String, dynamic> toJson() {
+  return _$PriorityAlertToJson(this, );
+}
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _PriorityAlert&&(identical(other.id, id) || other.id == id)&&(identical(other.title, title) || other.title == title)&&(identical(other.body, body) || other.body == body)&&(identical(other.level, level) || other.level == level)&&(identical(other.actionLabel, actionLabel) || other.actionLabel == actionLabel)&&(identical(other.actionRoute, actionRoute) || other.actionRoute == actionRoute)&&(identical(other.amount, amount) || other.amount == amount));
+}
+
+@JsonKey(includeFromJson: false, includeToJson: false)
+@override
+int get hashCode => Object.hash(runtimeType,id,title,body,level,actionLabel,actionRoute,amount);
+
+@override
+String toString() {
+  return 'PriorityAlert(id: $id, title: $title, body: $body, level: $level, actionLabel: $actionLabel, actionRoute: $actionRoute, amount: $amount)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class _$PriorityAlertCopyWith<$Res> implements $PriorityAlertCopyWith<$Res> {
+  factory _$PriorityAlertCopyWith(_PriorityAlert value, $Res Function(_PriorityAlert) _then) = __$PriorityAlertCopyWithImpl;
+@override @useResult
+$Res call({
+ String id, String title, String body, PriorityAlertLevel level, String? actionLabel, String? actionRoute, String? amount
+});
+
+
+
+
+}
+/// @nodoc
+class __$PriorityAlertCopyWithImpl<$Res>
+    implements _$PriorityAlertCopyWith<$Res> {
+  __$PriorityAlertCopyWithImpl(this._self, this._then);
+
+  final _PriorityAlert _self;
+  final $Res Function(_PriorityAlert) _then;
+
+/// Create a copy of PriorityAlert
+/// with the given fields replaced by the non-null parameter values.
+@override @pragma('vm:prefer-inline') $Res call({Object? id = null,Object? title = null,Object? body = null,Object? level = null,Object? actionLabel = freezed,Object? actionRoute = freezed,Object? amount = freezed,}) {
+  return _then(_PriorityAlert(
+id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
+as String,title: null == title ? _self.title : title // ignore: cast_nullable_to_non_nullable
+as String,body: null == body ? _self.body : body // ignore: cast_nullable_to_non_nullable
+as String,level: null == level ? _self.level : level // ignore: cast_nullable_to_non_nullable
+as PriorityAlertLevel,actionLabel: freezed == actionLabel ? _self.actionLabel : actionLabel // ignore: cast_nullable_to_non_nullable
+as String?,actionRoute: freezed == actionRoute ? _self.actionRoute : actionRoute // ignore: cast_nullable_to_non_nullable
+as String?,amount: freezed == amount ? _self.amount : amount // ignore: cast_nullable_to_non_nullable
 as String?,
   ));
 }

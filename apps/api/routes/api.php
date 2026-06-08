@@ -6,6 +6,7 @@ use App\Http\Controllers\Api\Auth\MeController;
 use App\Http\Controllers\Api\Auth\RegisterController;
 use App\Http\Controllers\Api\HomeController;
 use App\Http\Controllers\Api\OnboardingController;
+use App\Http\Controllers\Api\Guests\GuestController;
 use App\Http\Controllers\Api\Plan\BudgetController;
 use App\Http\Controllers\Api\Plan\TaskController;
 use App\Http\Controllers\Api\Plan\TimelineController;
@@ -31,6 +32,19 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // Home — aggregated dashboard stats
     Route::get('/home', HomeController::class);
+
+    // Guests — named routes before wildcard to avoid capture of 'overview' etc.
+    Route::prefix('guests')->group(function () {
+        Route::get('/overview',                  [GuestController::class, 'overview']);
+        Route::get('/',                          [GuestController::class, 'index']);
+        Route::post('/',                         [GuestController::class, 'store']);
+        Route::get('/{guest}',                   [GuestController::class, 'show']);
+        Route::put('/{guest}',                   [GuestController::class, 'update']);
+        Route::patch('/{guest}',                 [GuestController::class, 'update']);
+        Route::delete('/{guest}',                [GuestController::class, 'destroy']);
+        Route::post('/{guest}/mark-invited',     [GuestController::class, 'markInvited']);
+        Route::post('/{guest}/regenerate-token', [GuestController::class, 'regenerateToken']);
+    });
 
     // Plan
     Route::prefix('plan')->group(function () {

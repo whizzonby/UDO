@@ -34,8 +34,11 @@ class ApiHomeRepository implements HomeRepository {
     final p = data['plan'] as Map<String, dynamic>;
     final b = data['budget'] as Map<String, dynamic>;
     final g = data['guests'] as Map<String, dynamic>;
-    final rawAlerts = data['alerts'] as List<dynamic>;
-    final rawUpcoming = data['upcoming_events'] as List<dynamic>;
+    final rawAlerts = (data['alerts'] as List<dynamic>?) ?? [];
+    final rawUpcoming = (data['upcoming_events'] as List<dynamic>?) ?? [];
+    final rawFocus = (data['todays_focus'] as List<dynamic>?) ?? [];
+    final rawGuidance = (data['guidance_prompts'] as List<dynamic>?) ?? [];
+    final rawPriorities = (data['priorities'] as List<dynamic>?) ?? [];
 
     final wedding = WeddingInfo(
       id: w['id'] as String,
@@ -44,6 +47,8 @@ class ApiHomeRepository implements HomeRepository {
       weddingDate: w['wedding_date'] != null
           ? DateTime.tryParse(w['wedding_date'] as String)
           : null,
+      venueName: w['venue_name'] as String?,
+      venueCity: w['venue_city'] as String?,
       status: WeddingStatus.values.firstWhere(
         (s) => s.value == (w['status'] as String? ?? 'planning'),
         orElse: () => WeddingStatus.planning,
@@ -71,10 +76,9 @@ class ApiHomeRepository implements HomeRepository {
 
     final alerts = rawAlerts.asMap().entries.map((e) {
       final a = e.value as Map<String, dynamic>;
-      final type = _mapAlertType(a['type'] as String? ?? '');
       return SmartAlert(
         id: 'alert_${e.key}',
-        type: type,
+        type: _mapAlertType(a['type'] as String? ?? ''),
         title: a['message'] as String? ?? '',
         body: a['detail'] as String? ?? '',
       );
@@ -91,6 +95,41 @@ class ApiHomeRepository implements HomeRepository {
       );
     }).toList();
 
+    final todaysFocus = rawFocus.map((raw) {
+      final f = raw as Map<String, dynamic>;
+      return TodaysFocusItem(
+        id: f['id'] as String? ?? DateTime.now().millisecondsSinceEpoch.toString(),
+        title: f['title'] as String? ?? '',
+        reason: f['reason'] as String? ?? '',
+        actionLabel: f['action_label'] as String? ?? 'View',
+        actionRoute: f['action_route'] as String?,
+        isDone: f['is_done'] as bool? ?? false,
+      );
+    }).toList();
+
+    final guidancePrompts = rawGuidance.map((raw) {
+      final g = raw as Map<String, dynamic>;
+      return GuidancePrompt(
+        id: g['id'] as String? ?? DateTime.now().millisecondsSinceEpoch.toString(),
+        question: g['question'] as String? ?? '',
+        context: g['context'] as String?,
+        category: g['category'] as String?,
+      );
+    }).toList();
+
+    final priorities = rawPriorities.map((raw) {
+      final pr = raw as Map<String, dynamic>;
+      return PriorityAlert(
+        id: pr['id'] as String? ?? DateTime.now().millisecondsSinceEpoch.toString(),
+        title: pr['title'] as String? ?? '',
+        body: pr['body'] as String? ?? '',
+        level: _mapPriorityLevel(pr['level'] as String? ?? 'info'),
+        actionLabel: pr['action_label'] as String?,
+        actionRoute: pr['action_route'] as String?,
+        amount: pr['amount'] as String?,
+      );
+    }).toList();
+
     return HomeStats(
       wedding: wedding,
       guests: guests,
@@ -98,6 +137,9 @@ class ApiHomeRepository implements HomeRepository {
       budget: budget,
       alerts: alerts,
       upcoming: upcoming,
+      todaysFocus: todaysFocus,
+      guidancePrompts: guidancePrompts,
+      priorities: priorities,
     );
   }
 
@@ -105,6 +147,12 @@ class ApiHomeRepository implements HomeRepository {
         'rsvp_pending' => SmartAlertType.rsvp,
         'vendor_deposit_due' => SmartAlertType.vendor,
         _ => SmartAlertType.info,
+      };
+
+  PriorityAlertLevel _mapPriorityLevel(String level) => switch (level) {
+        'urgent' => PriorityAlertLevel.urgent,
+        'warning' => PriorityAlertLevel.warning,
+        _ => PriorityAlertLevel.info,
       };
 
   double? _toDouble(dynamic v) {

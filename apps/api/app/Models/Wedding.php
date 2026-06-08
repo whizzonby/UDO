@@ -20,6 +20,7 @@ class Wedding extends Model
         'date_not_set',
         'venue_name',
         'venue_address',
+        'venue_city',
         'guest_count_range',
         'currency',
         'total_budget',

@@ -10,7 +10,13 @@ abstract final class AppColors {
 
   // Dashboard palette
   static const Color hotPink = Color(0xFFFF4D8C);
+  static const Color hotPinkLight = Color(0xFFFF79A8);
+  static const Color magenta = Color(0xFFE91E8C);
+  static const Color pinkGradientStart = Color(0xFFFF4D8C);
+  static const Color pinkGradientEnd = Color(0xFFD4006A);
+  static const Color blushLight = Color(0xFFFFF0F5);
   static const Color teal = Color(0xFF2A9D8F);
+  static const Color tealLight = Color(0xFFE8F7F5);
 
   // Neutrals
   static const Color white = Color(0xFFFFFFFF);

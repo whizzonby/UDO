@@ -21,6 +21,21 @@ _HomeStats _$HomeStatsFromJson(Map<String, dynamic> json) => _HomeStats(
           ?.map((e) => UpcomingEvent.fromJson(e as Map<String, dynamic>))
           .toList() ??
       const [],
+  todaysFocus:
+      (json['todaysFocus'] as List<dynamic>?)
+          ?.map((e) => TodaysFocusItem.fromJson(e as Map<String, dynamic>))
+          .toList() ??
+      const [],
+  guidancePrompts:
+      (json['guidancePrompts'] as List<dynamic>?)
+          ?.map((e) => GuidancePrompt.fromJson(e as Map<String, dynamic>))
+          .toList() ??
+      const [],
+  priorities:
+      (json['priorities'] as List<dynamic>?)
+          ?.map((e) => PriorityAlert.fromJson(e as Map<String, dynamic>))
+          .toList() ??
+      const [],
 );
 
 Map<String, dynamic> _$HomeStatsToJson(_HomeStats instance) =>
@@ -31,6 +46,9 @@ Map<String, dynamic> _$HomeStatsToJson(_HomeStats instance) =>
       'budget': instance.budget,
       'alerts': instance.alerts,
       'upcoming': instance.upcoming,
+      'todaysFocus': instance.todaysFocus,
+      'guidancePrompts': instance.guidancePrompts,
+      'priorities': instance.priorities,
     };
 
 _WeddingInfo _$WeddingInfoFromJson(Map<String, dynamic> json) => _WeddingInfo(
@@ -227,3 +245,67 @@ Map<String, dynamic> _$UpcomingEventToJson(_UpcomingEvent instance) =>
       'description': instance.description,
       'location': instance.location,
     };
+
+_TodaysFocusItem _$TodaysFocusItemFromJson(Map<String, dynamic> json) =>
+    _TodaysFocusItem(
+      id: json['id'] as String,
+      title: json['title'] as String,
+      reason: json['reason'] as String,
+      actionLabel: json['actionLabel'] as String,
+      actionRoute: json['actionRoute'] as String?,
+      isDone: json['isDone'] as bool? ?? false,
+    );
+
+Map<String, dynamic> _$TodaysFocusItemToJson(_TodaysFocusItem instance) =>
+    <String, dynamic>{
+      'id': instance.id,
+      'title': instance.title,
+      'reason': instance.reason,
+      'actionLabel': instance.actionLabel,
+      'actionRoute': instance.actionRoute,
+      'isDone': instance.isDone,
+    };
+
+_GuidancePrompt _$GuidancePromptFromJson(Map<String, dynamic> json) =>
+    _GuidancePrompt(
+      id: json['id'] as String,
+      question: json['question'] as String,
+      context: json['context'] as String?,
+      category: json['category'] as String?,
+    );
+
+Map<String, dynamic> _$GuidancePromptToJson(_GuidancePrompt instance) =>
+    <String, dynamic>{
+      'id': instance.id,
+      'question': instance.question,
+      'context': instance.context,
+      'category': instance.category,
+    };
+
+_PriorityAlert _$PriorityAlertFromJson(Map<String, dynamic> json) =>
+    _PriorityAlert(
+      id: json['id'] as String,
+      title: json['title'] as String,
+      body: json['body'] as String,
+      level: $enumDecode(_$PriorityAlertLevelEnumMap, json['level']),
+      actionLabel: json['actionLabel'] as String?,
+      actionRoute: json['actionRoute'] as String?,
+      amount: json['amount'] as String?,
+    );
+
+Map<String, dynamic> _$PriorityAlertToJson(_PriorityAlert instance) =>
+    <String, dynamic>{
+      'id': instance.id,
+      'title': instance.title,
+      'body': instance.body,
+      'level': _$PriorityAlertLevelEnumMap[instance.level]!,
+      'actionLabel': instance.actionLabel,
+      'actionRoute': instance.actionRoute,
+      'amount': instance.amount,
+    };
+
+const _$PriorityAlertLevelEnumMap = {
+  PriorityAlertLevel.urgent: 'urgent',
+  PriorityAlertLevel.warning: 'warning',
+  PriorityAlertLevel.info: 'info',
+};

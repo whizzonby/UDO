@@ -14,6 +14,9 @@ abstract class HomeStats with _$HomeStats {
     required BudgetOverview budget,
     @Default([]) List<SmartAlert> alerts,
     @Default([]) List<UpcomingEvent> upcoming,
+    @Default([]) List<TodaysFocusItem> todaysFocus,
+    @Default([]) List<GuidancePrompt> guidancePrompts,
+    @Default([]) List<PriorityAlert> priorities,
   }) = _HomeStats;
 
   factory HomeStats.fromJson(Map<String, dynamic> json) =>
@@ -179,4 +182,64 @@ abstract class UpcomingEvent with _$UpcomingEvent {
 
   factory UpcomingEvent.fromJson(Map<String, dynamic> json) =>
       _$UpcomingEventFromJson(json);
+}
+
+// ─── Today's Focus ────────────────────────────────────────────────────────────
+
+@freezed
+abstract class TodaysFocusItem with _$TodaysFocusItem {
+  const factory TodaysFocusItem({
+    required String id,
+    required String title,
+    required String reason,
+    required String actionLabel,
+    String? actionRoute,
+    @Default(false) bool isDone,
+  }) = _TodaysFocusItem;
+
+  factory TodaysFocusItem.fromJson(Map<String, dynamic> json) =>
+      _$TodaysFocusItemFromJson(json);
+}
+
+// ─── Guidance prompts ─────────────────────────────────────────────────────────
+
+@freezed
+abstract class GuidancePrompt with _$GuidancePrompt {
+  const factory GuidancePrompt({
+    required String id,
+    required String question,
+    String? context,
+    String? category,
+  }) = _GuidancePrompt;
+
+  factory GuidancePrompt.fromJson(Map<String, dynamic> json) =>
+      _$GuidancePromptFromJson(json);
+}
+
+// ─── Priority alerts ──────────────────────────────────────────────────────────
+
+@freezed
+abstract class PriorityAlert with _$PriorityAlert {
+  const factory PriorityAlert({
+    required String id,
+    required String title,
+    required String body,
+    required PriorityAlertLevel level,
+    String? actionLabel,
+    String? actionRoute,
+    String? amount,
+  }) = _PriorityAlert;
+
+  factory PriorityAlert.fromJson(Map<String, dynamic> json) =>
+      _$PriorityAlertFromJson(json);
+}
+
+@JsonEnum(valueField: 'value')
+enum PriorityAlertLevel {
+  urgent('urgent'),
+  warning('warning'),
+  info('info');
+
+  const PriorityAlertLevel(this.value);
+  final String value;
 }
