@@ -81,4 +81,9 @@ class Wedding extends Model
     {
         return $this->hasOne(WeddingExperienceConfig::class);
     }
+
+    public function guestMessages(): HasMany
+    {
+        return $this->hasMany(GuestMessage::class)->latest();
+    }
 }

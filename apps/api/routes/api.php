@@ -8,6 +8,7 @@ use App\Http\Controllers\Api\HomeController;
 use App\Http\Controllers\Api\OnboardingController;
 use App\Http\Controllers\Api\Guests\GuestController;
 use App\Http\Controllers\Api\Experience\ExperienceController;
+use App\Http\Controllers\Api\Messages\MessagesController;
 use App\Http\Controllers\Api\Plan\BudgetController;
 use App\Http\Controllers\Api\Plan\TaskController;
 use App\Http\Controllers\Api\Plan\TimelineController;
@@ -46,6 +47,13 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::delete('/{guest}',                [GuestController::class, 'destroy']);
         Route::post('/{guest}/mark-invited',     [GuestController::class, 'markInvited']);
         Route::post('/{guest}/regenerate-token', [GuestController::class, 'regenerateToken']);
+    });
+
+    // Guest messages (broadcast)
+    Route::prefix('messages')->group(function () {
+        Route::get('/',           [MessagesController::class, 'index']);
+        Route::post('/',          [MessagesController::class, 'store']);
+        Route::delete('/{message}', [MessagesController::class, 'destroy']);
     });
 
     // Guest Experience config
