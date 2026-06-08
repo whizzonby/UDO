@@ -7,6 +7,7 @@ use App\Jobs\SendRsvpConfirmationSms;
 use App\Jobs\SendRsvpNotification;
 use App\Models\Guest;
 use App\Models\GalleryItem;
+use App\Models\TableAssignment;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
@@ -39,8 +40,11 @@ class GuestPortalController extends Controller
             ->get();
 
         $experience = $wedding->experienceConfig;
+        $isLive     = $wedding->status === 'live';
 
-        $isLive = $wedding->status === 'live';
+        $tableAssignment = TableAssignment::where('guest_id', $guest->id)
+            ->with('seatingTable:id,name,shape,section')
+            ->first();
 
         return response()->json([
             'guest' => [
@@ -76,6 +80,11 @@ class GuestPortalController extends Controller
                 'show_gallery'      => $experience->show_gallery,
                 'show_messages'     => $experience->show_messages,
                 'theme_color'       => $experience->theme_color,
+            ] : null,
+            'table' => $tableAssignment ? [
+                'name'    => $tableAssignment->seatingTable?->name,
+                'shape'   => $tableAssignment->seatingTable?->shape,
+                'section' => $tableAssignment->seatingTable?->section,
             ] : null,
             'day_schedule' => $timeline->map(fn ($e) => [
                 'id'          => $e->id,

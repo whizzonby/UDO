@@ -50,11 +50,18 @@ export interface TimelineEvent {
   type: string | null;
 }
 
+export interface TableAssignmentData {
+  name: string;
+  shape: string;
+  section: string | null;
+}
+
 export interface GuestPortalData {
   guest: GuestData;
   wedding: WeddingData;
   experience: ExperienceConfig | null;
   day_schedule: TimelineEvent[];
+  table: TableAssignmentData | null;
 }
 
 export interface RegistryItem {

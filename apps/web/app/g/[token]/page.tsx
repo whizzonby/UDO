@@ -1,6 +1,6 @@
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
-import { Calendar, MapPin, Heart, ChevronRight, Clock, Gift } from 'lucide-react';
+import { Calendar, MapPin, Heart, ChevronRight, Clock, Gift, UtensilsCrossed } from 'lucide-react';
 import { guestApi } from '@/lib/api';
 import { formatDate, daysUntil, coupleNames } from '@/lib/utils';
 
@@ -18,7 +18,7 @@ export default async function GuestHomePage({
     notFound();
   }
 
-  const { guest, wedding, experience, day_schedule } = data;
+  const { guest, wedding, experience, day_schedule, table } = data;
   const days = daysUntil(wedding.wedding_date);
   const names = coupleNames(wedding.partner_one_name, wedding.partner_two_name);
   const hasResponded = guest.rsvp_status !== 'pending';
@@ -135,6 +135,35 @@ export default async function GuestHomePage({
               <Link href={`/g/${token}/rsvp`} className="text-xs text-[--color-udo-teal]/70 underline">
                 Update your RSVP
               </Link>
+            </div>
+          </div>
+        )}
+
+        {/* Your table card — only shown when attending and assigned */}
+        {guest.rsvp_status === 'attending' && table && (
+          <div className="bg-white rounded-2xl p-5 border border-[--color-udo-pink]/30 shadow-sm">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-[--color-udo-pink]/10 flex items-center justify-center shrink-0">
+                <UtensilsCrossed size={18} className="text-[--color-udo-pink]" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-semibold text-[--color-udo-grey-500] uppercase tracking-wider mb-0.5">
+                  Your seat
+                </p>
+                <p className="font-bold text-[--color-udo-grey-700] text-base leading-tight">
+                  {table.name}
+                </p>
+                {(table.section || table.shape) && (
+                  <p className="text-xs text-[--color-udo-grey-400] mt-0.5 capitalize">
+                    {[table.section, table.shape !== 'round' ? table.shape + ' table' : 'Round table']
+                      .filter(Boolean)
+                      .join(' · ')}
+                  </p>
+                )}
+              </div>
+              <div className="w-8 h-8 rounded-full bg-[--color-udo-pink] flex items-center justify-center shrink-0">
+                <Heart size={14} className="text-white fill-white" />
+              </div>
             </div>
           </div>
         )}
