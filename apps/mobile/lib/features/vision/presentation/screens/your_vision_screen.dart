@@ -1,18 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:pdf/pdf.dart';
+import 'package:pdf/widgets.dart' as pw;
+import 'package:printing/printing.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../core/network/api_client.dart';
 
 final _visionTimelineProvider = FutureProvider<List<Map<String, dynamic>>>((ref) async {
   final client = ref.read(apiClientProvider);
-  try {
-    final res = await client.get('/plan/timeline') as Map<String, dynamic>;
-    final items = (res['data'] as List? ?? []).cast<Map<String, dynamic>>();
-    items.sort((a, b) => (a['start_time'] ?? '').compareTo(b['start_time'] ?? ''));
-    return items;
-  } catch (_) {
-    return [];
-  }
+  final res = await client.get('/plan/timeline') as Map<String, dynamic>;
+  final items = (res['data'] as List? ?? []).cast<Map<String, dynamic>>();
+  items.sort((a, b) => (a['start_time'] ?? '').compareTo(b['start_time'] ?? ''));
+  return items;
 });
 
 class YourVisionScreen extends ConsumerStatefulWidget {
@@ -22,7 +21,7 @@ class YourVisionScreen extends ConsumerStatefulWidget {
 }
 
 class _YourVisionScreenState extends ConsumerState<YourVisionScreen> {
-  bool _showDownloadModal = false;
+  bool _generatingPdf = false;
 
   String _formatTime(String? t) {
     if (t == null || t.isEmpty) return '';
@@ -41,22 +40,75 @@ class _YourVisionScreenState extends ConsumerState<YourVisionScreen> {
 
     return Scaffold(
       backgroundColor: Colors.white,
-      body: Stack(
-        children: [
-          CustomScrollView(
-            slivers: [
-              _buildHeader(context),
-              _buildTimelineBar(timelineAsync),
-              _buildSimulationSection(timelineAsync),
-              _buildFooterCTA(context),
-              const SliverToBoxAdapter(child: SizedBox(height: 40)),
-            ],
-          ),
-          if (_showDownloadModal) _DownloadModal(onClose: () => setState(() => _showDownloadModal = false)),
-        ],
+      body: RefreshIndicator(
+        onRefresh: () => ref.refresh(_visionTimelineProvider.future),
+        child: CustomScrollView(
+          slivers: [
+            _buildHeader(context),
+            _buildTimelineBar(timelineAsync),
+            _buildSimulationSection(timelineAsync),
+            _buildFooterCTA(context, timelineAsync),
+            const SliverToBoxAdapter(child: SizedBox(height: 40)),
+          ],
+        ),
       ),
     );
   }
+
+  Future<void> _downloadDayPlan(BuildContext context, List<Map<String, dynamic>> items) async {
+    if (items.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Add events to your timeline first — nothing to export yet.')),
+      );
+      return;
+    }
+    setState(() => _generatingPdf = true);
+    try {
+      final doc = pw.Document();
+      doc.addPage(
+        pw.MultiPage(
+          pageFormat: PdfPageFormat.a4,
+          build: (pw.Context ctx) => [
+            pw.Header(level: 0, text: 'Your Wedding Day Plan'),
+            pw.SizedBox(height: 12),
+            pw.Table(
+              border: pw.TableBorder.all(color: PdfColors.grey300),
+              columnWidths: const {0: pw.FixedColumnWidth(70)},
+              children: [
+                pw.TableRow(children: [
+                  _pdfCell('Time', bold: true),
+                  _pdfCell('Event', bold: true),
+                ]),
+                for (final item in items)
+                  pw.TableRow(children: [
+                    _pdfCell(_formatTime(item['start_time'] as String?)),
+                    _pdfCell([
+                      item['title'] as String? ?? '',
+                      if ((item['description'] as String?)?.isNotEmpty == true) item['description'] as String,
+                      if ((item['location'] as String?)?.isNotEmpty == true) 'Location: ${item['location']}',
+                    ].join('\n')),
+                  ]),
+              ],
+            ),
+          ],
+        ),
+      );
+      await Printing.layoutPdf(onLayout: (_) => doc.save(), name: 'Wedding-Day-Plan.pdf');
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Couldn't generate the PDF. Try again.")),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _generatingPdf = false);
+    }
+  }
+
+  pw.Widget _pdfCell(String text, {bool bold = false}) => pw.Padding(
+        padding: const pw.EdgeInsets.all(8),
+        child: pw.Text(text, style: pw.TextStyle(fontWeight: bold ? pw.FontWeight.bold : pw.FontWeight.normal, fontSize: 10)),
+      );
 
   SliverToBoxAdapter _buildHeader(BuildContext context) => SliverToBoxAdapter(
     child: Container(
@@ -99,7 +151,10 @@ class _YourVisionScreenState extends ConsumerState<YourVisionScreen> {
       padding: const EdgeInsets.symmetric(vertical: 20),
       child: timelineAsync.when(
         loading: () => const SizedBox(height: 56, child: Center(child: CircularProgressIndicator(strokeWidth: 2))),
-        error: (_, __) => const SizedBox.shrink(),
+        error: (_, __) => const Padding(
+          padding: EdgeInsets.symmetric(horizontal: 20),
+          child: Text("Couldn't load your timeline. Pull down to try again.", style: TextStyle(fontSize: 13, color: AppTheme.udoCrimson)),
+        ),
         data: (items) {
           if (items.isEmpty) {
             return const Padding(
@@ -135,7 +190,17 @@ class _YourVisionScreenState extends ConsumerState<YourVisionScreen> {
       padding: const EdgeInsets.fromLTRB(20, 28, 20, 0),
       child: timelineAsync.when(
         loading: () => const Center(child: CircularProgressIndicator(strokeWidth: 2)),
-        error: (_, __) => const SizedBox.shrink(),
+        error: (_, __) => Container(
+          padding: const EdgeInsets.all(24),
+          decoration: BoxDecoration(color: AppTheme.udoCrimson.withValues(alpha: 0.05), borderRadius: BorderRadius.circular(16)),
+          child: const Column(mainAxisSize: MainAxisSize.min, children: [
+            Icon(Icons.error_outline, size: 40, color: AppTheme.udoCrimson),
+            SizedBox(height: 12),
+            Text("Couldn't load your day plan", style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: AppTheme.udoCrimson)),
+            SizedBox(height: 6),
+            Text('Check your connection and try again.', style: TextStyle(fontSize: 13, color: AppTheme.udoTextSecondary)),
+          ]),
+        ),
         data: (items) {
           if (items.isEmpty) {
             return Container(
@@ -193,7 +258,7 @@ class _YourVisionScreenState extends ConsumerState<YourVisionScreen> {
     ),
   );
 
-  SliverToBoxAdapter _buildFooterCTA(BuildContext context) => SliverToBoxAdapter(
+  SliverToBoxAdapter _buildFooterCTA(BuildContext context, AsyncValue<List<Map<String, dynamic>>> timelineAsync) => SliverToBoxAdapter(
     child: Container(
       margin: const EdgeInsets.only(top: 32),
       padding: const EdgeInsets.fromLTRB(20, 40, 20, 40),
@@ -211,62 +276,18 @@ class _YourVisionScreenState extends ConsumerState<YourVisionScreen> {
         ),
         const SizedBox(height: 24),
         ElevatedButton(
-          onPressed: () {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('PDF export coming soon')),
-            );
-          },
+          onPressed: _generatingPdf ? null : () => _downloadDayPlan(context, timelineAsync.value ?? const []),
           style: ElevatedButton.styleFrom(
             minimumSize: const Size(double.infinity, 52),
             backgroundColor: AppTheme.udoCrimson,
             foregroundColor: Colors.white,
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
           ),
-          child: const Text('Download day plan', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w500)),
+          child: _generatingPdf
+              ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+              : const Text('Download day plan', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w500)),
         ),
       ]),
-    ),
-  );
-}
-
-// ── DOWNLOAD MODAL ─────────────────────────────────────────────────────────────
-
-class _DownloadModal extends StatelessWidget {
-  final VoidCallback onClose;
-  const _DownloadModal({required this.onClose});
-
-  @override
-  Widget build(BuildContext context) => GestureDetector(
-    onTap: onClose,
-    child: Container(
-      color: Colors.black54,
-      child: Center(
-        child: GestureDetector(
-          onTap: () {},
-          child: Container(
-            margin: const EdgeInsets.symmetric(horizontal: 24),
-            padding: const EdgeInsets.all(28),
-            decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(24)),
-            child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Row(children: [
-                const Expanded(child: Text('Download day plan', style: TextStyle(fontFamily: 'Playfair', fontSize: 22, fontWeight: FontWeight.w500))),
-                GestureDetector(onTap: onClose, child: const Icon(Icons.close, color: Color(0xFF9CA3AF))),
-              ]),
-              const SizedBox(height: 12),
-              const Text(
-                'PDF export is coming soon. Your complete day plan will be available to download and share with your planning team.',
-                style: TextStyle(fontSize: 14, color: AppTheme.udoTextSecondary, height: 1.6),
-              ),
-              const SizedBox(height: 20),
-              ElevatedButton(
-                onPressed: onClose,
-                style: ElevatedButton.styleFrom(minimumSize: const Size(double.infinity, 52), backgroundColor: AppTheme.udoCrimson, foregroundColor: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14))),
-                child: const Text('Got it', style: TextStyle(fontWeight: FontWeight.w500)),
-              ),
-            ]),
-          ),
-        ),
-      ),
     ),
   );
 }

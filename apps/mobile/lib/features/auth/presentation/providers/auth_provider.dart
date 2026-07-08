@@ -123,6 +123,16 @@ class AuthNotifier extends StateNotifier<AuthState> {
     await _authService.logout();
     state = AuthState.unauthenticated;
   }
+
+  /// Called when any API call comes back 401 — the token is already dead
+  /// server-side, so there's nothing to notify the backend of; just clear
+  /// local session state and surface a clear reason on the login screen
+  /// instead of leaving whatever screen was open showing a generic error.
+  Future<void> forceLogout() async {
+    if (state.status == AuthStatus.unauthenticated) return;
+    await _authService.clearSession();
+    state = AuthState.unauthenticated.copyWith(error: 'Your session expired. Please sign in again.');
+  }
 }
 
 final authProvider = StateNotifierProvider<AuthNotifier, AuthState>((ref) {

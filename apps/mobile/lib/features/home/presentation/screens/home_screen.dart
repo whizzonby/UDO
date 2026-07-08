@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/theme/app_theme.dart';
+import '../../../plan/presentation/providers/plan_provider.dart';
 import '../providers/home_provider.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
@@ -276,19 +277,54 @@ class _QuickAction extends StatelessWidget {
 
 // ── QUICK ACTION MODALS ────────────────────────────────────────────────────────
 
-class _QuickActionModal extends StatefulWidget {
+class _QuickActionModal extends ConsumerStatefulWidget {
   final String type;
   const _QuickActionModal({required this.type});
   @override
-  State<_QuickActionModal> createState() => _QuickActionModalState();
+  ConsumerState<_QuickActionModal> createState() => _QuickActionModalState();
 }
 
-class _QuickActionModalState extends State<_QuickActionModal> {
+class _QuickActionModalState extends ConsumerState<_QuickActionModal> {
   final _c1 = TextEditingController();
   final _c2 = TextEditingController();
   final _c3 = TextEditingController();
   String _sendMethod = 'email';
   bool _plusOne = false;
+  bool _saving = false;
+  String? _error;
+
+  Future<void> _submit() async {
+    if (widget.type == 'add_task') {
+      if (_c1.text.trim().isEmpty) {
+        setState(() => _error = 'Give the task a title.');
+        return;
+      }
+      setState(() {
+        _saving = true;
+        _error = null;
+      });
+      final priority = switch (_sendMethod) { 'High' => 'high', 'Low' => 'low', _ => 'medium' };
+      final ok = await ref.read(planProvider.notifier).createTask(
+            title: _c1.text.trim(),
+            description: _c2.text.trim().isEmpty ? null : _c2.text.trim(),
+            priority: priority,
+          );
+      if (!mounted) return;
+      if (ok) {
+        Navigator.pop(context);
+      } else {
+        setState(() {
+          _saving = false;
+          _error = "Couldn't save this task. Try again.";
+        });
+      }
+      return;
+    }
+
+    // Other quick actions (add_guest, message, invite) aren't wired to a
+    // real backend flow yet — closing without a false "success" claim.
+    Navigator.pop(context);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -304,11 +340,17 @@ class _QuickActionModalState extends State<_QuickActionModal> {
             ]),
             const SizedBox(height: 16),
             ..._fields,
+            if (_error != null) ...[
+              const SizedBox(height: 12),
+              Text(_error!, style: const TextStyle(color: AppTheme.udoCrimson, fontSize: 13)),
+            ],
             const SizedBox(height: 20),
             ElevatedButton(
-              onPressed: () => Navigator.pop(context),
+              onPressed: _saving ? null : _submit,
               style: ElevatedButton.styleFrom(minimumSize: const Size(double.infinity, 52), backgroundColor: AppTheme.udoGreen, foregroundColor: Colors.white),
-              child: Text(_action),
+              child: _saving
+                  ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                  : Text(_action),
             ),
           ]),
         ),

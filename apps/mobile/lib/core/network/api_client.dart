@@ -10,6 +10,13 @@ class ApiClient {
   late final Dio _dio;
   final _storage = const FlutterSecureStorage();
 
+  /// Fired on any 401 from any request, anywhere in the app. Wired once, in
+  /// UdoApp, to force a clean logout + redirect to /login — without this, a
+  /// stale/expired token just makes whatever action was in flight (add task,
+  /// save budget item, ...) fail with a generic "couldn't save" error, with
+  /// no indication that the real problem is "you're signed out".
+  void Function()? onUnauthorized;
+
   ApiClient() {
     _dio = Dio(BaseOptions(
       baseUrl: AppConstants.apiBaseUrl,
@@ -28,6 +35,7 @@ class ApiClient {
       },
       onError: (error, handler) {
         if (error.response?.statusCode == 401) {
+          onUnauthorized?.call();
           handler.reject(DioException(
             requestOptions: error.requestOptions,
             error: const UnauthorizedException(),

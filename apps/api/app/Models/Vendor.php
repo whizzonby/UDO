@@ -23,7 +23,6 @@ class Vendor extends Model
         'balance_due_date' => 'date',
         'contract_signed' => 'boolean',
         'on_timeline' => 'boolean',
-        'priority' => 'boolean',
     ];
 
     public function wedding(): BelongsTo { return $this->belongsTo(Wedding::class); }

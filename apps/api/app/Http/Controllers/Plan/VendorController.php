@@ -34,7 +34,7 @@ class VendorController extends Controller
         $data = $request->validate([
             'name'             => 'required|string|max:255',
             'category'         => 'nullable|string|max:100',
-            'contact_name'     => 'nullable|string|max:255',
+            'contact_person'   => 'nullable|string|max:255',
             'email'            => 'nullable|email',
             'phone'            => 'nullable|string|max:50',
             'website'          => 'nullable|url',
@@ -67,7 +67,7 @@ class VendorController extends Controller
         $data = $request->validate([
             'name'             => 'sometimes|string|max:255',
             'category'         => 'nullable|string|max:100',
-            'contact_name'     => 'nullable|string|max:255',
+            'contact_person'   => 'nullable|string|max:255',
             'email'            => 'nullable|email',
             'phone'            => 'nullable|string|max:50',
             'website'          => 'nullable|url',

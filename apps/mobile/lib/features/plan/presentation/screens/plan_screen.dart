@@ -4,6 +4,18 @@ import 'package:go_router/go_router.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../providers/plan_provider.dart';
 
+/// Laravel's `decimal:2` model casts serialize to JSON as strings (e.g.
+/// "18000.00"), not numbers — this project's budget fields hit that
+/// specifically. Handles both shapes so a future backend fix (or any field
+/// that's already a real number, like the pre-computed budget summary) still
+/// works.
+double _asDouble(dynamic value) {
+  if (value == null) return 0;
+  if (value is num) return value.toDouble();
+  if (value is String) return double.tryParse(value) ?? 0;
+  return 0;
+}
+
 class PlanScreen extends ConsumerStatefulWidget {
   const PlanScreen({super.key});
   @override
@@ -18,6 +30,7 @@ class _PlanScreenState extends ConsumerState<PlanScreen> with SingleTickerProvid
   void initState() {
     super.initState();
     _tabs = TabController(length: 7, vsync: this);
+    _tabs.addListener(() => setState(() {}));
   }
 
   @override
@@ -32,6 +45,13 @@ class _PlanScreenState extends ConsumerState<PlanScreen> with SingleTickerProvid
     final notifier = ref.read(planProvider.notifier);
 
     return Scaffold(
+      floatingActionButton: _tabs.index == 2
+          ? FloatingActionButton(
+              backgroundColor: AppTheme.udoGreen,
+              onPressed: () => showAddTaskSheet(context, notifier),
+              child: const Icon(Icons.add, color: Colors.white),
+            )
+          : null,
       body: Stack(
         children: [
           Column(
@@ -41,8 +61,8 @@ class _PlanScreenState extends ConsumerState<PlanScreen> with SingleTickerProvid
                 child: TabBarView(
                   controller: _tabs,
                   children: [
-                    _OverviewTab(onModuleTap: (id) => setState(() => _activeModal = id), onTabJump: _tabs.animateTo),
-                    const _YourVisionTab(),
+                    _OverviewTab(state: state, onModuleTap: (id) => setState(() => _activeModal = id), onTabJump: _tabs.animateTo),
+                    _YourVisionTab(state: state),
                     _TasksTab(state: state, notifier: notifier),
                     _BudgetTab(state: state),
                     _VendorsTab(state: state),
@@ -121,12 +141,36 @@ class _PlanHeader extends StatelessWidget {
 // ── OVERVIEW TAB ───────────────────────────────────────────────────────────────
 
 class _OverviewTab extends StatelessWidget {
+  final PlanState state;
   final void Function(String) onModuleTap;
   final void Function(int) onTabJump;
-  const _OverviewTab({required this.onModuleTap, required this.onTabJump});
+  const _OverviewTab({required this.state, required this.onModuleTap, required this.onTabJump});
 
   @override
   Widget build(BuildContext context) {
+    if (state.isLoading) return const Center(child: CircularProgressIndicator(color: AppTheme.udoGreen));
+
+    // Real "up next": incomplete tasks, high priority first, soonest due date first.
+    final upNext = [...state.tasks.where((t) => t['completed'] != true)]
+      ..sort((a, b) {
+        const order = {'high': 0, 'medium': 1, 'low': 2};
+        final pa = order[a['priority'] as String? ?? 'low'] ?? 2;
+        final pb = order[b['priority'] as String? ?? 'low'] ?? 2;
+        if (pa != pb) return pa.compareTo(pb);
+        final da = a['due_date'] as String?;
+        final db = b['due_date'] as String?;
+        if (da == null) return 1;
+        if (db == null) return -1;
+        return da.compareTo(db);
+      });
+    final topTasks = upNext.take(3).toList();
+
+    final bookedVendors = state.vendors.where((v) => v['booking_status'] == 'booked' || v['booking_status'] == 'confirmed').length;
+    final neededVendors = state.vendors.length - bookedVendors;
+    final totalBudget = _asDouble(state.budgetSummary['total_budget']);
+    final actualBudget = _asDouble(state.budgetSummary['total_actual']);
+    final budgetProgress = totalBudget > 0 ? ((actualBudget / totalBudget) * 100).clamp(0, 100).round() : 0;
+
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
@@ -146,23 +190,57 @@ class _OverviewTab extends StatelessWidget {
         ),
         const SizedBox(height: 16),
 
-        // Priority tasks
+        // Priority tasks — real, sourced from state.tasks
         _SectionHeader('Up next'),
         const SizedBox(height: 8),
-        ...[
-          ('Finalize venue shortlist', 'This shapes your guest count and budget.', 'Urgent', 'vendors'),
-          ('Set guest meal preferences', 'Dining needs final counts and dietary clarity.', 'Soon', 'food'),
-          ('Publish guest page', 'Guests need this to RSVP and plan travel.', 'Soon', null),
-        ].map((t) => _PriorityTaskCard(title: t.$1, subtitle: t.$2, status: t.$3, onTap: t.$4 != null ? () => onModuleTap(t.$4!) : null)),
+        if (topTasks.isEmpty)
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16), border: Border.all(color: AppTheme.udoBorder)),
+            child: const Text("You're all caught up — no open tasks.", style: TextStyle(fontSize: 13, color: AppTheme.udoTextSecondary)),
+          )
+        else
+          ...topTasks.map((t) {
+            final priority = t['priority'] as String? ?? 'low';
+            final status = priority == 'high' ? 'Urgent' : priority == 'medium' ? 'Soon' : 'Later';
+            return _PriorityTaskCard(
+              title: t['title'] as String? ?? '',
+              subtitle: t['due_date'] != null ? 'Due ${t['due_date']}' : (t['category'] as String? ?? 'No due date set'),
+              status: status,
+              onTap: () => onTabJump(2),
+            );
+          }),
 
         const SizedBox(height: 16),
         _SectionHeader('Core planning'),
         const SizedBox(height: 8),
+        _ModuleCard(
+          id: 'budget', icon: Icons.attach_money_outlined, title: 'Budget',
+          status: totalBudget == 0 ? 'Not set' : (budgetProgress >= 100 ? 'Complete' : 'In progress'),
+          summary: totalBudget > 0 ? '\$${totalBudget.toStringAsFixed(0)} total' : 'No budget set yet',
+          progress: budgetProgress, nextStep: totalBudget > 0 ? '\$${actualBudget.toStringAsFixed(0)} spent so far' : 'Set your total budget to track spend',
+          onTap: () => onTabJump(3),
+        ),
+        _ModuleCard(
+          id: 'vendors', icon: Icons.work_outline, title: 'Vendors',
+          status: state.vendors.isEmpty ? 'Not started' : (neededVendors == 0 ? 'Complete' : 'In progress'),
+          summary: state.vendors.isEmpty ? 'No vendors added yet' : '$bookedVendors booked • $neededVendors still needed',
+          progress: state.vendors.isEmpty ? 0 : ((bookedVendors / state.vendors.length) * 100).round(),
+          nextStep: state.vendors.isEmpty ? 'Add your first vendor' : (neededVendors > 0 ? '$neededVendors vendor${neededVendors == 1 ? '' : 's'} still need confirmation' : 'All vendors booked'),
+          onTap: () => onTabJump(4),
+        ),
+        _ModuleCard(
+          id: 'event-structure', icon: Icons.calendar_today_outlined, title: 'Wedding Flow',
+          status: state.timelineItems.isEmpty ? 'Not started' : 'In progress',
+          summary: '${state.timelineItems.length} moment${state.timelineItems.length == 1 ? '' : 's'} planned',
+          progress: state.timelineItems.isEmpty ? 0 : 100,
+          nextStep: state.timelineItems.isEmpty ? 'Add your first timeline moment' : 'Your day, moment by moment',
+          onTap: () => context.push('/your-vision'),
+        ),
+        // Guests and Food & Dining aren't owned by the Plan tab's data (no
+        // guests/food API wired in here yet) — left as illustrative previews.
         ...[
-          ('budget', Icons.attach_money_outlined, 'Budget', 'In progress', '\$45,000 total', 70, 'Food and décor still have room to shape'),
           ('guests', Icons.people_outline, 'Guests', 'In progress', '120 invited • 95 confirmed', 85, '8 guests still pending RSVP'),
-          ('event-structure', Icons.calendar_today_outlined, 'Wedding Flow', 'Complete', '18 moments planned', 100, 'Your ceremony and reception flow is set'),
-          ('vendors', Icons.work_outline, 'Vendors', 'In progress', '8 booked • 3 still needed', 65, 'Florist and cake vendor need confirmation'),
           ('food', Icons.restaurant_outlined, 'Food & Dining', 'In progress', 'Plated dinner • 5 dietary needs tracked', 60, 'Menu enhancements still need review'),
         ].map((m) => _ModuleCard(
           id: m.$1, icon: m.$2, title: m.$3, status: m.$4,
@@ -309,18 +387,41 @@ class _ModuleCard extends StatelessWidget {
 // ── YOUR VISION TAB ────────────────────────────────────────────────────────────
 
 class _YourVisionTab extends StatelessWidget {
-  const _YourVisionTab();
+  final PlanState state;
+  const _YourVisionTab({required this.state});
+
+  String _formatTime(String? t) {
+    if (t == null || t.isEmpty) return '';
+    final parts = t.split(':');
+    if (parts.length < 2) return t;
+    final h = int.tryParse(parts[0]) ?? 0;
+    final m = int.tryParse(parts[1]) ?? 0;
+    final suffix = h >= 12 ? 'PM' : 'AM';
+    final hour = h > 12 ? h - 12 : (h == 0 ? 12 : h);
+    return '$hour:${m.toString().padLeft(2, '0')} $suffix';
+  }
 
   @override
   Widget build(BuildContext context) {
-    final simItems = [
-      ('5:30 AM', 'Bridal suite — controlled stillness', 'Four people maximum. Warm chai, instrumental playlist at 68 BPM. The energy is quiet anticipation.', 'Atmosphere'),
-      ('7:15 AM', 'Hair and makeup — two artists', 'Both artists arrive together. Senior artist on the bride. A trusted friend stays in the room — familiar energy only.', 'Logistics'),
-      ('9:00 AM', 'Morning detail shoot', 'Photographer captures rings, invitation, florals, and dress before the energy shifts.', 'Photography'),
-      ('11:00 AM', 'Family gathering — the quiet ones', 'Parents arrive. Keep it small. This is the moment for private words before everything becomes public.', 'Emotional'),
-      ('1:00 PM', 'Guest arrivals begin', 'Ushers in position. Floral arch lit. Background music at the right volume — present but not intrusive.', 'Ceremony'),
-      ('4:00 PM', 'Ceremony begins', 'Officiant takes position. Everything falls into place exactly as you planned.', 'Ceremony'),
-    ];
+    if (state.isLoading) return const Center(child: CircularProgressIndicator(color: AppTheme.udoGreen));
+
+    final items = [...state.timelineItems]
+      ..sort((a, b) => (a['start_time'] as String? ?? '').compareTo(b['start_time'] as String? ?? ''));
+
+    if (state.timelineError != null) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            const Icon(Icons.error_outline, size: 40, color: AppTheme.udoCrimson),
+            const SizedBox(height: 12),
+            const Text("Couldn't load your timeline.", style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: AppTheme.udoCrimson)),
+            const SizedBox(height: 6),
+            Text(state.timelineError!, style: const TextStyle(fontSize: 12, color: AppTheme.udoTextSecondary), textAlign: TextAlign.center),
+          ]),
+        ),
+      );
+    }
 
     return ListView(
       padding: const EdgeInsets.all(16),
@@ -347,63 +448,82 @@ class _YourVisionTab extends StatelessWidget {
         ),
         const SizedBox(height: 16),
 
-        // Timeline bar
-        SizedBox(
-          height: 80,
-          child: ListView(
-            scrollDirection: Axis.horizontal,
-            children: [
-              for (final (label, dur) in [('Ceremony', '3h'), ('Cocktails', '90m'), ('Reception', '5h'), ('End', '2:00 AM')])
-                Container(
-                  margin: const EdgeInsets.only(right: 8),
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                  decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(14), border: Border.all(color: AppTheme.udoBorder)),
-                  child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-                    Text(label, style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w600, letterSpacing: 0.5, color: AppTheme.udoTextSecondary)),
-                    const SizedBox(height: 4),
-                    Text(dur, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
-                  ]),
-                ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 16),
-
-        const Text('TIMELINE SIMULATION', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, letterSpacing: 0.8, color: AppTheme.udoTextSecondary)),
-        const SizedBox(height: 12),
-
-        ...simItems.asMap().entries.map((entry) {
-          final i = entry.key;
-          final item = entry.value;
-          final tagColor = _tagColor(item.$4);
-          return Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Column(children: [
-              Container(
-                width: 38, height: 38,
-                decoration: BoxDecoration(color: tagColor.withValues(alpha: 0.1), shape: BoxShape.circle, border: Border.all(color: tagColor.withValues(alpha: 0.3))),
-                child: Center(child: Text(item.$1.split(' ')[0], style: TextStyle(fontSize: 9, fontWeight: FontWeight.w700, color: tagColor))),
-              ),
-              if (i < simItems.length - 1) Container(width: 1, height: 60, color: AppTheme.udoBorder),
+        if (items.isEmpty)
+          Container(
+            padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(color: AppTheme.udoBackground, borderRadius: BorderRadius.circular(16)),
+            child: const Column(mainAxisSize: MainAxisSize.min, children: [
+              Icon(Icons.calendar_today_outlined, size: 40, color: AppTheme.udoTextSecondary),
+              SizedBox(height: 12),
+              Text('No events planned yet', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
+              SizedBox(height: 6),
+              Text('Add events to your timeline and they will appear here.', textAlign: TextAlign.center, style: TextStyle(fontSize: 13, color: AppTheme.udoTextSecondary)),
             ]),
-            const SizedBox(width: 14),
-            Expanded(child: Padding(
-              padding: const EdgeInsets.only(bottom: 16),
-              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text(item.$1, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: AppTheme.udoCrimson)),
-                const SizedBox(height: 2),
-                Text(item.$2, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w500, height: 1.3)),
-                const SizedBox(height: 4),
-                Text(item.$3, style: const TextStyle(fontSize: 13, color: AppTheme.udoTextSecondary, height: 1.5)),
-                const SizedBox(height: 6),
+          )
+        else ...[
+          // Timeline bar — real events, times
+          SizedBox(
+            height: 80,
+            child: ListView(
+              scrollDirection: Axis.horizontal,
+              children: [
+                for (final item in items)
+                  Container(
+                    margin: const EdgeInsets.only(right: 8),
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                    decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(14), border: Border.all(color: AppTheme.udoBorder)),
+                    child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+                      Text((item['title'] as String? ?? '').toUpperCase(), style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w600, letterSpacing: 0.5, color: AppTheme.udoTextSecondary)),
+                      const SizedBox(height: 4),
+                      Text(_formatTime(item['start_time'] as String?), style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
+                    ]),
+                  ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+
+          const Text('TIMELINE', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, letterSpacing: 0.8, color: AppTheme.udoTextSecondary)),
+          const SizedBox(height: 12),
+
+          ...items.asMap().entries.map((entry) {
+            final i = entry.key;
+            final item = entry.value;
+            final tag = (item['event_type'] as String? ?? 'Event');
+            final tagColor = _tagColor(tag);
+            final time = _formatTime(item['start_time'] as String?);
+            final desc = (item['description'] as String?)?.isNotEmpty == true ? item['description'] as String : (item['location'] as String? ?? '');
+            return Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Column(children: [
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                  decoration: BoxDecoration(color: tagColor.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(20)),
-                  child: Text(item.$4, style: TextStyle(fontSize: 10, color: tagColor, fontWeight: FontWeight.w600)),
+                  width: 38, height: 38,
+                  decoration: BoxDecoration(color: tagColor.withValues(alpha: 0.1), shape: BoxShape.circle, border: Border.all(color: tagColor.withValues(alpha: 0.3))),
+                  child: Center(child: Text(time.split(' ').first, style: TextStyle(fontSize: 9, fontWeight: FontWeight.w700, color: tagColor))),
                 ),
+                if (i < items.length - 1) Container(width: 1, height: 60, color: AppTheme.udoBorder),
               ]),
-            )),
-          ]);
-        }),
+              const SizedBox(width: 14),
+              Expanded(child: Padding(
+                padding: const EdgeInsets.only(bottom: 16),
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text(time, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: AppTheme.udoCrimson)),
+                  const SizedBox(height: 2),
+                  Text(item['title'] as String? ?? '', style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w500, height: 1.3)),
+                  if (desc.isNotEmpty) ...[
+                    const SizedBox(height: 4),
+                    Text(desc, style: const TextStyle(fontSize: 13, color: AppTheme.udoTextSecondary, height: 1.5)),
+                  ],
+                  const SizedBox(height: 6),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    decoration: BoxDecoration(color: tagColor.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(20)),
+                    child: Text(tag, style: TextStyle(fontSize: 10, color: tagColor, fontWeight: FontWeight.w600)),
+                  ),
+                ]),
+              )),
+            ]);
+          }),
+        ],
         const SizedBox(height: 8),
         ElevatedButton.icon(
           onPressed: () => context.push('/your-vision'),
@@ -427,6 +547,138 @@ class _YourVisionTab extends StatelessWidget {
   }
 }
 
+// ── ADD TASK SHEET ─────────────────────────────────────────────────────────────
+
+Future<void> showAddTaskSheet(BuildContext context, PlanNotifier notifier) {
+  return showModalBottomSheet(
+    context: context,
+    isScrollControlled: true,
+    backgroundColor: Colors.white,
+    shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+    builder: (ctx) => _AddTaskSheet(notifier: notifier),
+  );
+}
+
+class _AddTaskSheet extends StatefulWidget {
+  final PlanNotifier notifier;
+  const _AddTaskSheet({required this.notifier});
+  @override
+  State<_AddTaskSheet> createState() => _AddTaskSheetState();
+}
+
+class _AddTaskSheetState extends State<_AddTaskSheet> {
+  final _titleCtrl = TextEditingController();
+  final _categoryCtrl = TextEditingController();
+  String _priority = 'medium';
+  DateTime? _dueDate;
+  bool _saving = false;
+  String? _error;
+
+  @override
+  void dispose() {
+    _titleCtrl.dispose();
+    _categoryCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _save() async {
+    if (_titleCtrl.text.trim().isEmpty) {
+      setState(() => _error = 'Give the task a title.');
+      return;
+    }
+    setState(() {
+      _saving = true;
+      _error = null;
+    });
+    final ok = await widget.notifier.createTask(
+      title: _titleCtrl.text.trim(),
+      category: _categoryCtrl.text.trim().isEmpty ? null : _categoryCtrl.text.trim(),
+      dueDate: _dueDate,
+      priority: _priority,
+    );
+    if (!mounted) return;
+    if (ok) {
+      Navigator.of(context).pop();
+    } else {
+      setState(() {
+        _saving = false;
+        _error = "Couldn't save this task. Try again.";
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.fromLTRB(20, 16, 20, MediaQuery.of(context).viewInsets.bottom + 24),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Center(child: Container(width: 40, height: 4, decoration: BoxDecoration(color: AppTheme.udoBorder, borderRadius: BorderRadius.circular(2)))),
+          const SizedBox(height: 16),
+          const Text('New task', style: TextStyle(fontFamily: 'Playfair', fontSize: 20, fontWeight: FontWeight.w600, color: AppTheme.udoGreen)),
+          const SizedBox(height: 16),
+          TextField(
+            controller: _titleCtrl,
+            autofocus: true,
+            decoration: const InputDecoration(labelText: 'Title', hintText: 'e.g. Confirm florist order'),
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: _categoryCtrl,
+            decoration: const InputDecoration(labelText: 'Category (optional)', hintText: 'e.g. Vendors'),
+          ),
+          const SizedBox(height: 12),
+          Row(children: [
+            Expanded(
+              child: OutlinedButton.icon(
+                onPressed: () async {
+                  final picked = await showDatePicker(
+                    context: context,
+                    initialDate: _dueDate ?? DateTime.now(),
+                    firstDate: DateTime.now().subtract(const Duration(days: 1)),
+                    lastDate: DateTime.now().add(const Duration(days: 1460)),
+                  );
+                  if (picked != null) setState(() => _dueDate = picked);
+                },
+                icon: const Icon(Icons.calendar_today_outlined, size: 16),
+                label: Text(_dueDate == null ? 'Due date' : '${_dueDate!.day}/${_dueDate!.month}/${_dueDate!.year}'),
+              ),
+            ),
+          ]),
+          const SizedBox(height: 12),
+          Wrap(
+            spacing: 8,
+            children: ['low', 'medium', 'high'].map((p) => ChoiceChip(
+              label: Text(p[0].toUpperCase() + p.substring(1)),
+              selected: _priority == p,
+              onSelected: (_) => setState(() => _priority = p),
+              selectedColor: AppTheme.udoGreen,
+              labelStyle: TextStyle(color: _priority == p ? Colors.white : AppTheme.udoTextPrimary, fontSize: 13),
+            )).toList(),
+          ),
+          if (_error != null) ...[
+            const SizedBox(height: 12),
+            Text(_error!, style: const TextStyle(color: AppTheme.udoCrimson, fontSize: 13)),
+          ],
+          const SizedBox(height: 20),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton(
+              onPressed: _saving ? null : _save,
+              style: ElevatedButton.styleFrom(backgroundColor: AppTheme.udoGreen, foregroundColor: Colors.white, minimumSize: const Size(double.infinity, 50)),
+              child: _saving
+                  ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                  : const Text('Add task'),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 // ── TASKS TAB ──────────────────────────────────────────────────────────────────
 
 class _TasksTab extends StatefulWidget {
@@ -443,6 +695,22 @@ class _TasksTabState extends State<_TasksTab> {
   @override
   Widget build(BuildContext context) {
     if (widget.state.isLoading) return const Center(child: CircularProgressIndicator(color: AppTheme.udoGreen));
+
+    if (widget.state.tasksError != null) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            const Icon(Icons.error_outline, size: 40, color: AppTheme.udoCrimson),
+            const SizedBox(height: 12),
+            const Text("Couldn't load your tasks.", style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: AppTheme.udoCrimson)),
+            const SizedBox(height: 6),
+            Text(widget.state.tasksError!, style: const TextStyle(fontSize: 12, color: AppTheme.udoTextSecondary), textAlign: TextAlign.center),
+          ]),
+        ),
+      );
+    }
+
     final tasks = widget.state.tasks;
     final filtered = _filter == 'All' ? tasks : tasks.where((t) {
       if (_filter == 'Pending') return t['completed'] != true;
@@ -523,38 +791,79 @@ class _BudgetTab extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (state.isLoading) return const Center(child: CircularProgressIndicator(color: AppTheme.udoGreen));
-    final total = state.budgetItems.fold(0.0, (s, b) => s + ((b['budget'] as num? ?? 0).toDouble()));
-    final spent = state.budgetItems.fold(0.0, (s, b) => s + ((b['actual'] as num? ?? 0).toDouble()));
-    final progress = total > 0 ? (spent / total).clamp(0.0, 1.0) : 0.0;
+
+    final summary = state.budgetSummary;
+    final totalBudget = _asDouble(summary['total_budget']);
+    final totalActual = _asDouble(summary['total_actual']);
+    final totalPaid = _asDouble(summary['total_paid']);
+    // If no total budget was ever set during onboarding, compare spend against
+    // the sum of estimates instead of dividing by zero / showing "of $0".
+    final totalEstimated = _asDouble(summary['total_estimated']);
+    final comparisonTotal = totalBudget > 0 ? totalBudget : totalEstimated;
+    final progress = comparisonTotal > 0 ? (totalActual / comparisonTotal).clamp(0.0, 1.0) : 0.0;
+
+    // Group real budget items by category.
+    final byCategory = <String, ({double estimated, double actual, double paid})>{};
+    for (final item in state.budgetItems) {
+      final category = (item['category'] as String?)?.trim();
+      final key = (category == null || category.isEmpty) ? 'Uncategorized' : category;
+      final existing = byCategory[key] ?? (estimated: 0, actual: 0, paid: 0);
+      byCategory[key] = (
+        estimated: existing.estimated + _asDouble(item['estimated_amount']),
+        actual: existing.actual + _asDouble(item['actual_amount']),
+        paid: existing.paid + _asDouble(item['paid_amount']),
+      );
+    }
 
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
+        if (state.budgetError != null)
+          Container(
+            margin: const EdgeInsets.only(bottom: 12),
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(color: AppTheme.udoCrimson.withValues(alpha: 0.06), borderRadius: BorderRadius.circular(14)),
+            child: const Text("Couldn't load your budget. Pull to refresh or try again later.", style: TextStyle(fontSize: 13, color: AppTheme.udoCrimson)),
+          ),
         Container(
           padding: const EdgeInsets.all(18),
           decoration: BoxDecoration(gradient: LinearGradient(colors: [AppTheme.udoGreen, AppTheme.udoGreen.withValues(alpha: 0.8)], begin: Alignment.topLeft, end: Alignment.bottomRight), borderRadius: BorderRadius.circular(20)),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             const Text('Budget overview', style: TextStyle(color: Colors.white70, fontSize: 13)),
             const SizedBox(height: 8),
-            Text('\$${spent.toStringAsFixed(0)} spent', style: const TextStyle(color: Colors.white, fontSize: 28, fontWeight: FontWeight.w600)),
+            Text('\$${totalActual.toStringAsFixed(0)} spent', style: const TextStyle(color: Colors.white, fontSize: 28, fontWeight: FontWeight.w600)),
             const SizedBox(height: 4),
-            Text('of \$${total.toStringAsFixed(0)} total', style: const TextStyle(color: Colors.white70, fontSize: 14)),
+            Text(
+              comparisonTotal > 0 ? 'of \$${comparisonTotal.toStringAsFixed(0)} ${totalBudget > 0 ? 'total' : 'estimated'}' : 'No budget set yet',
+              style: const TextStyle(color: Colors.white70, fontSize: 14),
+            ),
             const SizedBox(height: 12),
             LinearProgressIndicator(value: progress, backgroundColor: Colors.white.withValues(alpha: 0.3), valueColor: const AlwaysStoppedAnimation(Colors.white), minHeight: 6, borderRadius: BorderRadius.circular(3)),
             const SizedBox(height: 6),
-            Text('${(progress * 100).toStringAsFixed(0)}% used', style: const TextStyle(color: Colors.white70, fontSize: 12)),
+            Text('${(progress * 100).toStringAsFixed(0)}% used • \$${totalPaid.toStringAsFixed(0)} paid so far', style: const TextStyle(color: Colors.white70, fontSize: 12)),
           ]),
         ),
         const SizedBox(height: 16),
-        for (final (name, allocated, spent2, status) in [
-          ('Venue & Catering', 18000, 15200, 'on-track'),
-          ('Photography & Video', 8000, 8000, 'complete'),
-          ('Florals & Décor', 6000, 3200, 'on-track'),
-          ('Music & Entertainment', 4000, 0, 'pending'),
-          ('Attire & Beauty', 5000, 3800, 'on-track'),
-          ('Transportation', 2000, 0, 'pending'),
-          ('Favors & Gifts', 1000, 450, 'on-track'),
-        ]) _BudgetRow(name: name, allocated: allocated, spent: spent2, status: status),
+        if (byCategory.isEmpty)
+          Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16), border: Border.all(color: AppTheme.udoBorder)),
+            child: const Column(children: [
+              Text('No budget items yet', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
+              SizedBox(height: 6),
+              Text('Add budget items to see spending broken down by category.', textAlign: TextAlign.center, style: TextStyle(fontSize: 13, color: AppTheme.udoTextSecondary)),
+            ]),
+          )
+        else
+          for (final entry in byCategory.entries)
+            _BudgetRow(
+              name: entry.key,
+              allocated: entry.value.estimated,
+              spent: entry.value.actual,
+              status: entry.value.actual == 0
+                  ? 'pending'
+                  : (entry.value.paid >= entry.value.actual ? 'complete' : 'on-track'),
+            ),
         const SizedBox(height: 80),
       ],
     );
@@ -563,7 +872,7 @@ class _BudgetTab extends StatelessWidget {
 
 class _BudgetRow extends StatelessWidget {
   final String name, status;
-  final int allocated, spent;
+  final double allocated, spent;
   const _BudgetRow({required this.name, required this.allocated, required this.spent, required this.status});
 
   Color get _color {
@@ -589,7 +898,7 @@ class _BudgetRow extends StatelessWidget {
         ),
       ]),
       const SizedBox(height: 4),
-      Text('\$$spent of \$$allocated', style: const TextStyle(fontSize: 12, color: AppTheme.udoTextSecondary)),
+      Text('\$${spent.toStringAsFixed(0)} of \$${allocated.toStringAsFixed(0)}', style: const TextStyle(fontSize: 12, color: AppTheme.udoTextSecondary)),
       const SizedBox(height: 8),
       LinearProgressIndicator(
         value: allocated > 0 ? spent / allocated : 0,
@@ -608,18 +917,62 @@ class _VendorsTab extends StatelessWidget {
   final PlanState state;
   const _VendorsTab({required this.state});
 
+  Color _statusColor(String status) {
+    switch (status) {
+      case 'booked':
+      case 'confirmed':
+        return AppTheme.udoGreen;
+      case 'negotiating':
+        return Colors.orange;
+      case 'cancelled':
+        return AppTheme.udoCrimson;
+      default: // researching
+        return AppTheme.udoTextSecondary;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     if (state.isLoading) return const Center(child: CircularProgressIndicator(color: AppTheme.udoGreen));
+
+    if (state.vendorsError != null) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            const Icon(Icons.error_outline, size: 40, color: AppTheme.udoCrimson),
+            const SizedBox(height: 12),
+            const Text("Couldn't load your vendors.", style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: AppTheme.udoCrimson)),
+            const SizedBox(height: 6),
+            Text(state.vendorsError!, style: const TextStyle(fontSize: 12, color: AppTheme.udoTextSecondary), textAlign: TextAlign.center),
+          ]),
+        ),
+      );
+    }
+
     final vendors = state.vendors;
+    if (vendors.isEmpty) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            const Icon(Icons.work_outline, size: 40, color: AppTheme.udoTextSecondary),
+            const SizedBox(height: 12),
+            const Text('No vendors yet', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
+            const SizedBox(height: 6),
+            const Text('Vendors you add will show up here.', style: TextStyle(fontSize: 13, color: AppTheme.udoTextSecondary)),
+          ]),
+        ),
+      );
+    }
 
     return ListView.builder(
       padding: const EdgeInsets.all(16),
       itemCount: vendors.length,
       itemBuilder: (_, i) {
         final v = vendors[i];
-        final status = v['booking_status'] as String? ?? 'needed';
-        final statusColor = status == 'booked' ? AppTheme.udoGreen : status == 'shortlisted' ? Colors.orange : AppTheme.udoTextSecondary;
+        final status = v['booking_status'] as String? ?? 'researching';
+        final statusColor = _statusColor(status);
         return Container(
           margin: const EdgeInsets.only(bottom: 10),
           padding: const EdgeInsets.all(14),
