@@ -1,55 +1,112 @@
-import { Heart } from 'lucide-react';
-import ResetForm from './reset-form';
+'use client';
 
-export default async function ResetPasswordPage({
-  searchParams,
-}: {
-  searchParams: Promise<{ token?: string; email?: string }>;
-}) {
-  const { token, email } = await searchParams;
+import { Suspense, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
+import Link from 'next/link';
+import { Heart } from 'lucide-react';
+import { api } from '@/lib/api';
+
+function ResetPasswordForm() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const token = searchParams.get('token') ?? '';
+  const email = searchParams.get('email') ?? '';
+
+  const [password, setPassword] = useState('');
+  const [passwordConfirmation, setPasswordConfirmation] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [done, setDone] = useState(false);
+  const [error, setError] = useState('');
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    setError('');
+    try {
+      await api.post('/auth/reset-password', { token, email, password, password_confirmation: passwordConfirmation });
+      setDone(true);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Something went wrong.');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
-    <div className="min-h-screen bg-[--color-udo-cream] flex items-center justify-center px-4 py-12">
-      <div className="w-full max-w-sm">
-        {/* Logo */}
-        <div className="flex justify-center mb-8">
-          <div className="w-12 h-12 rounded-2xl flex items-center justify-center"
-            style={{ background: 'linear-gradient(135deg, #FF4D8C 0%, #D4006A 100%)' }}>
-            <Heart size={22} className="text-white fill-white" />
-          </div>
+    <div className="min-h-screen bg-[#f8edeb] flex flex-col">
+      <div className="flex-1 flex flex-col justify-center px-6 py-12 max-w-md mx-auto w-full">
+        <div className="w-12 h-12 rounded-full bg-[#f194b2] flex items-center justify-center mb-6">
+          <Heart className="text-white" size={20} fill="white" />
         </div>
 
-        <div className="bg-white rounded-2xl border border-[--color-udo-grey-200] shadow-sm p-8">
-          {!token || !email ? (
-            <div className="text-center py-4">
-              <h2 className="font-display text-xl font-bold text-[--color-udo-grey-700] mb-3">
-                Invalid reset link
-              </h2>
-              <p className="text-[--color-udo-grey-500] text-sm leading-relaxed">
-                This password reset link is missing required information.
-                Please request a new one from the Udo app.
-              </p>
+        <h1 className="text-2xl font-bold text-gray-800 mb-2">Set a new password</h1>
+        <p className="text-gray-500 text-sm mb-8">
+          {done ? 'Your password has been reset.' : `Choose a new password for ${email || 'your account'}.`}
+        </p>
+
+        {!done && (
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">New password</label>
+              <input
+                type="password"
+                value={password}
+                onChange={e => setPassword(e.target.value)}
+                required
+                minLength={8}
+                className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#285301]/30"
+                placeholder="At least 8 characters"
+              />
             </div>
-          ) : (
-            <>
-              <div className="mb-6">
-                <h1 className="font-display text-2xl font-bold text-[--color-udo-grey-700]">
-                  Set new password
-                </h1>
-                <p className="text-[--color-udo-grey-500] text-sm mt-1">
-                  Resetting password for{' '}
-                  <span className="font-medium text-[--color-udo-grey-700]">{email}</span>
-                </p>
-              </div>
-              <ResetForm token={token} email={email} />
-            </>
-          )}
-        </div>
 
-        <p className="text-center text-xs text-[--color-udo-grey-400] mt-6">
-          Udo — Your wedding, beautifully planned.
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Confirm password</label>
+              <input
+                type="password"
+                value={passwordConfirmation}
+                onChange={e => setPasswordConfirmation(e.target.value)}
+                required
+                minLength={8}
+                className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#285301]/30"
+                placeholder="Re-enter your password"
+              />
+            </div>
+
+            {!token && <p className="text-red-500 text-sm">This reset link is missing its token — request a new one.</p>}
+            {error && <p className="text-red-500 text-sm">{error}</p>}
+
+            <button
+              type="submit"
+              disabled={loading || !token}
+              className="w-full bg-[#285301] text-white rounded-xl py-3 font-semibold text-sm disabled:opacity-60"
+            >
+              {loading ? 'Resetting...' : 'Reset password'}
+            </button>
+          </form>
+        )}
+
+        {done && (
+          <Link
+            href="/login"
+            className="w-full inline-block text-center bg-[#285301] text-white rounded-xl py-3 font-semibold text-sm"
+          >
+            Sign in
+          </Link>
+        )}
+
+        <p className="text-center text-sm text-gray-500 mt-6">
+          Remember your password?{' '}
+          <Link href="/login" className="text-[#285301] font-medium">Sign in</Link>
         </p>
       </div>
     </div>
+  );
+}
+
+export default function ResetPasswordPage() {
+  return (
+    <Suspense fallback={null}>
+      <ResetPasswordForm />
+    </Suspense>
   );
 }

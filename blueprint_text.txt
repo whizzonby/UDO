@@ -1,0 +1,895 @@
+﻿UDO TECHNICAL IMPLEMENTATION BLUEPRINT
+Admin App + Guest Experience System
+1. Core architectural decision
+Udo should be built as one platform with two delivery layers:
+The first layer is the authenticated admin app for the couple, planner, and invited collaborators. This is the mobile product distributed through the App Store and Google Play. This app is where users plan, manage, configure, and monitor the wedding.
+The second layer is the guest-facing web experience accessed through personalized links. Guests should not be required to create an account or install the app to RSVP, view updates, upload photos, access travel details, view the registry, or interact with the wedding experience. This guest layer should be a responsive mobile web application, though deep linking into the app can exist for invited collaborators.
+This split is essential because it minimizes friction for guests while keeping the admin system powerful.
+The product should therefore be thought of as:
+Admin app = control layerGuest link = experience layer
+The backend must support both layers from a single source of truth.
+2. Recommended high-level stack
+If your CTO wants the smoothest long-term path to Play Store and App Store quality, the cleanest architecture is:
+Frontend admin app:
+Flutter or React Native for cross-platform mobile 
+Flutter is especially strong if you want one codebase and polished UI parity from Figma 
+React Native is also fine if the team is stronger there 
+Guest-facing web:
+Next.js or a similar React-based SSR/ISR-capable framework 
+This allows fast, SEO-friendly, mobile-optimized personalized guest pages 
+If keeping one ecosystem matters, Flutter web is possible, but a traditional web stack will usually be better for guest links and email/web compatibility 
+Backend:
+Node.js with TypeScript using NestJS or Express 
+Or Python with FastAPI if the team is stronger in Python 
+Strong recommendation: TypeScript backend for consistency and schema safety 
+Database:
+PostgreSQL as primary relational database 
+File/image storage:
+AWS S3, Cloudflare R2, or Supabase Storage 
+Realtime/eventing:
+WebSockets or Pusher/Ably for live updates 
+Background job queue for reminders, send events, and workflow triggers 
+Redis for queueing, caching, and ephemeral state 
+Messaging/integrations:
+Twilio for SMS / WhatsApp 
+SendGrid / Postmark / Resend for email 
+Stripe for registry contributions 
+Pinterest API for inspiration ingestion 
+Google Maps / Places for maps, directions, hotels, and venue proximity 
+Calendar export via ICS generation 
+Push notifications via Firebase Cloud Messaging / Apple Push Notification Service for authenticated app users 
+Authentication:
+Admin app: email/password + social auth optional 
+Guest link: tokenized access, no forced login 
+Collaborators: authenticated app users with scoped roles 
+If your CTO prefers one-service simplicity and fast iteration, Supabase is also a realistic option for:
+Postgres 
+Auth 
+Storage 
+Realtime 
+Edge functionsBut for long-term control, a custom backend is stronger. 
+3. Product delivery layers
+3.1 Admin app
+This is the authenticated environment. It contains:
+Home 
+Plan 
+Guests 
+Live 
+Gallery 
+Registry 
+More / settings / integrations / team 
+This layer requires:
+authenticated user identity 
+role-based access control 
+wedding-specific scoping 
+local caching for fast mobile interaction 
+graceful offline handling for some sections 
+3.2 Guest-facing web
+This is the personalized microsite accessed via invitation link. It should support:
+RSVP flow 
+personalized event schedule 
+travel and stay 
+maps 
+messages / updates feed 
+photo upload 
+gallery view if enabled 
+registry if enabled 
+live updates / day-of experience 
+This layer requires:
+secure, personalized, expiring or revocable guest tokens 
+no forced account creation 
+minimal load time 
+excellent mobile rendering 
+resilient fallback if opened from email/SMS/WhatsApp 
+3.3 Collaborator mode
+Certain users may be invited to the app with scoped permissions:
+partner 
+planner 
+maid of honor / best man 
+operations helper 
+family organizer 
+Collaborators must see only what they are allowed to manage.
+4. User roles and permission model
+The permission model must be explicit from the start.
+Core roles
+Owner / Primary Couple UserFull control of wedding data, settings, billing, guest management, messaging, registry, gallery, and collaborator access.
+Partner / Co-ownerNear-full access, depending on configuration.
+PlannerOperational access to planning, guests, logistics, invitations, messaging, live operations, and possibly registry/galleries depending on client preferences.
+CollaboratorScoped access to selected modules, such as:
+viewing timelines 
+helping with guest logistics 
+moderating uploads 
+sending wedding party communications 
+GuestNo app admin access. Uses personalized link only.
+Permission domains
+Permissions should be domain-based, not page-based. Suggested permission groups:
+manage_plan 
+manage_guests 
+manage_invitations 
+manage_guest_experience 
+manage_messages 
+manage_live 
+manage_gallery 
+manage_registry 
+manage_logistics 
+manage_collaborators 
+view_financials 
+This avoids hardcoding access around screens and allows flexible collaboration models.
+5. Primary navigation and route architecture
+The admin app should have clean route grouping.
+Top-level admin routes
+/home 
+/plan 
+/guests 
+/live 
+/gallery 
+/registry 
+/more 
+Guests route group
+/guests/overview 
+/guests/list 
+/guests/invitations 
+/guests/experience 
+/guests/messages 
+/guests/logistics 
+Advanced guest routes:
+/guests/insights 
+/guests/journey 
+/guests/vip 
+/guests/experience-design 
+/guests/message-history 
+/guests/guest/:guestId 
+Plan route group
+/plan/checklist 
+/plan/timeline 
+/plan/vendors 
+/plan/budget 
+/plan/seating 
+/plan/settings 
+Live route group
+/live/today 
+/live/timeline 
+/live/map 
+/live/weather 
+/live/updates 
+/live/planner-view (if separated) 
+/live/bride-view (if explicit preview mode exists) 
+Gallery route group
+/gallery/inspiration 
+/gallery/moments 
+/gallery/uploads 
+/gallery/saved 
+/gallery/archive 
+Registry route group
+/registry/home 
+/registry/setup 
+/registry/share 
+/registry/thank-you 
+/registry/settings 
+Guest-facing web routes
+These should not expose the admin architecture. They should be wedding-scoped and guest-token based.
+Examples:
+/g/:guestToken 
+/g/:guestToken/rsvp 
+/g/:guestToken/schedule 
+/g/:guestToken/travel 
+/g/:guestToken/gallery 
+/g/:guestToken/updates 
+/g/:guestToken/registry 
+/g/:guestToken/upload 
+In practice, this may still render as one long scroll page with anchored sections, but the underlying route support is useful for deep linking and segmented loading.
+6. Core data model
+This section is critical. The biggest implementation risk is allowing loosely structured data to sprawl. The system needs a relational core with clear ownership.
+6.1 Wedding table
+Fields:
+id 
+slug 
+title 
+couple_name_primary 
+couple_name_secondary 
+event_date 
+timezone 
+city 
+country 
+primary_venue_name 
+primary_venue_address 
+RSVP_deadline 
+theme_id 
+status (planning, final_week, live, completed) 
+owner_user_id 
+created_at 
+updated_at 
+6.2 Users table
+Fields:
+id 
+email 
+phone 
+first_name 
+last_name 
+avatar_url 
+auth_provider 
+created_at 
+updated_at 
+6.3 Wedding collaborators table
+Fields:
+id 
+wedding_id 
+user_id 
+role 
+permissions_json 
+invited_by 
+accepted_at 
+created_at 
+6.4 Guests table
+Fields:
+id 
+wedding_id 
+external_reference 
+first_name 
+last_name 
+full_name 
+email 
+phone 
+guest_group 
+custom_tags_json 
+vip_flag 
+attending_status (pending, yes, no) 
+invite_status (not_sent, sent, opened, responded, failed) 
+plus_one_allowed 
+plus_one_count 
+meal_preference 
+allergies 
+dietary_note 
+travel_required 
+arrival_date 
+arrival_time 
+departure_date 
+departure_time 
+arrival_airport 
+hotel_assignment_id 
+transport_assignment_id 
+seating_assignment_id 
+guest_view_type (pending, attending, travelling, wedding_party) 
+notes 
+created_at 
+updated_at 
+6.5 Guest access rules table
+Used for event/section visibility by guest or segment.
+Fields:
+id 
+wedding_id 
+target_type (guest, tag, group, role) 
+target_id_or_value 
+can_view_schedule 
+can_view_registry 
+can_view_message_board 
+can_view_travel 
+can_view_gallery 
+can_view_private_event_ids_json 
+created_at 
+updated_at 
+6.6 Invitations table
+Fields:
+id 
+wedding_id 
+theme_id 
+title_line 
+invitation_text 
+date_text 
+venue_text 
+optional_quote 
+RSVP_deadline_text 
+cover_image_url 
+published_at 
+created_at 
+updated_at 
+6.7 Invitation sends table
+Fields:
+id 
+wedding_id 
+guest_id 
+channel (email, sms, whatsapp, link) 
+sent_at 
+delivered_at 
+opened_at 
+responded_at 
+failed_at 
+failure_reason 
+send_payload_snapshot_json 
+6.8 Guest experience config table
+Fields:
+id 
+wedding_id 
+show_schedule 
+show_venue_map 
+show_dress_code 
+show_story 
+show_couple_photo 
+enable_gallery_uploads 
+enable_rsvp 
+enable_message_board 
+enable_live_updates_popup 
+show_hotels 
+show_transport 
+show_travel_notes 
+registry_enabled 
+selected_template_id 
+selected_theme_id 
+published_version 
+updated_at 
+6.9 Messages table
+Fields:
+id 
+wedding_id 
+type (message, reminder, live_update) 
+title 
+body 
+audience_json 
+channels_json 
+attachments_json 
+created_by_user_id 
+scheduled_at 
+sent_at 
+status (draft, scheduled, sent, failed) 
+created_at 
+updated_at 
+6.10 Guest message deliveries table
+Fields:
+id 
+message_id 
+guest_id 
+channel 
+delivery_status 
+delivered_at 
+opened_at 
+responded_at 
+failure_reason 
+6.11 Logistics tables
+Accommodation options:
+id 
+wedding_id 
+hotel_name 
+address 
+booking_link 
+notes 
+category_tag (recommended, budget, luxury, closest) 
+created_at 
+Transport groups:
+id 
+wedding_id 
+title 
+pickup_location 
+departure_time 
+return_time 
+capacity 
+notes 
+visible_to_audience_json 
+created_at 
+Guest transport assignments:
+id 
+wedding_id 
+guest_id 
+transport_group_id 
+status 
+created_at 
+6.12 Seating tables
+Owned by Plan:
+table definitions 
+seat positions 
+guest assignments 
+Guest table should only reference seating assignment id.
+6.13 Live updates table
+Fields:
+id 
+wedding_id 
+title 
+body 
+audience_json 
+channels_json 
+popup_enabled 
+published_at 
+expires_at 
+created_by_user_id 
+created_at 
+6.14 Gallery tables
+Gallery assets:
+id 
+wedding_id 
+source_type (inspiration, moment, guest_upload, saved, archive) 
+image_url 
+thumbnail_url 
+caption 
+event_tag 
+uploader_guest_id nullable 
+uploader_user_id nullable 
+approval_status (pending, approved, hidden) 
+featured_flag 
+visibility_json 
+created_at 
+Pinterest source records:
+id 
+wedding_id 
+board_external_id 
+board_name 
+category 
+preview_images_json 
+last_synced_at 
+6.15 Registry tables
+Registry:
+id 
+wedding_id 
+enabled 
+intro_message 
+created_at 
+Registry funds:
+id 
+registry_id 
+title 
+description 
+target_amount 
+raised_amount 
+active 
+Registry items:
+id 
+registry_id 
+source_type (link, manual) 
+title 
+description 
+image_url 
+source_url 
+price_text 
+status (available, reserved, gifted) 
+reserved_by_name nullable 
+created_at 
+Registry gifts / contributions:
+id 
+registry_id 
+guest_id nullable 
+giver_name 
+giver_email nullable 
+amount nullable 
+item_id nullable 
+message 
+anonymous_flag 
+payment_status 
+created_at 
+Thank-you records:
+id 
+registry_id 
+gift_record_id 
+thank_you_status (pending, sent, saved) 
+thank_you_message 
+thanked_at 
+created_by_user_id 
+7. State management blueprint
+Your CTO needs clean state boundaries or the app will become messy very quickly.
+Recommended state split
+Use:
+server state for persisted wedding data 
+local UI state for filters, drawers, modal visibility, previews 
+ephemeral action state for drafts and temporary builders 
+Suggested domains
+WeddingStore
+wedding metadata 
+permissions 
+visual theme 
+wedding status 
+PlanStore
+tasks 
+seating summary 
+schedule summary 
+vendor summary 
+GuestStore
+guest list 
+guest filters 
+selected guest 
+bulk selections 
+segmentation 
+InvitationStore
+invitation content draft 
+send modals 
+performance summary 
+GuestExperienceStore
+content toggles 
+theme/template 
+preview mode 
+access rules 
+publish status 
+MessagingStore
+smart alerts 
+audience chips 
+drafts 
+scheduled sends 
+message history 
+LogisticsStore
+KPI cards 
+alert cards 
+guest logistics filters 
+hotels 
+transport groups 
+assignments 
+LiveStore
+current event 
+current view mode 
+recent updates 
+manual confirmations 
+weather snapshot 
+GalleryStore
+inspiration boards 
+moments feed 
+uploads queue 
+moderation state 
+saved 
+archive 
+RegistryStore
+registry setup state 
+funds 
+items 
+share link 
+thank-you tracking 
+reminders 
+Sync approach
+Use server-driven queries with client caching. Suggested patterns:
+React Query / TanStack Query if React stack 
+Riverpod / Bloc with repository pattern if Flutter stack 
+Prefer optimistic updates only for low-risk actions such as:
+toggles 
+local reordering 
+tag changes 
+draft changes 
+Use server-confirmed updates for:
+sends 
+payments 
+permission changes 
+guest invitations 
+logistics assignments 
+8. Event-driven workflow blueprint
+This app becomes much stronger if the backend emits meaningful domain events.
+Recommended event examples
+guest.created 
+guest.invited 
+guest.rsvp.updated 
+guest.travel.updated 
+guest.details.incomplete 
+invitation.sent 
+invitation.opened 
+invitation.responded 
+message.sent 
+live_update.published 
+gallery.uploaded 
+gallery.approved 
+registry.contribution.received 
+registry.thankyou.pending 
+wedding.phase.changed 
+Why this matters
+These events can drive:
+Home summaries 
+Smart alerts 
+Reminder suggestions 
+Progress bars 
+Live page status 
+Thank-you reminders 
+Guest journey stage transitions 
+9. Home page implementation logic
+Home should be a computed aggregation layer.
+Inputs
+guest summaries 
+plan summaries 
+logistics summaries 
+invitation summaries 
+registry summaries 
+wedding status 
+upcoming deadlines 
+Outputs
+countdown 
+next focus cards 
+progress summaries 
+reminder prompts 
+quick links 
+Important note
+Do not duplicate actual data arrays on Home. Use lightweight summary endpoints or materialized computed views.
+10. Plan page implementation logic
+Plan owns:
+tasks 
+timeline 
+vendors 
+budget 
+seating 
+Important contract
+Other modules may read seating completion or event times, but they should not mutate the seating planner directly unless routed into Plan or through shared services.
+Derived dependencies
+When Plan schedule changes:
+Guest Experience preview updates 
+Live timeline updates 
+message templates may need invalidation or suggestion 
+invitation date/location text may need mismatch warnings if manually overridden 
+11. Guests module implementation logic
+11.1 Overview
+This page is query-heavy but low edit density.
+Needs summary endpoints like:
+total_guests 
+confirmed_count 
+pending_count 
+incomplete_count 
+progress metrics 
+focus recommendations 
+guest groups summary 
+meaningful recent activity 
+Use backend-computed responses to keep the page fast and simple.
+11.2 Guest List
+Needs:
+paginated list 
+filter query support 
+search support 
+bulk action endpoints 
+guest detail drawer query 
+inline update endpoints 
+Recommended API patterns:
+GET /weddings/:id/guests?status=pending&travel_required=true&search=sarah 
+PATCH /guests/:id 
+POST /guests/bulk/tag 
+POST /guests/bulk/message 
+POST /guests/import 
+11.3 Invitations
+Needs:
+invitation draft retrieval / patch 
+preview rendering endpoint or client rendering from stored config 
+send by channel endpoints 
+performance analytics endpoint 
+Recommended routes:
+GET /weddings/:id/invitation 
+PATCH /weddings/:id/invitation 
+POST /weddings/:id/invitation/send 
+GET /weddings/:id/invitation/performance 
+11.4 Guest Experience
+Needs:
+config retrieval 
+access rules retrieval 
+live preview rendering 
+publish versioning 
+Recommended routes:
+GET /weddings/:id/guest-experience 
+PATCH /weddings/:id/guest-experience 
+POST /weddings/:id/guest-experience/publish 
+GET /weddings/:id/guest-experience/preview?guest_type=travelling 
+11.5 Messages
+Needs:
+smart alerts endpoint 
+audience segment resolution 
+compose and send endpoint 
+history query 
+reply thread query 
+Routes:
+GET /weddings/:id/messages/alerts 
+POST /weddings/:id/messages 
+GET /weddings/:id/messages 
+GET /messages/:id/thread 
+11.6 Guest Logistics
+Needs:
+KPI summary endpoint 
+action center endpoint 
+grouped guests requiring action 
+hotel CRUD 
+transport CRUD 
+assignment endpoints 
+Routes:
+GET /weddings/:id/logistics/summary 
+GET /weddings/:id/logistics/action-center 
+GET /weddings/:id/logistics/guests 
+POST /weddings/:id/logistics/hotels 
+POST /weddings/:id/logistics/transport-groups 
+POST /weddings/:id/logistics/assign-hotel 
+POST /weddings/:id/logistics/assign-transport 
+12. Live page implementation logic
+Bride-facing Live view
+This should be calm and curated.
+The backend should compute a bride-facing summary payload such as:
+reassurance status 
+current moment 
+next moment 
+quiet confirmations 
+relevant updates 
+weather summary 
+support team shortcuts 
+Planner-facing Live logic
+This may expose:
+current event operations 
+missing arrivals 
+unresolved logistics 
+scheduled live announcements 
+vendor readiness 
+manual status updates 
+Manual confirmation model
+Since the system cannot reliably know whether everyone is seated or where they are, support manual or delegated confirmations such as:
+family seated 
+VIP row ready 
+wedding party assembled 
+guest arrivals mostly complete 
+ceremony doors open 
+These confirmations can be recorded by planner or collaborator roles and translated into calm summary language for the bride view.
+Routes
+GET /weddings/:id/live/bride-view 
+GET /weddings/:id/live/planner-view 
+POST /weddings/:id/live/confirmation 
+POST /weddings/:id/live/update 
+13. Gallery implementation logic
+Inspiration
+Pinterest integration should be treated as ingestion, not as a live Pinterest interface.
+Flow:
+connect board 
+fetch selected board metadata and previews 
+map pins to internal inspiration records 
+allow saving into categories 
+Moments
+A timeline feed of curated media records.
+Guest Uploads
+Needs:
+upload token or public upload page 
+moderation queue 
+approve/hide actions 
+promote to moments 
+save to favorites 
+Routes
+POST /gallery/upload 
+GET /weddings/:id/gallery/uploads?status=pending 
+POST /gallery/:id/approve 
+POST /gallery/:id/promote-to-moment 
+GET /weddings/:id/gallery/moments 
+POST /weddings/:id/pinterest/connect 
+Guest upload web route
+A very simple public route:
+wedding name 
+welcome message 
+upload files 
+success state 
+14. Registry implementation logic
+Setup
+The admin should be able to create:
+cash fund 
+link-based item 
+custom item 
+Guest flow
+Guests should be able to:
+contribute to fund 
+reserve or mark item gifted 
+optionally leave a message 
+Payments
+Use Stripe Checkout or Payment Links initially for simplicity. Do not overbuild custom payment UI if not needed.
+Thank-you tracking
+This is post-wedding leverage and should absolutely exist.
+Flow:
+gift received or marked 
+thank-you record created as pending 
+3 days after wedding, system surfaces pending thanks 
+user can write message or mark as thanked 
+optional message send if configured 
+Auto-reminders
+Use scheduled jobs and event triggers:
+viewed registry but no contribution after X days 
+pending thank-you reminders 3 days post-wedding 
+follow-up reminder 7 days later 
+Routes:
+POST /weddings/:id/registry/funds 
+POST /weddings/:id/registry/items 
+GET /weddings/:id/registry 
+POST /registry/:id/share 
+POST /registry/:id/thank-you 
+GET /weddings/:id/registry/thank-you/pending 
+15. Notifications and messaging blueprint
+Channels
+Admin-facing:
+in-app notifications 
+push notifications for collaborators 
+email fallback if desired 
+Guest-facing:
+email 
+SMS 
+WhatsApp 
+guest page popup / updates feed 
+Notification design rule
+Do not let notification logic become fragmented. All outbound communication should be recorded through the messaging layer, even if triggered by another module.
+Examples:
+logistics request → goes through Messages 
+registry reminder → goes through Messages 
+live update → goes through Messages as live_update type 
+thank-you suggestion may remain internal reminder until user sends 
+16. Tokenized guest access design
+Guest links should be secure but frictionless.
+Recommended model
+Each guest gets a signed access token or opaque token referencing:
+wedding id 
+guest id 
+role/view type 
+expiration / revocation metadata 
+This token should not expose internal IDs directly.
+Requirements
+revocable by admin 
+regeneratable if needed 
+optionally one general wedding link plus guest-specific personalized links 
+rate-limited and abuse-protected 
+17. Search, filters, and computed views
+Search and filter logic must be server-backed for scale.
+Guest List
+Search across:
+name 
+email 
+phone 
+tags 
+missing details categories 
+Logistics
+Support filters:
+missing flights 
+missing hotels 
+urgent arrivals 
+transport unassigned 
+Messages
+Support filters:
+pending RSVP audience 
+wedding party 
+travelling guests 
+VIPs 
+custom tags 
+Computed views
+These should be precomputed or quickly computed for:
+Home 
+Guests Overview 
+Guest Insights 
+Live calm summary 
+Registry thank-you queue 
+18. Offline, resilience, and UX edge cases
+The app must handle:
+flaky mobile signal during wedding week 
+partial offline access to key screens 
+deferred action retry for messages where possible 
+upload retry queues for gallery 
+graceful fallback if integrations fail 
+Minimum offline-worthy surfaces
+Home last-known summary 
+Plan schedule 
+key guest records recently viewed 
+Live page cached state 
+emergency contacts 
+wedding day timeline 
+Do not rely on always-on connectivity.
+19. App Store and Play Store implementation considerations
+Must-have product polish
+smooth auth and onboarding 
+deep links from email/SMS/WhatsApp into app or guest web 
+excellent loading states 
+no broken image placeholders 
+proper permission requests for notifications and media 
+privacy policy and handling of guest contact data 
+stable push behavior 
+responsive support contact and error logging 
+Guest web importance
+Even if the admin app is excellent, the guest web experience is where a lot of perceived product quality will be judged. It must load quickly and look beautiful.
+20. Suggested AI coding workflow for CTO
+If your CTO wants to use AI effectively, the best workflow is:
+First, feed AI the design system and page ownership rules.Second, feed AI the data models and route structure.Third, feed AI a single module at a time with:
+owning page 
+states 
+required interactions 
+backend endpoints 
+event triggers 
+Do not ask AI to build the whole app in one go. It will blur responsibilities.
+A better order is:
+auth + wedding shell 
+Home summaries 
+Plan core models 
+Guests core models 
+Guest List + Drawer 
+Invitations 
+Guest Experience + preview 
+Messages 
+Logistics 
+Live 
+Gallery 
+Registry 
+push / messaging / integrations 
+guest web layer 
+analytics / reminders / jobs 
+21. Final build principle
+If the app is built correctly, the user should experience this:
+Plan creates the structureGuests creates the people systemInvitations open the guest experienceMessages coordinate the flowLogistics removes uncertaintyLive turns chaos into calmGallery preserves emotionRegistry extends care before and after the wedding
+That is the full product.
+

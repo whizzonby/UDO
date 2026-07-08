@@ -1,0 +1,100 @@
+﻿Udo Product Overview
+1. What Udo is
+Udo is a wedding planning and coordination platform designed to bring structure, clarity, and calm to the entire wedding journey.
+At its core, Udo is not just a planning tool. It is a centralized system that helps couples manage their wedding, coordinate guests, communicate effectively, and experience their day with less stress.
+The product is built around a simple idea:
+Weddings are complex, but the experience of planning and living through them should feel calm, organized, and intentional.
+Udo consolidates multiple fragmented workflows - planning, guest management, communication, logistics, gifting, and memories - into one cohesive experience.
+2. What we want to achieve
+The goal of Udo is to remove the invisible stress of wedding planning and coordination.
+There are several key problems we are solving:
+Couples currently juggle multiple tools (notes, spreadsheets, messaging apps, Pinterest, wedding websites, etc.) 
+Guest communication is scattered and inconsistent 
+Logistics (travel, accommodation, transport) are difficult to manage at scale 
+There is no clear system for managing the wedding day itself 
+The experience before and after the wedding is disconnected 
+Udo aims to:
+Centralize everything into one platform 
+Provide clear structure without overwhelming the user 
+Make guest coordination simple and intuitive 
+Enable seamless communication before and during the event 
+Support the wedding day with a calm, real-time layer 
+Extend value beyond the wedding through memories and gratitude 
+Ultimately, the product should make users feel:
+In control 
+Supported 
+Less overwhelmed 
+Able to enjoy the process 
+
+3. Who we are targeting
+Primary users (admin users)
+Brides and grooms 
+Couples planning their wedding 
+Wedding planners 
+Close collaborators (e.g., maid of honor, best man, family members helping with coordination) 
+These users are responsible for organizing and managing the wedding.
+Secondary users (guests)
+Wedding guests receiving invitations 
+Guests needing information (schedule, venue, travel, etc.) 
+Guests contributing to the event (RSVP, photos, gifts) 
+Guests are not expected to use the full app. Their experience is primarily through a simple, personalized link that allows them to access everything they need without friction.
+4. How the product is structured
+Udo is organized into a set of core areas, each with a clear role:
+Home
+A high-level overview that shows progress, key updates, and what needs attention.
+Plan
+The planning engine where users manage tasks, timelines, vendors, budgets, and seating.
+Guests
+The guest management system, including guest lists, invitations, communication, and guest experience setup.
+Live
+A real-time layer used in the final days and on the wedding day to provide updates, coordination, and reassurance.
+
+Gallery
+A space for inspiration and memories, including Pinterest-style ideas, photo uploads, and curated moments.
+Registry
+A simple gifting and contribution system that also supports post-wedding thank-you tracking.
+
+5. The guest experience
+Guests interact with Udo through a personalized link, not the full app.
+Through this link, they can:
+RSVP 
+View event details and schedule 
+Access venue and travel information 
+Receive updates and announcements 
+Upload photos 
+View gallery content 
+Access the registry 
+This experience should be:
+Clear 
+Mobile-friendly 
+Fast 
+Easy to understand without instructions 
+6. Key product principles
+The product should be guided by the following principles:
+Simplicity over complexity
+Every feature should feel easy to use. Setup should be fast and intuitive.
+Clarity over volume
+Users should always know what matters, without being overwhelmed by too much information.
+Structure without rigidity
+The system should guide users but not feel restrictive.
+Calm over urgency
+The interface should reduce stress, not amplify it.
+Consistency across the journey
+The product should feel cohesive from planning through to the wedding day and beyond.
+7. What makes Udo different
+Udo differentiates itself by combining multiple functions into one integrated system:
+Planning + guest management + communication + logistics + live coordination + memories 
+A dynamic guest experience instead of a static wedding website 
+A focus on emotional experience, not just task completion 
+A product that continues to be useful after the wedding (gallery, archive, thank-you tracking) 
+Most tools in this space solve one part of the problem. Udo aims to connect the entire journey.
+8. Vision
+The long-term vision for Udo is to become:
+The default platform couples use to plan, manage, and experience their wedding from start to finish.
+Over time, this could extend into:
+deeper logistics support 
+vendor integrations 
+enhanced guest personalization 
+expanded event types beyond weddings 
+But the immediate focus is to deliver a high-quality, cohesive wedding experience that feels significantly better than existing solutions.
+

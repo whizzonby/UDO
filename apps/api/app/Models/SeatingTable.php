@@ -2,31 +2,22 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class SeatingTable extends Model
 {
-    use HasUuids;
-
     protected $fillable = [
-        'wedding_id', 'name', 'capacity', 'shape', 'section', 'color', 'sort_order',
+        'wedding_id', 'name', 'shape', 'capacity', 'assigned_count',
+        'pos_x', 'pos_y', 'event_section', 'notes', 'sort_order',
     ];
 
     protected $casts = [
-        'capacity'   => 'integer',
-        'sort_order' => 'integer',
+        'pos_x' => 'decimal:2',
+        'pos_y' => 'decimal:2',
     ];
 
-    public function wedding(): BelongsTo
-    {
-        return $this->belongsTo(Wedding::class);
-    }
-
-    public function assignments(): HasMany
-    {
-        return $this->hasMany(TableAssignment::class, 'table_id');
-    }
+    public function wedding(): BelongsTo { return $this->belongsTo(Wedding::class); }
+    public function seats(): HasMany { return $this->hasMany(SeatingSeat::class); }
 }

@@ -3,29 +3,35 @@
 namespace App\Providers;
 
 use Illuminate\Auth\Notifications\ResetPassword;
-use Illuminate\Http\Resources\Json\JsonResource;
-use Illuminate\Support\Facades\Broadcast;
 use Illuminate\Support\ServiceProvider;
+use Laravel\Socialite\Contracts\Factory as SocialiteFactory;
 
 class AppServiceProvider extends ServiceProvider
 {
-    public function register(): void {}
+    public function register(): void
+    {
+        //
+    }
 
     public function boot(): void
     {
-        JsonResource::withoutWrapping();
+        // Register Apple Socialite driver directly — socialiteproviders/manager
+        // is not auto-discovered in this project, so we bypass its event system.
+        $this->callAfterResolving(SocialiteFactory::class, function ($socialite) {
+            $socialite->extend('apple', function () use ($socialite) {
+                return $socialite->buildProvider(
+                    \SocialiteProviders\Apple\Provider::class,
+                    config('services.apple')
+                );
+            });
+        });
 
-        // Register /broadcasting/auth with Sanctum so mobile clients can auth private channels.
-        Broadcast::routes(['middleware' => ['auth:sanctum']]);
-        require base_path('routes/channels.php');
-
-        // Point Laravel's password reset emails at the Next.js reset page
-        // instead of the default Blade web view (which doesn't exist in API mode).
-        ResetPassword::createUrlUsing(function (object $notifiable, string $token): string {
-            $base = rtrim(config('app.guest_web_url', 'https://udo.app'), '/');
-            return $base . '/reset-password?token=' . $token
-                . '&email=' . urlencode($notifiable->getEmailForPasswordReset());
+        // This is an API-only app with no `password.reset` web route, so the
+        // default notification (which calls route('password.reset', ...))
+        // would 500. Point it at the Next.js guest/admin web app instead.
+        ResetPassword::createUrlUsing(function ($notifiable, string $token) {
+            $frontendUrl = rtrim(env('FRONTEND_URL', 'http://localhost:3000'), '/');
+            return "{$frontendUrl}/reset-password?token={$token}&email=" . urlencode($notifiable->getEmailForPasswordReset());
         });
     }
 }
-

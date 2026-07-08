@@ -35,26 +35,19 @@ return [
         ],
     ],
 
-    'stripe' => [
-        'key'            => env('STRIPE_PUBLISHABLE_KEY'),
-        'secret'         => env('STRIPE_SECRET_KEY'),
-        'webhook_secret' => env('STRIPE_WEBHOOK_SECRET'),
-    ],
-
-    'twilio' => [
-        'sid'   => env('TWILIO_ACCOUNT_SID'),
-        'token' => env('TWILIO_AUTH_TOKEN'),
-        'from'  => env('TWILIO_FROM_NUMBER'),
-    ],
-
-    // OAuth — used for mobile social sign-in token verification
     'google' => [
         'client_id'     => env('GOOGLE_CLIENT_ID'),
         'ios_client_id' => env('GOOGLE_IOS_CLIENT_ID'),
+        'client_secret' => env('GOOGLE_CLIENT_SECRET'),
+        'redirect'      => env('GOOGLE_REDIRECT_URI'),
     ],
 
     'apple' => [
-        'client_id' => env('APPLE_CLIENT_ID'), // Bundle ID / Service ID
+        'client_id'     => env('APPLE_CLIENT_ID'),
+        'client_secret' => env('APPLE_CLIENT_SECRET'),
+        'redirect'      => env('APPLE_REDIRECT_URI'),
+        'team_id'       => env('APPLE_TEAM_ID'),
+        'key_id'        => env('APPLE_KEY_ID'),
     ],
 
 ];

@@ -1,0 +1,2947 @@
+import { useState } from 'react';
+import { Calendar, DollarSign, Utensils, Briefcase, Users, MapPin, Clock, Image, Bell, Heart, Plane, Shield, ChevronRight, Info, X, Plus, Edit, GripVertical, Trash2, Check, Upload, Share2, Link } from 'lucide-react';
+
+type PlanTab = 'overview' | 'tasks' | 'budget' | 'vendors' | 'details';
+type ModalType = 'event-structure' | 'budget' | 'food' | 'vendors' | 'wedding-party' | 'seating' | 'timeline' | 'additional-events' | 'personal-moments' | 'honeymoon' | 'insurance' | 'lookbook' | 'reminders' | null;
+type FormModalType = 'add-task' | 'add-expense' | 'add-vendor' | 'edit-wedding-details' | 'manage-access' | 'guest-page-settings' | 'add-event' | 'edit-event' | 'add-timeline-moment' | 'edit-timeline-moment' | 'add-budget-expense' | 'edit-budget-categories' | 'add-wedding-party-member' | 'assign-duties' | 'start-seating' | 'seating-board' | 'add-additional-event' | 'add-custom-moment' | 'add-custom-duty' | 'edit-honeymoon' | 'track-bookings' | 'edit-insurance' | 'upload-policy' | 'upload-lookbook-photo' | 'pinterest-connect' | 'share-lookbook' | null;
+
+interface Event {
+  id: number;
+  name: string;
+  time: string;
+  location: string;
+  guests: number;
+}
+
+interface Vendor {
+  category: string;
+  status: 'Booked' | 'Shortlisted' | 'Needed';
+  name?: string;
+  dateBooked?: string;
+  shortlistedCount?: number;
+}
+
+interface WeddingPartyMember {
+  name: string;
+  role: string;
+  email: string;
+  phone: string;
+  speech: boolean;
+}
+
+export default function PlanPage() {
+  const [activeTab, setActiveTab] = useState<PlanTab>('overview');
+  const [activeModal, setActiveModal] = useState<ModalType>(null);
+  const [activeFormModal, setActiveFormModal] = useState<FormModalType>(null);
+  const [editingEventId, setEditingEventId] = useState<number | null>(null);
+  const [events, setEvents] = useState<Event[]>([
+    { id: 1, name: 'Ceremony', time: '4:00 PM', location: 'Beach pavilion', guests: 120 },
+    { id: 2, name: 'Cocktail hour', time: '5:00 PM', location: 'Garden terrace', guests: 120 },
+    { id: 3, name: 'Reception', time: '6:30 PM', location: 'Main ballroom', guests: 120 },
+    { id: 4, name: 'After party', time: '11:00 PM', location: 'Poolside lounge', guests: 60 },
+  ]);
+  const [dietaryNeeds, setDietaryNeeds] = useState({ vegetarian: 12, vegan: 4, glutenFree: 6, allergies: 5 });
+  const [enhancements, setEnhancements] = useState({
+    cocktailHour: true,
+    signatureCocktails: true,
+    champagneToast: true,
+    dessertTable: false,
+    lateNightSnacks: true,
+    coffeeCart: false,
+    kidsMenu: true,
+  });
+  const [lookbookCategory, setLookbookCategory] = useState('All');
+  const [pinterestConnected, setPinterestConnected] = useState(false);
+  const [draggedGuest, setDraggedGuest] = useState<string | null>(null);
+  const [seatingTables, setSeatingTables] = useState<{[key: string]: string[]}>({
+    'Table 1': ['Sarah Johnson', 'Michael Chen'],
+    'Table 2': ['Emily Davis', 'James Wilson'],
+    'Table 3': [],
+    'Table 4': [],
+  });
+  const [unassignedGuests, setUnassignedGuests] = useState<string[]>([
+    'Anna Martinez', 'David Lee', 'Sophie Brown', 'Robert Taylor', 'Lisa Anderson',
+    'Christopher White', 'Jessica Moore', 'Daniel Martin', 'Jennifer Garcia', 'Matthew Robinson'
+  ]);
+  const [viewingImage, setViewingImage] = useState<number | null>(null);
+  const [selectedTaskPriority, setSelectedTaskPriority] = useState<string>('Urgent');
+  const [selectedVendorStatus, setSelectedVendorStatus] = useState<string>('Booked');
+  const [selectedPaymentStatus, setSelectedPaymentStatus] = useState<string>('Paid');
+  const [draggedTimelineMoment, setDraggedTimelineMoment] = useState<number | null>(null);
+  const [draggedEvent, setDraggedEvent] = useState<number | null>(null);
+  const [timelineMoments, setTimelineMoments] = useState([
+    { time: '3:30 PM', moment: 'Guests arrive', owner: 'Ushers', type: 'Ceremony' },
+    { time: '4:00 PM', moment: 'Ceremony begins', owner: 'Officiant', type: 'Ceremony' },
+    { time: '4:30 PM', moment: 'Ceremony ends', owner: 'Wedding party', type: 'Ceremony' },
+    { time: '4:45 PM', moment: 'Photos', owner: 'Photographer', type: 'Ceremony' },
+    { time: '5:00 PM', moment: 'Cocktail hour', owner: 'Catering', type: 'Reception' },
+    { time: '6:00 PM', moment: 'Grand entrance', owner: 'DJ', type: 'Reception' },
+    { time: '6:15 PM', moment: 'First dance', owner: 'Couple', type: 'Reception' },
+    { time: '6:30 PM', moment: 'Dinner service', owner: 'Catering', type: 'Reception' },
+    { time: '7:30 PM', moment: 'Speeches', owner: 'Best man & MOH', type: 'Reception' },
+    { time: '8:00 PM', moment: 'Cake cutting', owner: 'Couple', type: 'Reception' },
+    { time: '8:15 PM', moment: 'Dance floor opens', owner: 'DJ', type: 'Reception' },
+  ]);
+
+  const tabs = [
+    { id: 'overview' as PlanTab, label: 'Overview' },
+    { id: 'tasks' as PlanTab, label: 'Tasks' },
+    { id: 'budget' as PlanTab, label: 'Budget' },
+    { id: 'vendors' as PlanTab, label: 'Vendors' },
+    { id: 'details' as PlanTab, label: 'Details' },
+  ];
+
+  const priorityTasks = [
+    {
+      title: 'Finalize venue shortlist',
+      explanation: 'This shapes your guest count and budget.',
+      supporting: 'Best to complete soon.',
+      status: 'Urgent',
+      module: 'vendors' as ModalType,
+    },
+    {
+      title: 'Set guest meal preferences',
+      explanation: 'Dining needs final counts and dietary clarity.',
+      supporting: 'A good task for this week.',
+      status: 'Soon',
+      module: 'food' as ModalType,
+    },
+    {
+      title: 'Publish guest page',
+      explanation: 'Guests need this to RSVP and plan travel.',
+      supporting: 'Share when your key details feel settled.',
+      status: 'Soon',
+      module: 'timeline' as ModalType,
+    },
+  ];
+
+  const planningModules = [
+    {
+      id: 'event-structure',
+      icon: Calendar,
+      title: 'Event structure',
+      status: 'Complete',
+      summary: 'Ceremony, cocktail hour, reception, after party',
+      progress: 100,
+      microcopy: 'Your main flow is set.'
+    },
+    {
+      id: 'timeline',
+      icon: Clock,
+      title: 'Timeline / Run of show',
+      status: 'In progress',
+      summary: '18 moments planned',
+      progress: 75,
+      microcopy: 'A few moments still need timing.'
+    },
+    {
+      id: 'budget',
+      icon: DollarSign,
+      title: 'Budget',
+      status: 'In progress',
+      summary: '$45,000 total • Experience-focused',
+      progress: 70,
+      microcopy: 'Food and décor still have room to shape.'
+    },
+    {
+      id: 'food',
+      icon: Utensils,
+      title: 'Food & dining',
+      status: 'In progress',
+      summary: 'Plated dinner • 5 dietary needs tracked',
+      progress: 60,
+      microcopy: 'Menu enhancements still need review.'
+    },
+    {
+      id: 'vendors',
+      icon: Briefcase,
+      title: 'Vendors & suppliers',
+      status: 'In progress',
+      summary: '8 booked • 4 shortlisted • 3 still needed',
+      progress: 65,
+      microcopy: 'A few essentials still need to be confirmed.'
+    },
+    {
+      id: 'wedding-party',
+      icon: Users,
+      title: 'Wedding party',
+      status: 'Complete',
+      summary: '6 bridesmaids • 6 groomsmen',
+      progress: 100,
+      microcopy: 'Your party roles are set.'
+    },
+    {
+      id: 'seating',
+      icon: MapPin,
+      title: 'Seating',
+      status: 'Not started',
+      summary: '120 guests • 15 tables planned',
+      progress: 0,
+      microcopy: 'Guest placement has not been arranged yet.'
+    },
+    {
+      id: 'additional-events',
+      icon: Calendar,
+      title: 'Additional events',
+      status: 'In progress',
+      summary: 'Rehearsal dinner • Post-wedding brunch',
+      progress: 50,
+      microcopy: 'A few extra moments need planning.'
+    },
+    {
+      id: 'personal-moments',
+      icon: Heart,
+      title: 'Personal moments',
+      status: 'In progress',
+      summary: '4 speeches • Cultural traditions included',
+      progress: 40,
+      microcopy: 'Special moments can still be refined.'
+    },
+    {
+      id: 'honeymoon',
+      icon: Plane,
+      title: 'Honeymoon',
+      status: 'Planned',
+      summary: 'Bali • 10 days',
+      progress: 90,
+      microcopy: 'Almost ready.'
+    },
+    {
+      id: 'insurance',
+      icon: Shield,
+      title: 'Insurance',
+      status: 'Complete',
+      summary: 'Policy active',
+      progress: 100,
+      microcopy: 'You are covered.'
+    },
+    {
+      id: 'lookbook',
+      icon: Image,
+      title: 'Lookbook',
+      status: 'In progress',
+      summary: '47 images saved',
+      progress: 55,
+      microcopy: 'Your visual direction is taking shape.'
+    },
+    {
+      id: 'reminders',
+      icon: Bell,
+      title: 'Reminders',
+      status: 'Active',
+      summary: 'Weekly updates • Vendor alerts on',
+      progress: 100,
+      microcopy: 'You will stay gently informed.'
+    },
+  ];
+
+  const vendors: Vendor[] = [
+    { category: 'Venue', status: 'Booked', name: 'Sunset Gardens', dateBooked: 'Jan 15, 2026' },
+    { category: 'Planner', status: 'Booked', name: 'Elite Weddings Co', dateBooked: 'Jan 20, 2026' },
+    { category: 'Photographer', status: 'Booked', name: 'Emma Stone Photography', dateBooked: 'Feb 1, 2026' },
+    { category: 'Videographer', status: 'Shortlisted', shortlistedCount: 3 },
+    { category: 'Catering', status: 'Booked', name: 'Gourmet Affairs', dateBooked: 'Feb 10, 2026' },
+    { category: 'Florist', status: 'Shortlisted', shortlistedCount: 2 },
+    { category: 'DJ / band', status: 'Shortlisted', shortlistedCount: 4 },
+    { category: 'Hair & makeup', status: 'Needed' },
+    { category: 'Officiant', status: 'Booked', name: 'Rev. Michael Chen', dateBooked: 'Jan 25, 2026' },
+    { category: 'Cake', status: 'Needed' },
+    { category: 'Transport', status: 'Needed' },
+  ];
+
+  const weddingParty: WeddingPartyMember[] = [
+    { name: 'Sarah Johnson', role: 'Maid of honour', email: 'sarah@email.com', phone: '555-0100', speech: true },
+    { name: 'Michael Chen', role: 'Best man', email: 'michael@email.com', phone: '555-0101', speech: true },
+    { name: 'Emily Davis', role: 'Bridesmaid', email: 'emily@email.com', phone: '555-0102', speech: false },
+    { name: 'Jessica Lee', role: 'Bridesmaid', email: 'jessica@email.com', phone: '555-0103', speech: false },
+    { name: 'Amanda White', role: 'Bridesmaid', email: 'amanda@email.com', phone: '555-0104', speech: false },
+    { name: 'Rachel Green', role: 'Bridesmaid', email: 'rachel@email.com', phone: '555-0105', speech: false },
+    { name: 'James Wilson', role: 'Groomsman', email: 'james@email.com', phone: '555-0106', speech: false },
+    { name: 'David Brown', role: 'Groomsman', email: 'david@email.com', phone: '555-0107', speech: false },
+    { name: 'Ryan Taylor', role: 'Groomsman', email: 'ryan@email.com', phone: '555-0108', speech: false },
+    { name: 'Chris Martinez', role: 'Groomsman', email: 'chris@email.com', phone: '555-0109', speech: false },
+  ];
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'Complete':
+      case 'Active':
+      case 'Planned':
+        return 'bg-[#285301]';
+      case 'Urgent':
+      case 'Needs attention':
+        return 'bg-[#d45d78]';
+      case 'Soon':
+      case 'In progress':
+        return 'bg-[#f194b2]';
+      default:
+        return 'bg-gray-300';
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-gradient-to-b from-white to-[#fefdfb]">
+      {/* Header */}
+      <div className="bg-gradient-to-br from-[#f8edeb] via-white to-[#f8edeb] px-6 pt-10 pb-8">
+        <h1 className="text-4xl text-[#285301] mb-3 text-center" style={{ fontFamily: 'Crimson Pro, serif', fontWeight: 500 }}>Plan</h1>
+        <p className="text-[14px] text-gray-600 text-center max-w-md mx-auto" style={{ fontWeight: 400, lineHeight: 1.6 }}>
+          Everything important in one peaceful place.
+        </p>
+      </div>
+
+      {/* Tab Navigation */}
+      <div className="px-6 py-4 bg-white border-b border-gray-100">
+        <div className="flex gap-2 overflow-x-auto max-w-3xl mx-auto">
+          {tabs.map((tab) => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className={`px-4 py-2 rounded-full whitespace-nowrap text-[13px] transition-all ${
+                activeTab === tab.id
+                  ? 'bg-[#285301] text-white'
+                  : 'bg-[#f8edeb]/60 text-gray-700 hover:bg-[#f8edeb]'
+              }`}
+              style={{ fontWeight: activeTab === tab.id ? 500 : 400 }}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Content */}
+      <div className="max-w-3xl mx-auto px-5 pb-10 space-y-8 mt-6">
+        {activeTab === 'overview' && (
+          <>
+            {/* Calm Planning Intro Card */}
+            <div className="bg-gradient-to-br from-white to-[#f8edeb]/40 rounded-[18px] p-6" style={{ boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>
+              <div className="flex items-start justify-between mb-4">
+                <div className="flex-1">
+                  <p className="text-[14px] text-gray-700 mb-3" style={{ fontWeight: 400, lineHeight: 1.7 }}>
+                    This is your planning space. Everything is grouped here so you can move through it clearly.
+                  </p>
+                  <p className="text-[13px] text-gray-600 mb-4" style={{ fontWeight: 400, lineHeight: 1.6 }}>
+                    Start with what matters most, then refine details as you go.
+                  </p>
+                </div>
+                <Heart className="text-[#f194b2] opacity-60 ml-4" size={18} />
+              </div>
+              <div className="flex items-center justify-between">
+                <button onClick={() => setActiveModal('timeline')} className="text-[12px] text-[#d45d78]/70 hover:underline" style={{ fontWeight: 400 }}>
+                  How this works
+                </button>
+                <button onClick={() => setActiveModal('timeline')} className="px-4 py-2 bg-[#285301] text-white rounded-lg text-[13px]" style={{ fontWeight: 500 }}>
+                  Guide me
+                </button>
+              </div>
+            </div>
+
+            {/* Priority Focus Strip */}
+            <div>
+              <h3 className="text-[20px] text-[#285301] mb-4 px-1" style={{ fontFamily: 'Crimson Pro, serif', fontWeight: 500 }}>
+                Most important right now
+              </h3>
+              <div className="space-y-3">
+                {priorityTasks.map((task, idx) => (
+                  <button
+                    key={idx}
+                    onClick={() => setActiveModal(task.module)}
+                    className="w-full bg-white rounded-xl p-4 text-left hover:shadow-md transition-all"
+                    style={{ boxShadow: '0 1px 2px rgba(0,0,0,0.03)', border: '1px solid rgba(0,0,0,0.05)' }}
+                  >
+                    <div className="flex items-start justify-between mb-2">
+                      <h4 className="text-[15px] text-gray-800 flex-1 pr-3" style={{ fontWeight: 500 }}>{task.title}</h4>
+                      <span className={`text-[10px] px-2 py-1 rounded-full text-white flex-shrink-0 ${
+                        task.status === 'Urgent' ? 'bg-[#d45d78]' : 'bg-[#f194b2]'
+                      }`} style={{ fontWeight: 500, minWidth: '55px', textAlign: 'center' }}>
+                        {task.status}
+                      </span>
+                    </div>
+                    <p className="text-[13px] text-gray-600 mb-1" style={{ fontWeight: 400, lineHeight: 1.5 }}>{task.explanation}</p>
+                    <p className="text-[12px] text-gray-400" style={{ fontWeight: 400 }}>{task.supporting}</p>
+                    <div className="flex items-center text-[#285301] text-[12px] mt-3" style={{ fontWeight: 500 }}>
+                      Open <ChevronRight size={14} className="ml-1" />
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Module Widget Grid - 2 columns */}
+            <div>
+              <h3 className="text-[20px] text-[#285301] mb-4 px-1" style={{ fontFamily: 'Crimson Pro, serif', fontWeight: 500 }}>
+                Your planning modules
+              </h3>
+              <div className="grid grid-cols-2 gap-3">
+                {planningModules.map((module) => {
+                  const Icon = module.icon;
+                  return (
+                    <button
+                      key={module.id}
+                      onClick={() => setActiveModal(module.id as ModalType)}
+                      className="bg-white rounded-xl p-4 text-left hover:shadow-md transition-all"
+                      style={{ boxShadow: '0 1px 2px rgba(0,0,0,0.03)' }}
+                    >
+                      <div className="flex items-center justify-between mb-3">
+                        <div className="bg-[#f8edeb]/60 p-2 rounded-lg">
+                          <Icon className="text-[#285301] opacity-80" size={18} />
+                        </div>
+                        <span className={`text-[9px] px-2 py-0.5 rounded-full text-white ${getStatusColor(module.status)}`} style={{ fontWeight: 500 }}>
+                          {module.status}
+                        </span>
+                      </div>
+                      <h4 className="text-[14px] text-gray-800 mb-2" style={{ fontWeight: 500, lineHeight: 1.3 }}>{module.title}</h4>
+                      <p className="text-[11px] text-gray-500 mb-3" style={{ fontWeight: 400, lineHeight: 1.4 }}>{module.summary}</p>
+                      <div className="w-full bg-[#f8edeb]/50 rounded-full h-1 mb-2">
+                        <div className="bg-[#285301] h-1 rounded-full" style={{ width: `${module.progress}%` }}></div>
+                      </div>
+                      <p className="text-[10px] text-gray-400 italic" style={{ fontWeight: 400 }}>{module.microcopy}</p>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          </>
+        )}
+
+        {activeTab === 'tasks' && (
+          <>
+            {/* Summary Row */}
+            <div className="grid grid-cols-3 gap-3 mb-6">
+              <div className="bg-gradient-to-br from-[#d45d78]/10 to-[#f194b2]/20 rounded-xl p-4 text-center border border-[#d45d78]/20">
+                <div className="text-[24px] text-[#d45d78] mb-1" style={{ fontWeight: 500 }}>3</div>
+                <div className="text-[11px] text-gray-600" style={{ fontWeight: 400 }}>Overdue</div>
+              </div>
+              <div className="bg-gradient-to-br from-[#f194b2]/10 to-[#f8edeb]/40 rounded-xl p-4 text-center border border-[#f194b2]/20">
+                <div className="text-[24px] text-[#285301] mb-1" style={{ fontWeight: 500 }}>12</div>
+                <div className="text-[11px] text-gray-600" style={{ fontWeight: 400 }}>This week</div>
+              </div>
+              <div className="bg-gradient-to-br from-[#285301]/10 to-[#f8edeb]/20 rounded-xl p-4 text-center border border-[#285301]/20">
+                <div className="text-[24px] text-[#285301] mb-1" style={{ fontWeight: 500 }}>47</div>
+                <div className="text-[11px] text-gray-600" style={{ fontWeight: 400 }}>Done</div>
+              </div>
+            </div>
+
+            {/* Filter Chips */}
+            <div className="flex gap-2 overflow-x-auto mb-6">
+              {['All', 'Urgent', 'This week', 'Assigned to me', 'Completed'].map((filter, idx) => (
+                <button
+                  key={idx}
+                  className={`px-3 py-1.5 rounded-full whitespace-nowrap text-[12px] ${
+                    idx === 0 ? 'bg-[#285301] text-white' : 'bg-[#f8edeb]/60 text-gray-700'
+                  }`}
+                  style={{ fontWeight: 500 }}
+                >
+                  {filter}
+                </button>
+              ))}
+            </div>
+
+            {/* Most Important */}
+            <div className="mb-6">
+              <h3 className="text-[18px] text-[#285301] mb-3 px-1" style={{ fontFamily: 'Crimson Pro, serif', fontWeight: 500 }}>
+                Most important right now
+              </h3>
+              <div className="space-y-3">
+                {[
+                  { title: 'Finalize venue shortlist', due: 'Apr 5', module: 'Vendors', status: 'Urgent' },
+                  { title: 'Send RSVP reminder to 23 guests', due: 'Apr 8', module: 'Guest planning', status: 'Urgent' },
+                  { title: 'Confirm florist deposit', due: 'Apr 10', module: 'Budget', status: 'Soon' },
+                ].map((task, idx) => (
+                  <div key={idx} className="bg-white rounded-xl p-4 border border-gray-100">
+                    <div className="flex items-start justify-between mb-2">
+                      <div className="flex-1">
+                        <h4 className="text-[14px] text-gray-800 mb-1" style={{ fontWeight: 500 }}>{task.title}</h4>
+                        <p className="text-[12px] text-gray-500" style={{ fontWeight: 400 }}>
+                          {task.module} • Due {task.due}
+                        </p>
+                      </div>
+                      <span className={`text-[10px] px-2 py-1 rounded-full text-white flex-shrink-0 ml-2 ${
+                        task.status === 'Urgent' ? 'bg-[#d45d78]' : 'bg-[#f194b2]'
+                      }`} style={{ fontWeight: 500 }}>
+                        {task.status}
+                      </span>
+                    </div>
+                    <button onClick={() => {
+                      // Remove this task from list
+                      const taskElement = document.activeElement?.closest('.bg-white.rounded-xl.border');
+                      if (taskElement) {
+                        taskElement.classList.add('opacity-0', 'transition-opacity');
+                        setTimeout(() => taskElement.remove(), 300);
+                      }
+                    }} className="text-[12px] text-[#285301] hover:underline" style={{ fontWeight: 500 }}>
+                      Mark complete
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Upcoming */}
+            <div className="mb-6">
+              <h3 className="text-[18px] text-[#285301] mb-3 px-1" style={{ fontFamily: 'Crimson Pro, serif', fontWeight: 500 }}>
+                Upcoming
+              </h3>
+              <div className="space-y-2">
+                {[
+                  { title: 'Review ceremony music options', due: 'Apr 15', module: 'Timeline' },
+                  { title: 'Schedule hair & makeup trial', due: 'Apr 18', module: 'Beauty' },
+                  { title: 'Finalize guest meal selections', due: 'Apr 20', module: 'Food & dining' },
+                  { title: 'Order wedding favors', due: 'Apr 25', module: 'Guest experience' },
+                  { title: 'Confirm hotel blocks', due: 'May 1', module: 'Accommodation' },
+                ].map((task, idx) => (
+                  <div key={idx} className="bg-white rounded-xl p-3 border border-gray-100">
+                    <div className="flex items-center justify-between">
+                      <div className="flex-1">
+                        <div className="text-[13px] text-gray-800 mb-1" style={{ fontWeight: 500 }}>{task.title}</div>
+                        <div className="text-[11px] text-gray-500" style={{ fontWeight: 400 }}>
+                          {task.module} • {task.due}
+                        </div>
+                      </div>
+                      <button onClick={(e) => {
+                        const taskElement = e.currentTarget.closest('.bg-white.rounded-xl');
+                        if (taskElement) {
+                          taskElement.classList.add('opacity-0', 'transition-opacity');
+                          setTimeout(() => taskElement.remove(), 300);
+                        }
+                      }} className="text-gray-400 hover:text-[#285301] ml-2">
+                        <Check size={18} />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <button onClick={() => setActiveFormModal('add-task')} className="w-full bg-[#285301] text-white py-3 rounded-xl flex items-center justify-center" style={{ fontWeight: 500 }}>
+              <Plus size={18} className="mr-2" />
+              Add task
+            </button>
+          </>
+        )}
+
+        {activeTab === 'budget' && (
+          <>
+            {/* Summary Cards */}
+            <div className="grid grid-cols-2 gap-3 mb-6">
+              <div className="bg-gradient-to-br from-[#fefdfb] to-[#f8edeb]/40 rounded-xl p-5 border border-gray-100">
+                <div className="text-[12px] text-gray-500 mb-1" style={{ fontWeight: 400 }}>Total budget</div>
+                <div className="text-[28px] text-gray-800 mb-2" style={{ fontWeight: 500 }}>$45,000</div>
+                <div className="text-[11px] text-gray-600" style={{ fontWeight: 400 }}>Set in January</div>
+              </div>
+              <div className="bg-gradient-to-br from-[#285301] to-[#285301]/80 text-white rounded-xl p-5">
+                <div className="text-[12px] opacity-90 mb-1" style={{ fontWeight: 400 }}>Remaining</div>
+                <div className="text-[28px] mb-2" style={{ fontWeight: 500 }}>$13,500</div>
+                <div className="text-[11px] opacity-80" style={{ fontWeight: 400 }}>30% of budget</div>
+              </div>
+            </div>
+
+            {/* Spent vs Allocated */}
+            <div className="bg-white rounded-xl p-5 border border-gray-100 mb-6">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-[16px] text-gray-800" style={{ fontWeight: 500 }}>Budget overview</h3>
+                <button onClick={() => setActiveModal('budget')} className="text-[12px] text-[#285301]" style={{ fontWeight: 500 }}>View details</button>
+              </div>
+              <div className="space-y-3">
+                <div>
+                  <div className="flex justify-between mb-2">
+                    <span className="text-[13px] text-gray-600" style={{ fontWeight: 400 }}>Allocated</span>
+                    <span className="text-[13px] text-gray-800" style={{ fontWeight: 500 }}>$42,500</span>
+                  </div>
+                  <div className="w-full bg-[#f8edeb]/50 rounded-full h-2">
+                    <div className="bg-[#f194b2] h-2 rounded-full" style={{ width: '94.4%' }}></div>
+                  </div>
+                </div>
+                <div>
+                  <div className="flex justify-between mb-2">
+                    <span className="text-[13px] text-gray-600" style={{ fontWeight: 400 }}>Spent</span>
+                    <span className="text-[13px] text-gray-800" style={{ fontWeight: 500 }}>$31,500</span>
+                  </div>
+                  <div className="w-full bg-[#f8edeb]/50 rounded-full h-2">
+                    <div className="bg-[#d45d78] h-2 rounded-full" style={{ width: '70%' }}></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Category Breakdown */}
+            <div className="mb-6">
+              <h3 className="text-[18px] text-[#285301] mb-3 px-1" style={{ fontFamily: 'Crimson Pro, serif', fontWeight: 500 }}>
+                By category
+              </h3>
+              <div className="space-y-3">
+                {[
+                  { category: 'Venue', allocated: 12000, spent: 12000, color: '#285301' },
+                  { category: 'Food & drink', allocated: 10000, spent: 8500, color: '#285301' },
+                  { category: 'Photography', allocated: 4500, spent: 3500, color: '#285301' },
+                  { category: 'Decor & flowers', allocated: 4000, spent: 2800, color: '#f194b2' },
+                  { category: 'Entertainment', allocated: 3000, spent: 1800, color: '#f194b2' },
+                  { category: 'Attire', allocated: 3500, spent: 2200, color: '#f194b2' },
+                ].map((item, idx) => (
+                  <div key={idx} className="bg-white rounded-xl p-4 border border-gray-100">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-[14px] text-gray-800" style={{ fontWeight: 500 }}>{item.category}</span>
+                      <span className="text-[13px] text-gray-600" style={{ fontWeight: 400 }}>
+                        ${item.spent.toLocaleString()} / ${item.allocated.toLocaleString()}
+                      </span>
+                    </div>
+                    <div className="w-full bg-[#f8edeb]/50 rounded-full h-1.5">
+                      <div className="h-1.5 rounded-full" style={{ width: `${(item.spent / item.allocated) * 100}%`, backgroundColor: item.color }}></div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Recent Expenses */}
+            <div className="mb-6">
+              <h3 className="text-[18px] text-[#285301] mb-3 px-1" style={{ fontFamily: 'Crimson Pro, serif', fontWeight: 500 }}>
+                Recent expenses
+              </h3>
+              <div className="space-y-2">
+                {[
+                  { vendor: 'Gourmet Affairs', amount: 1500, date: 'Mar 28', category: 'Food' },
+                  { vendor: 'Petal Perfection', amount: 800, date: 'Mar 25', category: 'Flowers' },
+                  { vendor: 'Sunset Gardens', amount: 3000, date: 'Mar 20', category: 'Venue' },
+                ].map((expense, idx) => (
+                  <div key={idx} className="bg-white rounded-xl p-3 border border-gray-100">
+                    <div className="flex items-center justify-between">
+                      <div className="flex-1">
+                        <div className="text-[13px] text-gray-800 mb-1" style={{ fontWeight: 500 }}>{expense.vendor}</div>
+                        <div className="text-[11px] text-gray-500" style={{ fontWeight: 400 }}>
+                          {expense.category} • {expense.date}
+                        </div>
+                      </div>
+                      <div className="text-[14px] text-gray-800" style={{ fontWeight: 500 }}>
+                        ${expense.amount.toLocaleString()}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <button onClick={() => setActiveFormModal('add-expense')} className="w-full bg-[#285301] text-white py-3 rounded-xl flex items-center justify-center" style={{ fontWeight: 500 }}>
+              <Plus size={18} className="mr-2" />
+              Add expense
+            </button>
+          </>
+        )}
+
+        {activeTab === 'vendors' && (
+          <>
+            {/* Summary Cards */}
+            <div className="grid grid-cols-3 gap-3 mb-6">
+              <div className="bg-[#285301] text-white rounded-xl p-4 text-center">
+                <div className="text-[24px] mb-1" style={{ fontWeight: 500 }}>8</div>
+                <div className="text-[11px] opacity-90" style={{ fontWeight: 400 }}>Booked</div>
+              </div>
+              <div className="bg-[#f194b2] text-white rounded-xl p-4 text-center">
+                <div className="text-[24px] mb-1" style={{ fontWeight: 500 }}>4</div>
+                <div className="text-[11px] opacity-90" style={{ fontWeight: 400 }}>Shortlisted</div>
+              </div>
+              <div className="bg-gray-200 text-gray-700 rounded-xl p-4 text-center">
+                <div className="text-[24px] mb-1" style={{ fontWeight: 500 }}>3</div>
+                <div className="text-[11px]" style={{ fontWeight: 400 }}>Still needed</div>
+              </div>
+            </div>
+
+            {/* Category Filter */}
+            <div className="flex gap-2 overflow-x-auto mb-6">
+              {['All', 'Booked', 'Shortlisted', 'Needed'].map((filter, idx) => (
+                <button
+                  key={idx}
+                  className={`px-3 py-1.5 rounded-full whitespace-nowrap text-[12px] ${
+                    idx === 0 ? 'bg-[#285301] text-white' : 'bg-[#f8edeb]/60 text-gray-700'
+                  }`}
+                  style={{ fontWeight: 500 }}
+                >
+                  {filter}
+                </button>
+              ))}
+            </div>
+
+            {/* Booked Vendors */}
+            <div className="mb-6">
+              <h3 className="text-[18px] text-[#285301] mb-3 px-1" style={{ fontFamily: 'Crimson Pro, serif', fontWeight: 500 }}>
+                Booked
+              </h3>
+              <div className="space-y-3">
+                {vendors.filter(v => v.status === 'Booked').map((vendor, idx) => (
+                  <div key={idx} className="bg-white rounded-xl p-4 border border-gray-100">
+                    <div className="flex items-start justify-between mb-2">
+                      <div className="flex-1">
+                        <div className="text-[13px] text-gray-500 mb-1" style={{ fontWeight: 400 }}>{vendor.category}</div>
+                        <h4 className="text-[15px] text-gray-800 mb-1" style={{ fontWeight: 500 }}>{vendor.name}</h4>
+                        <p className="text-[12px] text-gray-500" style={{ fontWeight: 400 }}>Booked {vendor.dateBooked}</p>
+                      </div>
+                      <span className="text-[10px] px-2 py-1 rounded-full text-white bg-[#285301]" style={{ fontWeight: 500 }}>
+                        Booked
+                      </span>
+                    </div>
+                    <button onClick={() => setActiveModal('vendors')} className="text-[12px] text-[#285301] hover:underline" style={{ fontWeight: 500 }}>
+                      View details
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Shortlisted Vendors */}
+            <div className="mb-6">
+              <h3 className="text-[18px] text-[#285301] mb-3 px-1" style={{ fontFamily: 'Crimson Pro, serif', fontWeight: 500 }}>
+                Shortlisted
+              </h3>
+              <div className="space-y-3">
+                {vendors.filter(v => v.status === 'Shortlisted').map((vendor, idx) => (
+                  <div key={idx} className="bg-white rounded-xl p-4 border border-gray-100">
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1">
+                        <h4 className="text-[15px] text-gray-800 mb-1" style={{ fontWeight: 500 }}>{vendor.category}</h4>
+                        <p className="text-[13px] text-gray-600 mb-2" style={{ fontWeight: 400 }}>{vendor.shortlistedCount} options to review</p>
+                        <button onClick={() => setActiveModal('vendors')} className="text-[12px] text-[#285301] hover:underline" style={{ fontWeight: 500 }}>
+                          Compare options
+                        </button>
+                      </div>
+                      <span className="text-[10px] px-2 py-1 rounded-full text-white bg-[#f194b2]" style={{ fontWeight: 500 }}>
+                        Shortlisted
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Still Needed */}
+            <div className="mb-6">
+              <h3 className="text-[18px] text-[#285301] mb-3 px-1" style={{ fontFamily: 'Crimson Pro, serif', fontWeight: 500 }}>
+                Still needed
+              </h3>
+              <div className="space-y-2">
+                {vendors.filter(v => v.status === 'Needed').map((vendor, idx) => (
+                  <div key={idx} className="bg-white rounded-xl p-3 border border-gray-100">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[14px] text-gray-800" style={{ fontWeight: 500 }}>{vendor.category}</span>
+                      <button onClick={() => setActiveFormModal('add-vendor')} className="text-[12px] text-[#285301] hover:underline" style={{ fontWeight: 500 }}>
+                        Add vendor
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <button onClick={() => setActiveFormModal('add-vendor')} className="w-full bg-[#285301] text-white py-3 rounded-xl flex items-center justify-center" style={{ fontWeight: 500 }}>
+              <Plus size={18} className="mr-2" />
+              Add new vendor
+            </button>
+          </>
+        )}
+
+        {activeTab === 'details' && (
+          <>
+            {/* Wedding Details */}
+            <div className="bg-gradient-to-br from-[#f8edeb]/40 to-white rounded-xl p-6 border border-gray-100 mb-6">
+              <h3 className="text-[20px] text-[#285301] mb-5" style={{ fontFamily: 'Crimson Pro, serif', fontWeight: 500 }}>
+                Wedding details
+              </h3>
+              <div className="space-y-4">
+                <div>
+                  <div className="text-[12px] text-gray-500 mb-1" style={{ fontWeight: 400 }}>Wedding date</div>
+                  <div className="text-[15px] text-gray-800" style={{ fontWeight: 500 }}>Saturday, July 25, 2026</div>
+                </div>
+                <div>
+                  <div className="text-[12px] text-gray-500 mb-1" style={{ fontWeight: 400 }}>Couple</div>
+                  <div className="text-[15px] text-gray-800" style={{ fontWeight: 500 }}>Emily & James</div>
+                </div>
+                <div>
+                  <div className="text-[12px] text-gray-500 mb-1" style={{ fontWeight: 400 }}>Main location</div>
+                  <div className="text-[15px] text-gray-800" style={{ fontWeight: 500 }}>Sunset Gardens, Malibu</div>
+                </div>
+                <div>
+                  <div className="text-[12px] text-gray-500 mb-1" style={{ fontWeight: 400 }}>Guest count target</div>
+                  <div className="text-[15px] text-gray-800" style={{ fontWeight: 500 }}>120 guests</div>
+                </div>
+              </div>
+              <button onClick={() => setActiveFormModal('edit-wedding-details')} className="w-full mt-4 bg-white border border-gray-200 py-2.5 rounded-xl text-gray-700 text-[13px]" style={{ fontWeight: 500 }}>
+                Edit wedding details
+              </button>
+            </div>
+
+            {/* Support Preferences */}
+            <div className="bg-white rounded-xl p-5 border border-gray-100 mb-6">
+              <h3 className="text-[16px] text-gray-800 mb-4" style={{ fontWeight: 500 }}>Support preferences</h3>
+              <div className="space-y-3">
+                <div className="flex justify-between">
+                  <span className="text-[13px] text-gray-600" style={{ fontWeight: 400 }}>Planning style</span>
+                  <span className="text-[13px] text-gray-800" style={{ fontWeight: 500 }}>Experience-focused</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-[13px] text-gray-600" style={{ fontWeight: 400 }}>Reminder frequency</span>
+                  <span className="text-[13px] text-gray-800" style={{ fontWeight: 500 }}>Weekly</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-[13px] text-gray-600" style={{ fontWeight: 400 }}>Guest page</span>
+                  <span className="text-[13px] text-[#285301]" style={{ fontWeight: 500 }}>Active</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Privacy Settings */}
+            <div className="bg-white rounded-xl p-5 border border-gray-100 mb-6">
+              <h3 className="text-[16px] text-gray-800 mb-4" style={{ fontWeight: 500 }}>Privacy & access</h3>
+              <div className="space-y-3">
+                {[
+                  { setting: 'Planner can view all details', enabled: true },
+                  { setting: 'Vendors can view relevant sections', enabled: true },
+                  { setting: 'Wedding party has edit access', enabled: false },
+                  { setting: 'Guest page is password protected', enabled: true },
+                ].map((item, idx) => (
+                  <div key={idx} className="flex items-center justify-between p-3 bg-[#fefdfb] rounded-lg border border-gray-100">
+                    <span className="text-[13px] text-gray-700" style={{ fontWeight: 400 }}>{item.setting}</span>
+                    <input
+                      type="checkbox"
+                      checked={item.enabled}
+                      readOnly
+                      className="w-5 h-5 rounded text-[#285301]"
+                    />
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Wedding Tone */}
+            <div className="bg-gradient-to-br from-[#f8edeb]/20 to-white rounded-xl p-5 border border-gray-100 mb-6">
+              <h3 className="text-[16px] text-gray-800 mb-3" style={{ fontWeight: 500 }}>Wedding tone & feeling</h3>
+              <p className="text-[13px] text-gray-700 mb-3" style={{ fontWeight: 400, lineHeight: 1.6 }}>
+                Romantic, elegant, intimate celebration with coastal vibes. Emphasis on creating warm memories with close family and friends.
+              </p>
+              <button onClick={() => setActiveFormModal('edit-wedding-details')} className="text-[12px] text-[#285301] hover:underline" style={{ fontWeight: 500 }}>
+                Edit tone & vision
+              </button>
+            </div>
+
+            <div className="flex gap-3">
+              <button onClick={() => setActiveFormModal('manage-access')} className="flex-1 bg-[#285301] text-white py-3 rounded-xl" style={{ fontWeight: 500 }}>
+                Manage access
+              </button>
+              <button onClick={() => setActiveFormModal('guest-page-settings')} className="flex-1 border border-gray-300 py-3 rounded-xl text-gray-700" style={{ fontWeight: 500 }}>
+                Guest page settings
+              </button>
+            </div>
+          </>
+        )}
+      </div>
+
+      {/* EVENT STRUCTURE MODAL */}
+      {activeModal === 'event-structure' && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-end" onClick={() => setActiveModal(null)}>
+          <div className="bg-white w-full rounded-t-3xl p-6 max-h-[85vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+            <div className="w-12 h-1 bg-gray-300 rounded-full mx-auto mb-6"></div>
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-[26px] text-[#285301]" style={{ fontFamily: 'Crimson Pro, serif', fontWeight: 500 }}>Event structure</h2>
+              <button onClick={() => setActiveModal(null)} className="text-gray-400 hover:text-gray-600">
+                <X size={24} />
+              </button>
+            </div>
+
+            <div className="mb-6">
+              <div className="w-full bg-[#f8edeb]/60 rounded-full h-1.5 mb-2">
+                <div className="bg-[#285301] h-1.5 rounded-full" style={{ width: '100%' }}></div>
+              </div>
+              <p className="text-[13px] text-gray-600 text-center" style={{ fontWeight: 400, lineHeight: 1.6 }}>
+                Shape the flow of your day, beautifully and clearly.
+              </p>
+            </div>
+
+            <div className="space-y-3 mb-6">
+              {events.map((event, idx) => (
+                <div
+                  key={event.id}
+                  draggable
+                  onDragStart={() => setDraggedEvent(idx)}
+                  onDragEnd={() => setDraggedEvent(null)}
+                  onDragOver={(e) => e.preventDefault()}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    if (draggedEvent !== null && draggedEvent !== idx) {
+                      const newEvents = [...events];
+                      const [removed] = newEvents.splice(draggedEvent, 1);
+                      newEvents.splice(idx, 0, removed);
+                      setEvents(newEvents);
+                    }
+                  }}
+                  className="bg-[#fefdfb] rounded-xl p-4 border border-gray-100 cursor-move hover:border-[#285301] transition-all"
+                >
+                  <div className="flex items-start gap-3">
+                    <button className="text-gray-400 hover:text-gray-600 mt-1 cursor-grab active:cursor-grabbing">
+                      <GripVertical size={18} />
+                    </button>
+                    <div className="flex-1">
+                      <div className="flex items-center justify-between mb-2">
+                        <h4 className="text-[15px] text-gray-800" style={{ fontWeight: 500 }}>{event.name}</h4>
+                        <button onClick={() => { setEditingEventId(event.id); setActiveFormModal('edit-event'); }} className="text-gray-400 hover:text-[#285301]">
+                          <Edit size={16} />
+                        </button>
+                      </div>
+                      <div className="space-y-1">
+                        <p className="text-[13px] text-gray-600" style={{ fontWeight: 400 }}>Time: {event.time}</p>
+                        <p className="text-[13px] text-gray-600" style={{ fontWeight: 400 }}>Location: {event.location}</p>
+                        <p className="text-[13px] text-gray-600" style={{ fontWeight: 400 }}>Expected guests: {event.guests}</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <button onClick={() => setActiveFormModal('add-event')} className="w-full bg-[#285301] text-white py-3 rounded-xl flex items-center justify-center" style={{ fontWeight: 500 }}>
+              <Plus size={18} className="mr-2" />
+              Add event
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* FOOD & DINING MODAL */}
+      {activeModal === 'food' && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-end" onClick={() => setActiveModal(null)}>
+          <div className="bg-white w-full rounded-t-3xl p-6 max-h-[85vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+            <div className="w-12 h-1 bg-gray-300 rounded-full mx-auto mb-6"></div>
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-[26px] text-[#285301]" style={{ fontFamily: 'Crimson Pro, serif', fontWeight: 500 }}>Food & dining</h2>
+              <button onClick={() => setActiveModal(null)} className="text-gray-400 hover:text-gray-600">
+                <X size={24} />
+              </button>
+            </div>
+
+            <div className="mb-6">
+              <div className="w-full bg-[#f8edeb]/60 rounded-full h-1.5 mb-2">
+                <div className="bg-[#285301] h-1.5 rounded-full" style={{ width: '60%' }}></div>
+              </div>
+              <p className="text-[13px] text-gray-600 text-center mb-4" style={{ fontWeight: 400, lineHeight: 1.6 }}>
+                Your dining choices shape comfort, hospitality, and atmosphere.
+              </p>
+            </div>
+
+            <div className="space-y-6">
+              {/* Dining Style */}
+              <div className="bg-[#fefdfb] rounded-xl p-5 border border-gray-100">
+                <h3 className="text-[15px] text-gray-800 mb-3" style={{ fontWeight: 500 }}>Dining style</h3>
+                <div className="bg-white rounded-lg p-3 border border-[#285301]/20">
+                  <p className="text-[14px] text-[#285301]" style={{ fontWeight: 500 }}>Plated dinner</p>
+                </div>
+              </div>
+
+              {/* Dietary Requirements */}
+              <div className="bg-[#fefdfb] rounded-xl p-5 border border-gray-100">
+                <h3 className="text-[15px] text-gray-800 mb-3" style={{ fontWeight: 500 }}>Dietary requirements tracked</h3>
+                <div className="grid grid-cols-2 gap-2">
+                  {Object.entries(dietaryNeeds).map(([key, value]) => (
+                    <div key={key} className="bg-white rounded-lg p-3 text-center border border-gray-100">
+                      <div className="text-[18px] text-[#285301] mb-1" style={{ fontWeight: 500 }}>{value}</div>
+                      <div className="text-[11px] text-gray-500" style={{ fontWeight: 400 }}>
+                        {key === 'glutenFree' ? 'Gluten-free' : key.charAt(0).toUpperCase() + key.slice(1)}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Dining Enhancements */}
+              <div className="bg-[#fefdfb] rounded-xl p-5 border border-gray-100">
+                <h3 className="text-[15px] text-gray-800 mb-3" style={{ fontWeight: 500 }}>Dining enhancements</h3>
+                <div className="space-y-2">
+                  {Object.entries(enhancements).map(([key, value]) => (
+                    <div key={key} className="flex items-center justify-between p-3 bg-white rounded-lg border border-gray-100">
+                      <span className="text-[13px] text-gray-700" style={{ fontWeight: 400 }}>
+                        {key.replace(/([A-Z])/g, ' $1').trim().replace(/^./, str => str.toUpperCase())}
+                      </span>
+                      <input
+                        type="checkbox"
+                        checked={value}
+                        onChange={() => setEnhancements({...enhancements, [key]: !value})}
+                        className="w-5 h-5 rounded text-[#285301]"
+                      />
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="bg-[#f8edeb]/40 rounded-xl p-4">
+                <p className="text-[12px] text-gray-600 text-center italic" style={{ fontWeight: 400, lineHeight: 1.6 }}>
+                  You can always refine extras later.
+                </p>
+              </div>
+            </div>
+
+            <button onClick={() => setActiveModal(null)} className="w-full bg-[#285301] text-white py-3 rounded-xl mt-6" style={{ fontWeight: 500 }}>
+              Update dining plan
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* VENDORS MODAL */}
+      {activeModal === 'vendors' && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-end" onClick={() => setActiveModal(null)}>
+          <div className="bg-white w-full rounded-t-3xl p-6 max-h-[85vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+            <div className="w-12 h-1 bg-gray-300 rounded-full mx-auto mb-6"></div>
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-[26px] text-[#285301]" style={{ fontFamily: 'Crimson Pro, serif', fontWeight: 500 }}>Vendors & suppliers</h2>
+              <button onClick={() => setActiveModal(null)} className="text-gray-400 hover:text-gray-600">
+                <X size={24} />
+              </button>
+            </div>
+
+            <div className="mb-6">
+              <div className="w-full bg-[#f8edeb]/60 rounded-full h-1.5 mb-2">
+                <div className="bg-[#285301] h-1.5 rounded-full" style={{ width: '65%' }}></div>
+              </div>
+              <p className="text-[13px] text-gray-600 text-center" style={{ fontWeight: 400, lineHeight: 1.6 }}>
+                Everything you book here should bring your day closer to feeling complete.
+              </p>
+            </div>
+
+            {/* Summary Cards */}
+            <div className="grid grid-cols-3 gap-3 mb-6">
+              <div className="bg-[#285301] text-white rounded-xl p-4 text-center">
+                <div className="text-[24px] mb-1" style={{ fontWeight: 500 }}>8</div>
+                <div className="text-[11px] opacity-90" style={{ fontWeight: 400 }}>Booked</div>
+              </div>
+              <div className="bg-[#f194b2] text-white rounded-xl p-4 text-center">
+                <div className="text-[24px] mb-1" style={{ fontWeight: 500 }}>4</div>
+                <div className="text-[11px] opacity-90" style={{ fontWeight: 400 }}>Shortlisted</div>
+              </div>
+              <div className="bg-gray-200 text-gray-700 rounded-xl p-4 text-center">
+                <div className="text-[24px] mb-1" style={{ fontWeight: 500 }}>3</div>
+                <div className="text-[11px]" style={{ fontWeight: 400 }}>Still needed</div>
+              </div>
+            </div>
+
+            {/* Vendor List */}
+            <div className="space-y-3">
+              {vendors.map((vendor, idx) => (
+                <div key={idx} className="bg-[#fefdfb] rounded-xl p-4 border border-gray-100">
+                  <div className="flex items-start justify-between mb-2">
+                    <div className="flex-1">
+                      <h4 className="text-[14px] text-gray-800 mb-1" style={{ fontWeight: 500 }}>{vendor.category}</h4>
+                      {vendor.status === 'Booked' && (
+                        <>
+                          <p className="text-[13px] text-[#285301] mb-1" style={{ fontWeight: 500 }}>{vendor.name}</p>
+                          <p className="text-[12px] text-gray-500" style={{ fontWeight: 400 }}>Booked {vendor.dateBooked}</p>
+                        </>
+                      )}
+                      {vendor.status === 'Shortlisted' && (
+                        <p className="text-[13px] text-gray-600" style={{ fontWeight: 400 }}>{vendor.shortlistedCount} options shortlisted</p>
+                      )}
+                      {vendor.status === 'Needed' && (
+                        <p className="text-[13px] text-gray-500" style={{ fontWeight: 400 }}>Not yet sourced</p>
+                      )}
+                    </div>
+                    <span className={`text-[10px] px-2 py-1 rounded-full text-white ${
+                      vendor.status === 'Booked' ? 'bg-[#285301]' :
+                      vendor.status === 'Shortlisted' ? 'bg-[#f194b2]' : 'bg-gray-300'
+                    }`} style={{ fontWeight: 500 }}>
+                      {vendor.status}
+                    </span>
+                  </div>
+                  {vendor.status !== 'Booked' && (
+                    <button onClick={() => setActiveFormModal('add-vendor')} className="text-[12px] text-[#285301] hover:underline mt-2" style={{ fontWeight: 500 }}>
+                      {vendor.status === 'Shortlisted' ? 'Review options' : 'Add vendor'}
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+
+            <button onClick={() => setActiveFormModal('add-vendor')} className="w-full bg-[#285301] text-white py-3 rounded-xl mt-6 flex items-center justify-center" style={{ fontWeight: 500 }}>
+              <Plus size={18} className="mr-2" />
+              Add new vendor
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* WEDDING PARTY MODAL */}
+      {activeModal === 'wedding-party' && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-end" onClick={() => setActiveModal(null)}>
+          <div className="bg-white w-full rounded-t-3xl p-6 max-h-[85vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+            <div className="w-12 h-1 bg-gray-300 rounded-full mx-auto mb-6"></div>
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-[26px] text-[#285301]" style={{ fontFamily: 'Crimson Pro, serif', fontWeight: 500 }}>Wedding party</h2>
+              <button onClick={() => setActiveModal(null)} className="text-gray-400 hover:text-gray-600">
+                <X size={24} />
+              </button>
+            </div>
+
+            <div className="mb-6">
+              <div className="w-full bg-[#f8edeb]/60 rounded-full h-1.5 mb-2">
+                <div className="bg-[#285301] h-1.5 rounded-full" style={{ width: '100%' }}></div>
+              </div>
+              <p className="text-[13px] text-gray-600 text-center" style={{ fontWeight: 400, lineHeight: 1.6 }}>
+                Keep everyone clear on their role without having to chase people.
+              </p>
+            </div>
+
+            <div className="space-y-3 mb-6">
+              {weddingParty.map((member, idx) => (
+                <div key={idx} className="bg-[#fefdfb] rounded-xl p-4 border border-gray-100">
+                  <div className="flex items-start justify-between mb-2">
+                    <div className="flex-1">
+                      <h4 className="text-[15px] text-gray-800 mb-1" style={{ fontWeight: 500 }}>{member.name}</h4>
+                      <p className="text-[13px] text-[#285301] mb-2" style={{ fontWeight: 500 }}>{member.role}</p>
+                      <div className="space-y-1">
+                        <p className="text-[12px] text-gray-600" style={{ fontWeight: 400 }}>{member.email}</p>
+                        <p className="text-[12px] text-gray-600" style={{ fontWeight: 400 }}>{member.phone}</p>
+                      </div>
+                      {member.speech && (
+                        <div className="mt-2">
+                          <span className="text-[10px] px-2 py-1 bg-[#f8edeb] text-[#285301] rounded-full" style={{ fontWeight: 500 }}>
+                            Speech planned
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                    <button onClick={() => setActiveFormModal('add-wedding-party-member')} className="text-gray-400 hover:text-[#285301]">
+                      <Edit size={16} />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div className="flex gap-3">
+              <button onClick={() => setActiveFormModal('add-wedding-party-member')} className="flex-1 bg-[#285301] text-white py-3 rounded-xl flex items-center justify-center" style={{ fontWeight: 500 }}>
+                <Plus size={18} className="mr-2" />
+                Add person
+              </button>
+              <button onClick={() => setActiveFormModal('assign-duties')} className="flex-1 border border-gray-300 py-3 rounded-xl text-gray-700" style={{ fontWeight: 500 }}>
+                Assign duties
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* SEATING MODAL */}
+      {activeModal === 'seating' && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-end" onClick={() => setActiveModal(null)}>
+          <div className="bg-white w-full rounded-t-3xl p-6 max-h-[85vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+            <div className="w-12 h-1 bg-gray-300 rounded-full mx-auto mb-6"></div>
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-[26px] text-[#285301]" style={{ fontFamily: 'Crimson Pro, serif', fontWeight: 500 }}>Seating</h2>
+              <button onClick={() => setActiveModal(null)} className="text-gray-400 hover:text-gray-600">
+                <X size={24} />
+              </button>
+            </div>
+
+            <div className="mb-6">
+              <div className="w-full bg-[#f8edeb]/60 rounded-full h-1.5 mb-2">
+                <div className="bg-[#285301] h-1.5 rounded-full" style={{ width: '0%' }}></div>
+              </div>
+              <p className="text-[13px] text-gray-600 text-center" style={{ fontWeight: 400, lineHeight: 1.6 }}>
+                A thoughtful seating plan makes the whole day feel smoother.
+              </p>
+            </div>
+
+            {/* Summary */}
+            <div className="grid grid-cols-2 gap-3 mb-6">
+              <div className="bg-[#fefdfb] rounded-xl p-4 border border-gray-100 text-center">
+                <div className="text-[24px] text-[#285301] mb-1" style={{ fontWeight: 500 }}>120</div>
+                <div className="text-[12px] text-gray-600" style={{ fontWeight: 400 }}>Total guests</div>
+              </div>
+              <div className="bg-[#fefdfb] rounded-xl p-4 border border-gray-100 text-center">
+                <div className="text-[24px] text-gray-400 mb-1" style={{ fontWeight: 500 }}>0</div>
+                <div className="text-[12px] text-gray-600" style={{ fontWeight: 400 }}>Assigned</div>
+              </div>
+              <div className="bg-[#fefdfb] rounded-xl p-4 border border-gray-100 text-center">
+                <div className="text-[24px] text-[#285301] mb-1" style={{ fontWeight: 500 }}>15</div>
+                <div className="text-[12px] text-gray-600" style={{ fontWeight: 400 }}>Tables planned</div>
+              </div>
+              <div className="bg-[#fefdfb] rounded-xl p-4 border border-gray-100 text-center">
+                <div className="text-[24px] text-[#285301] mb-1" style={{ fontWeight: 500 }}>8</div>
+                <div className="text-[12px] text-gray-600" style={{ fontWeight: 400 }}>Per table</div>
+              </div>
+            </div>
+
+            <div className="bg-gradient-to-br from-[#f8edeb]/40 to-white rounded-xl p-6 mb-6 text-center">
+              <p className="text-[14px] text-gray-700 mb-4" style={{ fontWeight: 400, lineHeight: 1.6 }}>
+                Start by creating your tables, then assign guests by dragging them into position.
+              </p>
+              <button onClick={() => setActiveFormModal('start-seating')} className="bg-[#285301] text-white px-6 py-3 rounded-xl" style={{ fontWeight: 500 }}>
+                Start seating plan
+              </button>
+            </div>
+
+            <div className="space-y-2">
+              <button onClick={() => setActiveFormModal('seating-board')} className="w-full text-[13px] text-gray-600 hover:text-[#285301] py-2" style={{ fontWeight: 400 }}>
+                Auto-assign by family groups
+              </button>
+              <button onClick={() => setActiveFormModal('seating-board')} className="w-full text-[13px] text-gray-600 hover:text-[#285301] py-2" style={{ fontWeight: 400 }}>
+                Auto-assign by dietary needs
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* TIMELINE MODAL */}
+      {activeModal === 'timeline' && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-end" onClick={() => setActiveModal(null)}>
+          <div className="bg-white w-full rounded-t-3xl p-6 max-h-[85vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+            <div className="w-12 h-1 bg-gray-300 rounded-full mx-auto mb-6"></div>
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-[26px] text-[#285301]" style={{ fontFamily: 'Crimson Pro, serif', fontWeight: 500 }}>Timeline / Run of show</h2>
+              <button onClick={() => setActiveModal(null)} className="text-gray-400 hover:text-gray-600">
+                <X size={24} />
+              </button>
+            </div>
+
+            <div className="mb-6">
+              <div className="w-full bg-[#f8edeb]/60 rounded-full h-1.5 mb-2">
+                <div className="bg-[#285301] h-1.5 rounded-full" style={{ width: '75%' }}></div>
+              </div>
+              <p className="text-[13px] text-gray-600 text-center" style={{ fontWeight: 400, lineHeight: 1.6 }}>
+                This keeps your day flowing without anyone needing to guess.
+              </p>
+            </div>
+
+            <div className="space-y-3 mb-6">
+              {timelineMoments.map((item, idx) => (
+                <div
+                  key={idx}
+                  draggable
+                  onDragStart={() => setDraggedTimelineMoment(idx)}
+                  onDragEnd={() => setDraggedTimelineMoment(null)}
+                  onDragOver={(e) => e.preventDefault()}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    if (draggedTimelineMoment !== null && draggedTimelineMoment !== idx) {
+                      const newMoments = [...timelineMoments];
+                      const [removed] = newMoments.splice(draggedTimelineMoment, 1);
+                      newMoments.splice(idx, 0, removed);
+                      setTimelineMoments(newMoments);
+                    }
+                  }}
+                  className="bg-[#fefdfb] rounded-xl p-4 border border-gray-100 cursor-move hover:border-[#285301] transition-all"
+                >
+                  <div className="flex items-start gap-3">
+                    <button className="text-gray-400 hover:text-gray-600 mt-1 cursor-grab active:cursor-grabbing">
+                      <GripVertical size={16} />
+                    </button>
+                    <div className="flex-1">
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-2">
+                          <span className="text-[14px] text-[#285301]" style={{ fontWeight: 600 }}>{item.time}</span>
+                          <span className="text-[10px] px-2 py-0.5 bg-[#f8edeb] text-[#285301] rounded-full" style={{ fontWeight: 500 }}>
+                            {item.type}
+                          </span>
+                        </div>
+                        <button
+                          onClick={() => setActiveFormModal('edit-timeline-moment')}
+                          className="text-gray-400 hover:text-[#285301]"
+                        >
+                          <Edit size={14} />
+                        </button>
+                      </div>
+                      <h4 className="text-[14px] text-gray-800 mb-1" style={{ fontWeight: 500 }}>{item.moment}</h4>
+                      <p className="text-[12px] text-gray-500" style={{ fontWeight: 400 }}>Owner: {item.owner}</p>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <button onClick={() => setActiveFormModal('add-timeline-moment')} className="w-full bg-[#285301] text-white py-3 rounded-xl flex items-center justify-center" style={{ fontWeight: 500 }}>
+              <Plus size={18} className="mr-2" />
+              Add moment
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* BUDGET MODAL */}
+      {activeModal === 'budget' && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-end" onClick={() => setActiveModal(null)}>
+          <div className="bg-white w-full rounded-t-3xl p-6 max-h-[85vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+            <div className="w-12 h-1 bg-gray-300 rounded-full mx-auto mb-6"></div>
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-[26px] text-[#285301]" style={{ fontFamily: 'Crimson Pro, serif', fontWeight: 500 }}>Budget</h2>
+              <button onClick={() => setActiveModal(null)} className="text-gray-400 hover:text-gray-600">
+                <X size={24} />
+              </button>
+            </div>
+
+            <div className="mb-6">
+              <div className="w-full bg-[#f8edeb]/60 rounded-full h-1.5 mb-2">
+                <div className="bg-[#285301] h-1.5 rounded-full" style={{ width: '70%' }}></div>
+              </div>
+              <p className="text-[13px] text-gray-600 text-center" style={{ fontWeight: 400, lineHeight: 1.6 }}>
+                Keep your spending aligned with the day you want to create.
+              </p>
+            </div>
+
+            {/* Summary Cards */}
+            <div className="grid grid-cols-2 gap-3 mb-6">
+              <div className="bg-[#fefdfb] rounded-xl p-4 border border-gray-100 text-center">
+                <div className="text-[12px] text-gray-500 mb-1" style={{ fontWeight: 400 }}>Total budget</div>
+                <div className="text-[24px] text-gray-800" style={{ fontWeight: 500 }}>$45,000</div>
+              </div>
+              <div className="bg-[#fefdfb] rounded-xl p-4 border border-gray-100 text-center">
+                <div className="text-[12px] text-gray-500 mb-1" style={{ fontWeight: 400 }}>Allocated</div>
+                <div className="text-[24px] text-gray-800" style={{ fontWeight: 500 }}>$42,500</div>
+              </div>
+              <div className="bg-[#fefdfb] rounded-xl p-4 border border-gray-100 text-center">
+                <div className="text-[12px] text-gray-500 mb-1" style={{ fontWeight: 400 }}>Spent</div>
+                <div className="text-[24px] text-[#d45d78]" style={{ fontWeight: 500 }}>$31,500</div>
+              </div>
+              <div className="bg-[#285301] text-white rounded-xl p-4 text-center">
+                <div className="text-[12px] opacity-90 mb-1" style={{ fontWeight: 400 }}>Remaining</div>
+                <div className="text-[24px]" style={{ fontWeight: 500 }}>$13,500</div>
+              </div>
+            </div>
+
+            {/* Category Breakdown */}
+            <div className="bg-[#fefdfb] rounded-xl p-5 border border-gray-100 mb-6">
+              <h3 className="text-[15px] text-gray-800 mb-4" style={{ fontWeight: 500 }}>Category breakdown</h3>
+              <div className="space-y-4">
+                {[
+                  { category: 'Venue', spent: 12000, allocated: 12000, remaining: 0 },
+                  { category: 'Food & drink', spent: 8500, allocated: 10000, remaining: 1500 },
+                  { category: 'Photography', spent: 3500, allocated: 4500, remaining: 1000 },
+                  { category: 'Decor & flowers', spent: 2800, allocated: 4000, remaining: 1200 },
+                  { category: 'Entertainment', spent: 1800, allocated: 3000, remaining: 1200 },
+                  { category: 'Attire', spent: 2200, allocated: 3500, remaining: 1300 },
+                  { category: 'Stationery', spent: 400, allocated: 800, remaining: 400 },
+                  { category: 'Transport', spent: 300, allocated: 1200, remaining: 900 },
+                ].map((item, idx) => (
+                  <div key={idx}>
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-[13px] text-gray-700" style={{ fontWeight: 500 }}>{item.category}</span>
+                      <span className="text-[12px] text-gray-500" style={{ fontWeight: 400 }}>
+                        ${item.spent.toLocaleString()} / ${item.allocated.toLocaleString()}
+                      </span>
+                    </div>
+                    <div className="w-full bg-[#f8edeb]/50 rounded-full h-1.5">
+                      <div className="bg-[#285301] h-1.5 rounded-full" style={{ width: `${(item.spent / item.allocated) * 100}%` }}></div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Payment Schedule */}
+            <div className="bg-[#fefdfb] rounded-xl p-5 border border-gray-100 mb-6">
+              <h3 className="text-[15px] text-gray-800 mb-4" style={{ fontWeight: 500 }}>Upcoming payments</h3>
+              <div className="space-y-3">
+                {[
+                  { vendor: 'Gourmet Affairs', amount: 1500, due: 'Apr 15, 2026', status: 'Due soon' },
+                  { vendor: 'Sunset Gardens', amount: 4000, due: 'May 1, 2026', status: 'Upcoming' },
+                  { vendor: 'Emma Stone Photography', amount: 1000, due: 'May 15, 2026', status: 'Upcoming' },
+                ].map((payment, idx) => (
+                  <div key={idx} className="flex items-center justify-between p-3 bg-white rounded-lg border border-gray-100">
+                    <div className="flex-1">
+                      <div className="text-[13px] text-gray-800 mb-1" style={{ fontWeight: 500 }}>{payment.vendor}</div>
+                      <div className="text-[12px] text-gray-500" style={{ fontWeight: 400 }}>Due {payment.due}</div>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-[14px] text-gray-800 mb-1" style={{ fontWeight: 500 }}>${payment.amount.toLocaleString()}</div>
+                      <span className={`text-[10px] px-2 py-0.5 rounded-full text-white ${
+                        payment.status === 'Due soon' ? 'bg-[#d45d78]' : 'bg-[#f194b2]'
+                      }`} style={{ fontWeight: 500 }}>
+                        {payment.status}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="bg-[#f8edeb]/40 rounded-xl p-4 mb-6">
+              <p className="text-[12px] text-gray-600 text-center italic" style={{ fontWeight: 400, lineHeight: 1.6 }}>
+                Your venue spend is locked in; food still has room to shape.
+              </p>
+            </div>
+
+            <div className="flex gap-3">
+              <button onClick={() => setActiveFormModal('add-expense')} className="flex-1 bg-[#285301] text-white py-3 rounded-xl flex items-center justify-center" style={{ fontWeight: 500 }}>
+                <Plus size={18} className="mr-2" />
+                Add expense
+              </button>
+              <button onClick={() => setActiveFormModal('edit-budget-categories')} className="flex-1 border border-gray-300 py-3 rounded-xl text-gray-700" style={{ fontWeight: 500 }}>
+                Edit categories
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ADDITIONAL EVENTS MODAL */}
+      {activeModal === 'additional-events' && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-end" onClick={() => setActiveModal(null)}>
+          <div className="bg-white w-full rounded-t-3xl p-6 max-h-[85vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+            <div className="w-12 h-1 bg-gray-300 rounded-full mx-auto mb-6"></div>
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-[26px] text-[#285301]" style={{ fontFamily: 'Crimson Pro, serif', fontWeight: 500 }}>Additional events</h2>
+              <button onClick={() => setActiveModal(null)} className="text-gray-400 hover:text-gray-600">
+                <X size={24} />
+              </button>
+            </div>
+
+            <div className="mb-6">
+              <div className="w-full bg-[#f8edeb]/60 rounded-full h-1.5 mb-2">
+                <div className="bg-[#285301] h-1.5 rounded-full" style={{ width: '50%' }}></div>
+              </div>
+              <p className="text-[13px] text-gray-600 text-center" style={{ fontWeight: 400, lineHeight: 1.6 }}>
+                Keep extra moments organized without letting them take over the day.
+              </p>
+            </div>
+
+            <div className="space-y-3 mb-6">
+              {[
+                { name: 'Rehearsal dinner', date: 'July 24, 2026', host: 'Groom\'s parents', guests: 45, location: 'Harbor Restaurant', status: 'Planned' },
+                { name: 'Post-wedding brunch', date: 'July 26, 2026', host: 'Couple', guests: 80, location: 'Sunset Gardens', status: 'Planned' },
+                { name: 'Welcome drinks', date: 'July 24, 2026', host: 'Couple', guests: 120, location: 'Hotel terrace', status: 'In progress' },
+              ].map((event, idx) => (
+                <div key={idx} className="bg-[#fefdfb] rounded-xl p-4 border border-gray-100">
+                  <div className="flex items-start justify-between mb-2">
+                    <div className="flex-1">
+                      <h4 className="text-[15px] text-gray-800 mb-1" style={{ fontWeight: 500 }}>{event.name}</h4>
+                      <p className="text-[13px] text-[#285301] mb-2" style={{ fontWeight: 500 }}>{event.date}</p>
+                      <div className="space-y-1">
+                        <p className="text-[12px] text-gray-600" style={{ fontWeight: 400 }}>Host: {event.host}</p>
+                        <p className="text-[12px] text-gray-600" style={{ fontWeight: 400 }}>{event.guests} guests • {event.location}</p>
+                      </div>
+                    </div>
+                    <div className="flex flex-col items-end gap-2">
+                      <span className={`text-[10px] px-2 py-1 rounded-full text-white ${
+                        event.status === 'Planned' ? 'bg-[#285301]' : 'bg-[#f194b2]'
+                      }`} style={{ fontWeight: 500 }}>
+                        {event.status}
+                      </span>
+                      <button onClick={() => setActiveFormModal('add-additional-event')} className="text-gray-400 hover:text-[#285301]">
+                        <Edit size={16} />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <button onClick={() => setActiveFormModal('add-additional-event')} className="w-full bg-[#285301] text-white py-3 rounded-xl flex items-center justify-center" style={{ fontWeight: 500 }}>
+              <Plus size={18} className="mr-2" />
+              Add additional event
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* PERSONAL MOMENTS MODAL */}
+      {activeModal === 'personal-moments' && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-end" onClick={() => setActiveModal(null)}>
+          <div className="bg-white w-full rounded-t-3xl p-6 max-h-[85vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+            <div className="w-12 h-1 bg-gray-300 rounded-full mx-auto mb-6"></div>
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-[26px] text-[#285301]" style={{ fontFamily: 'Crimson Pro, serif', fontWeight: 500 }}>Personal moments</h2>
+              <button onClick={() => setActiveModal(null)} className="text-gray-400 hover:text-gray-600">
+                <X size={24} />
+              </button>
+            </div>
+
+            <div className="mb-6">
+              <div className="w-full bg-[#f8edeb]/60 rounded-full h-1.5 mb-2">
+                <div className="bg-[#285301] h-1.5 rounded-full" style={{ width: '40%' }}></div>
+              </div>
+              <p className="text-[13px] text-gray-600 text-center" style={{ fontWeight: 400, lineHeight: 1.6 }}>
+                These are the moments people remember in their hearts.
+              </p>
+            </div>
+
+            {/* Speeches Section */}
+            <div className="bg-[#fefdfb] rounded-xl p-5 border border-gray-100 mb-6">
+              <h3 className="text-[15px] text-gray-800 mb-3" style={{ fontWeight: 500 }}>Speeches planned</h3>
+              <div className="space-y-2">
+                {[
+                  { role: 'Best man', person: 'Michael Chen' },
+                  { role: 'Maid of honour', person: 'Sarah Johnson' },
+                  { role: 'Father of the bride', person: '' },
+                  { role: 'Groom\'s speech', person: '' },
+                ].map((speech, idx) => (
+                  <div key={idx} className="flex items-center justify-between p-3 bg-white rounded-lg border border-gray-100">
+                    <div>
+                      <div className="text-[13px] text-gray-800" style={{ fontWeight: 500 }}>{speech.role}</div>
+                      {speech.person && (
+                        <div className="text-[12px] text-gray-600" style={{ fontWeight: 400 }}>{speech.person}</div>
+                      )}
+                    </div>
+                    <button onClick={() => setActiveFormModal('add-custom-moment')} className="text-gray-400 hover:text-[#285301]">
+                      <Edit size={14} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Cultural Traditions */}
+            <div className="bg-[#fefdfb] rounded-xl p-5 border border-gray-100 mb-6">
+              <h3 className="text-[15px] text-gray-800 mb-3" style={{ fontWeight: 500 }}>Cultural traditions</h3>
+              <div className="space-y-2">
+                {[
+                  { name: 'First dance with parents', included: true },
+                  { name: 'Bouquet toss', included: false },
+                  { name: 'Cake cutting ceremony', included: true },
+                  { name: 'Memory table', included: true },
+                  { name: 'Moment of silence', included: true },
+                ].map((tradition, idx) => (
+                  <div key={idx} className="flex items-center justify-between p-3 bg-white rounded-lg border border-gray-100">
+                    <span className="text-[13px] text-gray-700" style={{ fontWeight: 400 }}>{tradition.name}</span>
+                    <div className="flex items-center gap-2">
+                      {tradition.included && (
+                        <Check size={16} className="text-[#285301]" />
+                      )}
+                      <input
+                        type="checkbox"
+                        checked={tradition.included}
+                        readOnly
+                        className="w-5 h-5 rounded text-[#285301]"
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <button onClick={() => setActiveFormModal('add-custom-moment')} className="w-full bg-[#285301] text-white py-3 rounded-xl flex items-center justify-center" style={{ fontWeight: 500 }}>
+              <Plus size={18} className="mr-2" />
+              Add custom moment
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* HONEYMOON MODAL */}
+      {activeModal === 'honeymoon' && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-end" onClick={() => setActiveModal(null)}>
+          <div className="bg-white w-full rounded-t-3xl p-6 max-h-[85vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+            <div className="w-12 h-1 bg-gray-300 rounded-full mx-auto mb-6"></div>
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-[26px] text-[#285301]" style={{ fontFamily: 'Crimson Pro, serif', fontWeight: 500 }}>Honeymoon</h2>
+              <button onClick={() => setActiveModal(null)} className="text-gray-400 hover:text-gray-600">
+                <X size={24} />
+              </button>
+            </div>
+
+            <div className="mb-6">
+              <div className="w-full bg-[#f8edeb]/60 rounded-full h-1.5 mb-2">
+                <div className="bg-[#285301] h-1.5 rounded-full" style={{ width: '90%' }}></div>
+              </div>
+              <p className="text-[13px] text-gray-600 text-center" style={{ fontWeight: 400, lineHeight: 1.6 }}>
+                Keep your getaway simple, joyful, and easy to look forward to.
+              </p>
+            </div>
+
+            {/* Summary Metrics */}
+            <div className="grid grid-cols-3 gap-3 mb-6">
+              <div className="bg-[#fefdfb] rounded-xl p-4 border border-gray-100 text-center">
+                <div className="text-[18px] text-[#285301] mb-1" style={{ fontWeight: 500 }}>Bali</div>
+                <div className="text-[11px] text-gray-600" style={{ fontWeight: 400 }}>Destination</div>
+              </div>
+              <div className="bg-[#fefdfb] rounded-xl p-4 border border-gray-100 text-center">
+                <div className="text-[18px] text-[#285301] mb-1" style={{ fontWeight: 500 }}>10</div>
+                <div className="text-[11px] text-gray-600" style={{ fontWeight: 400 }}>Days</div>
+              </div>
+              <div className="bg-[#fefdfb] rounded-xl p-4 border border-gray-100 text-center">
+                <div className="text-[18px] text-[#285301] mb-1" style={{ fontWeight: 500 }}>$8,500</div>
+                <div className="text-[11px] text-gray-600" style={{ fontWeight: 400 }}>Budget</div>
+              </div>
+            </div>
+
+            {/* Booking Checklist */}
+            <div className="bg-[#fefdfb] rounded-xl p-5 border border-gray-100 mb-6">
+              <h3 className="text-[15px] text-gray-800 mb-3" style={{ fontWeight: 500 }}>Booking checklist</h3>
+              <div className="space-y-2">
+                {[
+                  { item: 'Flights booked', done: true },
+                  { item: 'Hotel reserved', done: true },
+                  { item: 'Activities planned', done: false },
+                  { item: 'Passports checked', done: true },
+                  { item: 'Travel insurance', done: false },
+                ].map((task, idx) => (
+                  <div key={idx} className="flex items-center justify-between p-3 bg-white rounded-lg border border-gray-100">
+                    <span className={`text-[13px] ${task.done ? 'text-gray-500 line-through' : 'text-gray-700'}`} style={{ fontWeight: 400 }}>
+                      {task.item}
+                    </span>
+                    <div className="flex items-center gap-2">
+                      {task.done && (
+                        <Check size={16} className="text-[#285301]" />
+                      )}
+                      <input
+                        type="checkbox"
+                        checked={task.done}
+                        readOnly
+                        className="w-5 h-5 rounded text-[#285301]"
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="flex gap-3">
+              <button onClick={() => setActiveFormModal('edit-honeymoon')} className="flex-1 bg-[#285301] text-white py-3 rounded-xl" style={{ fontWeight: 500 }}>
+                Edit plan
+              </button>
+              <button onClick={() => setActiveFormModal('track-bookings')} className="flex-1 border border-gray-300 py-3 rounded-xl text-gray-700" style={{ fontWeight: 500 }}>
+                Track bookings
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* INSURANCE MODAL */}
+      {activeModal === 'insurance' && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-end" onClick={() => setActiveModal(null)}>
+          <div className="bg-white w-full rounded-t-3xl p-6 max-h-[85vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+            <div className="w-12 h-1 bg-gray-300 rounded-full mx-auto mb-6"></div>
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-[26px] text-[#285301]" style={{ fontFamily: 'Crimson Pro, serif', fontWeight: 500 }}>Insurance</h2>
+              <button onClick={() => setActiveModal(null)} className="text-gray-400 hover:text-gray-600">
+                <X size={24} />
+              </button>
+            </div>
+
+            <div className="mb-6">
+              <div className="w-full bg-[#f8edeb]/60 rounded-full h-1.5 mb-2">
+                <div className="bg-[#285301] h-1.5 rounded-full" style={{ width: '100%' }}></div>
+              </div>
+              <p className="text-[13px] text-gray-600 text-center" style={{ fontWeight: 400, lineHeight: 1.6 }}>
+                A little protection can make the whole plan feel steadier.
+              </p>
+            </div>
+
+            {/* Coverage Status */}
+            <div className="bg-gradient-to-br from-[#285301]/10 to-[#f8edeb]/40 rounded-xl p-5 mb-6 text-center">
+              <div className="inline-flex items-center justify-center w-16 h-16 bg-[#285301] rounded-full mb-3">
+                <Shield className="text-white" size={32} />
+              </div>
+              <h3 className="text-[18px] text-[#285301] mb-2" style={{ fontFamily: 'Crimson Pro, serif', fontWeight: 500 }}>You are covered</h3>
+              <p className="text-[13px] text-gray-600" style={{ fontWeight: 400 }}>Policy active and ready</p>
+            </div>
+
+            {/* Policy Details */}
+            <div className="bg-[#fefdfb] rounded-xl p-5 border border-gray-100 mb-6">
+              <h3 className="text-[15px] text-gray-800 mb-4" style={{ fontWeight: 500 }}>Policy details</h3>
+              <div className="space-y-3">
+                <div className="flex justify-between">
+                  <span className="text-[13px] text-gray-600" style={{ fontWeight: 400 }}>Provider</span>
+                  <span className="text-[13px] text-gray-800" style={{ fontWeight: 500 }}>WedSafe Insurance Co.</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-[13px] text-gray-600" style={{ fontWeight: 400 }}>Policy number</span>
+                  <span className="text-[13px] text-gray-800" style={{ fontWeight: 500 }}>WS-2026-78451</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-[13px] text-gray-600" style={{ fontWeight: 400 }}>Start date</span>
+                  <span className="text-[13px] text-gray-800" style={{ fontWeight: 500 }}>Jan 15, 2026</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-[13px] text-gray-600" style={{ fontWeight: 400 }}>Coverage amount</span>
+                  <span className="text-[13px] text-gray-800" style={{ fontWeight: 500 }}>Up to $50,000</span>
+                </div>
+              </div>
+            </div>
+
+            {/* What's Covered */}
+            <div className="bg-[#fefdfb] rounded-xl p-5 border border-gray-100 mb-6">
+              <h3 className="text-[15px] text-gray-800 mb-3" style={{ fontWeight: 500 }}>What's covered</h3>
+              <div className="space-y-2">
+                {['Venue cancellation', 'Vendor no-shows', 'Severe weather', 'Lost deposits', 'Medical emergencies'].map((item, idx) => (
+                  <div key={idx} className="flex items-center gap-2 p-2">
+                    <Check size={16} className="text-[#285301]" />
+                    <span className="text-[13px] text-gray-700" style={{ fontWeight: 400 }}>{item}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="flex gap-3">
+              <button onClick={() => setActiveFormModal('edit-insurance')} className="flex-1 bg-[#285301] text-white py-3 rounded-xl" style={{ fontWeight: 500 }}>
+                Edit policy
+              </button>
+              <button onClick={() => setActiveFormModal('upload-policy')} className="flex-1 border border-gray-300 py-3 rounded-xl text-gray-700" style={{ fontWeight: 500 }}>
+                Upload document
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* LOOKBOOK MODAL */}
+      {activeModal === 'lookbook' && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-end" onClick={() => setActiveModal(null)}>
+          <div className="bg-white w-full rounded-t-3xl p-6 max-h-[85vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+            <div className="w-12 h-1 bg-gray-300 rounded-full mx-auto mb-6"></div>
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-[26px] text-[#285301]" style={{ fontFamily: 'Crimson Pro, serif', fontWeight: 500 }}>Lookbook</h2>
+              <button onClick={() => setActiveModal(null)} className="text-gray-400 hover:text-gray-600">
+                <X size={24} />
+              </button>
+            </div>
+
+            <div className="mb-6">
+              <div className="w-full bg-[#f8edeb]/60 rounded-full h-1.5 mb-2">
+                <div className="bg-[#285301] h-1.5 rounded-full" style={{ width: '55%' }}></div>
+              </div>
+              <p className="text-[13px] text-gray-600 text-center" style={{ fontWeight: 400, lineHeight: 1.6 }}>
+                Keep your visual direction clear so every choice feels connected.
+              </p>
+            </div>
+
+            {/* Category Filter */}
+            <div className="mb-6 overflow-x-auto">
+              <div className="flex gap-2">
+                {['All', 'Pinterest', 'Venue', 'Flowers', 'Fashion', 'Table design', 'Lighting', 'Ceremony'].map((cat, idx) => (
+                  <button
+                    key={idx}
+                    onClick={() => {
+                      if (cat === 'Pinterest') {
+                        setActiveFormModal('pinterest-connect');
+                      } else {
+                        setLookbookCategory(cat);
+                      }
+                    }}
+                    className={`px-3 py-1.5 rounded-full whitespace-nowrap text-[12px] ${
+                      lookbookCategory === cat ? 'bg-[#285301] text-white' : cat === 'Pinterest' ? 'bg-[#E60023] text-white' : 'bg-[#f8edeb]/60 text-gray-700'
+                    }`}
+                    style={{ fontWeight: 500 }}
+                  >
+                    {cat}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Image Grid */}
+            <div className="grid grid-cols-2 gap-3 mb-6">
+              {Array.from({ length: 8 }).map((_, idx) => (
+                <button
+                  key={idx}
+                  onClick={() => setViewingImage(idx)}
+                  className="aspect-square bg-gradient-to-br from-[#f8edeb]/40 to-[#f194b2]/20 rounded-xl flex items-center justify-center border border-gray-100 hover:border-[#285301] transition-all cursor-pointer"
+                >
+                  <Image className="text-gray-300" size={32} />
+                </button>
+              ))}
+            </div>
+
+            <div className="bg-[#f8edeb]/40 rounded-xl p-4 mb-6">
+              <p className="text-[12px] text-gray-600 text-center italic" style={{ fontWeight: 400, lineHeight: 1.6 }}>
+                Save what feels like you. The details will start to tell one story.
+              </p>
+            </div>
+
+            <div className="flex gap-2 mb-3">
+              <button onClick={() => setActiveFormModal('upload-lookbook-photo')} className="flex-1 bg-[#285301] text-white py-3 rounded-xl flex items-center justify-center" style={{ fontWeight: 500 }}>
+                <Plus size={18} className="mr-2" />
+                Upload
+              </button>
+              <button onClick={() => setActiveFormModal('pinterest-connect')} className="flex-1 bg-[#E60023] text-white py-3 rounded-xl flex items-center justify-center" style={{ fontWeight: 500 }}>
+                <Image size={18} className="mr-2" />
+                Pinterest
+              </button>
+              <button onClick={() => setActiveFormModal('share-lookbook')} className="flex-1 border border-gray-300 py-3 rounded-xl text-gray-700 flex items-center justify-center" style={{ fontWeight: 500 }}>
+                <Share2 size={18} className="mr-2" />
+                Share
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* REMINDERS MODAL */}
+      {activeModal === 'reminders' && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-end" onClick={() => setActiveModal(null)}>
+          <div className="bg-white w-full rounded-t-3xl p-6 max-h-[85vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+            <div className="w-12 h-1 bg-gray-300 rounded-full mx-auto mb-6"></div>
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-[26px] text-[#285301]" style={{ fontFamily: 'Crimson Pro, serif', fontWeight: 500 }}>Reminders</h2>
+              <button onClick={() => setActiveModal(null)} className="text-gray-400 hover:text-gray-600">
+                <X size={24} />
+              </button>
+            </div>
+
+            <div className="mb-6">
+              <p className="text-[13px] text-gray-600 text-center" style={{ fontWeight: 400, lineHeight: 1.6 }}>
+                We will keep you gently informed, without overwhelming you.
+              </p>
+            </div>
+
+            {/* Reminder Style */}
+            <div className="bg-[#fefdfb] rounded-xl p-5 border border-gray-100 mb-6">
+              <h3 className="text-[15px] text-gray-800 mb-3" style={{ fontWeight: 500 }}>Reminder style</h3>
+              <div className="space-y-2">
+                {[
+                  { label: 'Minimal', desc: 'Only critical updates', selected: false },
+                  { label: 'Weekly', desc: 'Gentle weekly digest', selected: true },
+                  { label: 'Real-time', desc: 'Stay in the loop', selected: false },
+                ].map((option, idx) => (
+                  <div key={idx} className={`p-3 rounded-lg border ${
+                    option.selected ? 'border-[#285301] bg-[#285301]/5' : 'border-gray-100 bg-white'
+                  }`}>
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <div className="text-[13px] text-gray-800 mb-1" style={{ fontWeight: 500 }}>{option.label}</div>
+                        <div className="text-[11px] text-gray-600" style={{ fontWeight: 400 }}>{option.desc}</div>
+                      </div>
+                      <div className={`w-5 h-5 rounded-full border-2 ${
+                        option.selected ? 'border-[#285301] bg-[#285301]' : 'border-gray-300'
+                      } flex items-center justify-center`}>
+                        {option.selected && <div className="w-2 h-2 bg-white rounded-full"></div>}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Reminder Channels */}
+            <div className="bg-[#fefdfb] rounded-xl p-5 border border-gray-100 mb-6">
+              <h3 className="text-[15px] text-gray-800 mb-3" style={{ fontWeight: 500 }}>Reminder channels</h3>
+              <div className="space-y-2">
+                {[
+                  { name: 'Push notifications', enabled: true },
+                  { name: 'Email', enabled: true },
+                  { name: 'Planner alerts', enabled: false },
+                  { name: 'Wedding party alerts', enabled: false },
+                ].map((channel, idx) => (
+                  <div key={idx} className="flex items-center justify-between p-3 bg-white rounded-lg border border-gray-100">
+                    <span className="text-[13px] text-gray-700" style={{ fontWeight: 400 }}>{channel.name}</span>
+                    <input
+                      type="checkbox"
+                      checked={channel.enabled}
+                      readOnly
+                      className="w-5 h-5 rounded text-[#285301]"
+                    />
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Reminder Types */}
+            <div className="bg-[#fefdfb] rounded-xl p-5 border border-gray-100 mb-6">
+              <h3 className="text-[15px] text-gray-800 mb-3" style={{ fontWeight: 500 }}>Reminder types</h3>
+              <div className="space-y-2">
+                {[
+                  { name: 'Upcoming payments', enabled: true },
+                  { name: 'RSVP follow-ups', enabled: true },
+                  { name: 'Vendor deadlines', enabled: true },
+                  { name: 'Timeline checks', enabled: false },
+                  { name: 'Travel reminders', enabled: true },
+                ].map((type, idx) => (
+                  <div key={idx} className="flex items-center justify-between p-3 bg-white rounded-lg border border-gray-100">
+                    <span className="text-[13px] text-gray-700" style={{ fontWeight: 400 }}>{type.name}</span>
+                    <input
+                      type="checkbox"
+                      checked={type.enabled}
+                      readOnly
+                      className="w-5 h-5 rounded text-[#285301]"
+                    />
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <button onClick={() => setActiveFormModal(null)} className="w-full bg-[#285301] text-white py-3 rounded-xl" style={{ fontWeight: 500 }}>
+              Save reminder settings
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* FORM MODALS */}
+      {/* Add Task Form */}
+      {activeFormModal === 'add-task' && (
+        <div className="fixed inset-0 bg-black/50 z-[60] flex items-end" onClick={() => setActiveFormModal(null)}>
+          <div className="bg-white w-full rounded-t-3xl p-6 max-h-[85vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+            <div className="w-12 h-1 bg-gray-300 rounded-full mx-auto mb-6"></div>
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-[22px] text-[#285301]" style={{ fontFamily: 'Crimson Pro, serif', fontWeight: 500 }}>Add task</h2>
+              <button onClick={() => setActiveFormModal(null)} className="text-gray-400 hover:text-gray-600">
+                <X size={24} />
+              </button>
+            </div>
+            <div className="space-y-4">
+              <div>
+                <label className="text-[13px] text-gray-700 block mb-2" style={{ fontWeight: 500 }}>Task title</label>
+                <input type="text" className="w-full px-4 py-3 rounded-xl border border-gray-200 text-[14px]" placeholder="What needs to be done?" />
+              </div>
+              <div>
+                <label className="text-[13px] text-gray-700 block mb-2" style={{ fontWeight: 500 }}>Module</label>
+                <select className="w-full px-4 py-3 rounded-xl border border-gray-200 text-[14px]">
+                  <option>Vendors</option>
+                  <option>Budget</option>
+                  <option>Food & dining</option>
+                  <option>Timeline</option>
+                  <option>Guest planning</option>
+                </select>
+              </div>
+              <div>
+                <label className="text-[13px] text-gray-700 block mb-2" style={{ fontWeight: 500 }}>Due date</label>
+                <input type="date" className="w-full px-4 py-3 rounded-xl border border-gray-200 text-[14px]" />
+              </div>
+              <div>
+                <label className="text-[13px] text-gray-700 block mb-2" style={{ fontWeight: 500 }}>Priority</label>
+                <div className="flex gap-2">
+                  {['Urgent', 'Soon', 'Later'].map(p => (
+                    <button
+                      key={p}
+                      onClick={() => setSelectedTaskPriority(p)}
+                      className={`flex-1 py-2 rounded-lg border text-[13px] ${
+                        selectedTaskPriority === p
+                          ? 'border-[#285301] bg-[#285301]/10 text-[#285301]'
+                          : 'border-gray-200 hover:border-[#285301] hover:bg-[#285301]/5'
+                      }`}
+                    >
+                      {p}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+            <button onClick={() => setActiveFormModal(null)} className="w-full bg-[#285301] text-white py-3 rounded-xl mt-6" style={{ fontWeight: 500 }}>
+              Add task
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Add Expense Form */}
+      {activeFormModal === 'add-expense' && (
+        <div className="fixed inset-0 bg-black/50 z-[60] flex items-end" onClick={() => setActiveFormModal(null)}>
+          <div className="bg-white w-full rounded-t-3xl p-6 max-h-[85vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+            <div className="w-12 h-1 bg-gray-300 rounded-full mx-auto mb-6"></div>
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-[22px] text-[#285301]" style={{ fontFamily: 'Crimson Pro, serif', fontWeight: 500 }}>Add expense</h2>
+              <button onClick={() => setActiveFormModal(null)} className="text-gray-400 hover:text-gray-600">
+                <X size={24} />
+              </button>
+            </div>
+            <div className="space-y-4">
+              <div>
+                <label className="text-[13px] text-gray-700 block mb-2" style={{ fontWeight: 500 }}>Vendor / Description</label>
+                <input type="text" className="w-full px-4 py-3 rounded-xl border border-gray-200 text-[14px]" placeholder="e.g., Gourmet Affairs" />
+              </div>
+              <div>
+                <label className="text-[13px] text-gray-700 block mb-2" style={{ fontWeight: 500 }}>Category</label>
+                <select className="w-full px-4 py-3 rounded-xl border border-gray-200 text-[14px]">
+                  <option>Food & drink</option>
+                  <option>Venue</option>
+                  <option>Photography</option>
+                  <option>Decor & flowers</option>
+                  <option>Entertainment</option>
+                  <option>Attire</option>
+                  <option>Stationery</option>
+                  <option>Transport</option>
+                </select>
+              </div>
+              <div>
+                <label className="text-[13px] text-gray-700 block mb-2" style={{ fontWeight: 500 }}>Amount</label>
+                <input type="number" className="w-full px-4 py-3 rounded-xl border border-gray-200 text-[14px]" placeholder="$0.00" />
+              </div>
+              <div>
+                <label className="text-[13px] text-gray-700 block mb-2" style={{ fontWeight: 500 }}>Date paid</label>
+                <input type="date" className="w-full px-4 py-3 rounded-xl border border-gray-200 text-[14px]" />
+              </div>
+              <div>
+                <label className="text-[13px] text-gray-700 block mb-2" style={{ fontWeight: 500 }}>Payment status</label>
+                <div className="flex gap-2">
+                  {['Paid', 'Pending', 'Scheduled'].map(s => (
+                    <button
+                      key={s}
+                      onClick={() => setSelectedPaymentStatus(s)}
+                      className={`flex-1 py-2 rounded-lg border text-[13px] ${
+                        selectedPaymentStatus === s
+                          ? 'border-[#285301] bg-[#285301]/10 text-[#285301]'
+                          : 'border-gray-200 hover:border-[#285301] hover:bg-[#285301]/5'
+                      }`}
+                    >
+                      {s}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+            <button onClick={() => setActiveFormModal(null)} className="w-full bg-[#285301] text-white py-3 rounded-xl mt-6" style={{ fontWeight: 500 }}>
+              Save expense
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Add Vendor Form */}
+      {activeFormModal === 'add-vendor' && (
+        <div className="fixed inset-0 bg-black/50 z-[60] flex items-end" onClick={() => setActiveFormModal(null)}>
+          <div className="bg-white w-full rounded-t-3xl p-6 max-h-[85vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+            <div className="w-12 h-1 bg-gray-300 rounded-full mx-auto mb-6"></div>
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-[22px] text-[#285301]" style={{ fontFamily: 'Crimson Pro, serif', fontWeight: 500 }}>Add vendor</h2>
+              <button onClick={() => setActiveFormModal(null)} className="text-gray-400 hover:text-gray-600">
+                <X size={24} />
+              </button>
+            </div>
+            <div className="space-y-4">
+              <div>
+                <label className="text-[13px] text-gray-700 block mb-2" style={{ fontWeight: 500 }}>Vendor name</label>
+                <input type="text" className="w-full px-4 py-3 rounded-xl border border-gray-200 text-[14px]" placeholder="Business name" />
+              </div>
+              <div>
+                <label className="text-[13px] text-gray-700 block mb-2" style={{ fontWeight: 500 }}>Category</label>
+                <select className="w-full px-4 py-3 rounded-xl border border-gray-200 text-[14px]">
+                  <option>Photographer</option>
+                  <option>Videographer</option>
+                  <option>Florist</option>
+                  <option>DJ / band</option>
+                  <option>Hair & makeup</option>
+                  <option>Cake</option>
+                  <option>Transport</option>
+                  <option>Other</option>
+                </select>
+              </div>
+              <div>
+                <label className="text-[13px] text-gray-700 block mb-2" style={{ fontWeight: 500 }}>Status</label>
+                <div className="flex gap-2">
+                  {['Booked', 'Shortlisted', 'Needed'].map(s => (
+                    <button
+                      key={s}
+                      onClick={() => setSelectedVendorStatus(s)}
+                      className={`flex-1 py-2 rounded-lg border text-[13px] ${
+                        selectedVendorStatus === s
+                          ? 'border-[#285301] bg-[#285301]/10 text-[#285301]'
+                          : 'border-gray-200 hover:border-[#285301] hover:bg-[#285301]/5'
+                      }`}
+                    >
+                      {s}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <label className="text-[13px] text-gray-700 block mb-2" style={{ fontWeight: 500 }}>Contact email</label>
+                <input type="email" className="w-full px-4 py-3 rounded-xl border border-gray-200 text-[14px]" placeholder="vendor@email.com" />
+              </div>
+              <div>
+                <label className="text-[13px] text-gray-700 block mb-2" style={{ fontWeight: 500 }}>Phone</label>
+                <input type="tel" className="w-full px-4 py-3 rounded-xl border border-gray-200 text-[14px]" placeholder="555-0000" />
+              </div>
+            </div>
+            <button onClick={() => setActiveFormModal(null)} className="w-full bg-[#285301] text-white py-3 rounded-xl mt-6" style={{ fontWeight: 500 }}>
+              Save vendor
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Wedding Details Form */}
+      {activeFormModal === 'edit-wedding-details' && (
+        <div className="fixed inset-0 bg-black/50 z-[60] flex items-end" onClick={() => setActiveFormModal(null)}>
+          <div className="bg-white w-full rounded-t-3xl p-6 max-h-[85vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+            <div className="w-12 h-1 bg-gray-300 rounded-full mx-auto mb-6"></div>
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-[22px] text-[#285301]" style={{ fontFamily: 'Crimson Pro, serif', fontWeight: 500 }}>Edit wedding details</h2>
+              <button onClick={() => setActiveFormModal(null)} className="text-gray-400 hover:text-gray-600">
+                <X size={24} />
+              </button>
+            </div>
+            <div className="space-y-4">
+              <div>
+                <label className="text-[13px] text-gray-700 block mb-2" style={{ fontWeight: 500 }}>Wedding date</label>
+                <input type="date" className="w-full px-4 py-3 rounded-xl border border-gray-200 text-[14px]" defaultValue="2026-07-25" />
+              </div>
+              <div>
+                <label className="text-[13px] text-gray-700 block mb-2" style={{ fontWeight: 500 }}>Partner 1 name</label>
+                <input type="text" className="w-full px-4 py-3 rounded-xl border border-gray-200 text-[14px]" defaultValue="Emily" />
+              </div>
+              <div>
+                <label className="text-[13px] text-gray-700 block mb-2" style={{ fontWeight: 500 }}>Partner 2 name</label>
+                <input type="text" className="w-full px-4 py-3 rounded-xl border border-gray-200 text-[14px]" defaultValue="James" />
+              </div>
+              <div>
+                <label className="text-[13px] text-gray-700 block mb-2" style={{ fontWeight: 500 }}>Main location</label>
+                <input type="text" className="w-full px-4 py-3 rounded-xl border border-gray-200 text-[14px]" defaultValue="Sunset Gardens, Malibu" />
+              </div>
+              <div>
+                <label className="text-[13px] text-gray-700 block mb-2" style={{ fontWeight: 500 }}>Guest count target</label>
+                <input type="number" className="w-full px-4 py-3 rounded-xl border border-gray-200 text-[14px]" defaultValue="120" />
+              </div>
+            </div>
+            <button onClick={() => setActiveFormModal(null)} className="w-full bg-[#285301] text-white py-3 rounded-xl mt-6" style={{ fontWeight: 500 }}>
+              Save changes
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Manage Access Form */}
+      {activeFormModal === 'manage-access' && (
+        <div className="fixed inset-0 bg-black/50 z-[60] flex items-end" onClick={() => setActiveFormModal(null)}>
+          <div className="bg-white w-full rounded-t-3xl p-6 max-h-[85vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+            <div className="w-12 h-1 bg-gray-300 rounded-full mx-auto mb-6"></div>
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-[22px] text-[#285301]" style={{ fontFamily: 'Crimson Pro, serif', fontWeight: 500 }}>Manage access</h2>
+              <button onClick={() => setActiveFormModal(null)} className="text-gray-400 hover:text-gray-600">
+                <X size={24} />
+              </button>
+            </div>
+            <div className="space-y-4">
+              <p className="text-[13px] text-gray-600" style={{ fontWeight: 400, lineHeight: 1.6 }}>
+                Control who can view and edit your wedding planning details.
+              </p>
+              <div className="space-y-3">
+                {[
+                  { role: 'Wedding planner', email: 'planner@eliteweddings.com', access: 'Full access' },
+                  { role: 'Maid of honour', email: 'sarah@email.com', access: 'View only' },
+                  { role: 'Best man', email: 'michael@email.com', access: 'View only' },
+                ].map((person, idx) => (
+                  <div key={idx} className="bg-[#fefdfb] rounded-xl p-4 border border-gray-100">
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex-1">
+                        <div className="text-[14px] text-gray-800 mb-1" style={{ fontWeight: 500 }}>{person.role}</div>
+                        <div className="text-[12px] text-gray-500" style={{ fontWeight: 400 }}>{person.email}</div>
+                      </div>
+                      <select className="px-3 py-1.5 rounded-lg border border-gray-200 text-[12px]" defaultValue={person.access}>
+                        <option>Full access</option>
+                        <option>View only</option>
+                        <option>No access</option>
+                      </select>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <button onClick={() => setActiveFormModal('manage-access')} className="w-full border border-[#285301] text-[#285301] py-3 rounded-xl flex items-center justify-center" style={{ fontWeight: 500 }}>
+                <Plus size={18} className="mr-2" />
+                Add person
+              </button>
+            </div>
+            <button onClick={() => setActiveFormModal(null)} className="w-full bg-[#285301] text-white py-3 rounded-xl mt-6" style={{ fontWeight: 500 }}>
+              Save access settings
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Guest Page Settings Form */}
+      {activeFormModal === 'guest-page-settings' && (
+        <div className="fixed inset-0 bg-black/50 z-[60] flex items-end" onClick={() => setActiveFormModal(null)}>
+          <div className="bg-white w-full rounded-t-3xl p-6 max-h-[85vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+            <div className="w-12 h-1 bg-gray-300 rounded-full mx-auto mb-6"></div>
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-[22px] text-[#285301]" style={{ fontFamily: 'Crimson Pro, serif', fontWeight: 500 }}>Guest page settings</h2>
+              <button onClick={() => setActiveFormModal(null)} className="text-gray-400 hover:text-gray-600">
+                <X size={24} />
+              </button>
+            </div>
+            <div className="space-y-4">
+              <div>
+                <label className="text-[13px] text-gray-700 block mb-2" style={{ fontWeight: 500 }}>Guest page URL</label>
+                <div className="flex gap-2">
+                  <input type="text" className="flex-1 px-4 py-3 rounded-xl border border-gray-200 text-[14px] bg-gray-50" defaultValue="udo.wedding/emily-james" readOnly />
+                  <button onClick={() => {
+                    navigator.clipboard.writeText('udo.wedding/emily-james');
+                  }} className="px-4 py-3 bg-[#285301] text-white rounded-xl flex items-center gap-2">
+                    <Link size={18} />
+                  </button>
+                </div>
+              </div>
+              <div className="space-y-3">
+                <label className="text-[13px] text-gray-700 block" style={{ fontWeight: 500 }}>Page visibility</label>
+                {[
+                  { label: 'Public with password', enabled: true },
+                  { label: 'Private (invite only)', enabled: false },
+                  { label: 'Published and active', enabled: true },
+                ].map((setting, idx) => (
+                  <div key={idx} className="flex items-center justify-between p-3 bg-[#fefdfb] rounded-lg border border-gray-100">
+                    <span className="text-[13px] text-gray-700" style={{ fontWeight: 400 }}>{setting.label}</span>
+                    <input type="checkbox" checked={setting.enabled} readOnly className="w-5 h-5 rounded text-[#285301]" />
+                  </div>
+                ))}
+              </div>
+              <div>
+                <label className="text-[13px] text-gray-700 block mb-2" style={{ fontWeight: 500 }}>Password</label>
+                <input type="text" className="w-full px-4 py-3 rounded-xl border border-gray-200 text-[14px]" defaultValue="emilyJames2026" />
+              </div>
+            </div>
+            <button onClick={() => setActiveFormModal(null)} className="w-full bg-[#285301] text-white py-3 rounded-xl mt-6" style={{ fontWeight: 500 }}>
+              Save settings
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Add/Edit Event Form */}
+      {(activeFormModal === 'add-event' || activeFormModal === 'edit-event') && (
+        <div className="fixed inset-0 bg-black/50 z-[60] flex items-end" onClick={() => { setActiveFormModal(null); setEditingEventId(null); }}>
+          <div className="bg-white w-full rounded-t-3xl p-6 max-h-[85vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+            <div className="w-12 h-1 bg-gray-300 rounded-full mx-auto mb-6"></div>
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-[22px] text-[#285301]" style={{ fontFamily: 'Crimson Pro, serif', fontWeight: 500 }}>
+                {activeFormModal === 'edit-event' ? 'Edit event' : 'Add event'}
+              </h2>
+              <button onClick={() => { setActiveFormModal(null); setEditingEventId(null); }} className="text-gray-400 hover:text-gray-600">
+                <X size={24} />
+              </button>
+            </div>
+            <div className="space-y-4">
+              <div>
+                <label className="text-[13px] text-gray-700 block mb-2" style={{ fontWeight: 500 }}>Event name</label>
+                <input type="text" className="w-full px-4 py-3 rounded-xl border border-gray-200 text-[14px]" placeholder="e.g., Cocktail hour" />
+              </div>
+              <div>
+                <label className="text-[13px] text-gray-700 block mb-2" style={{ fontWeight: 500 }}>Time</label>
+                <input type="time" className="w-full px-4 py-3 rounded-xl border border-gray-200 text-[14px]" />
+              </div>
+              <div>
+                <label className="text-[13px] text-gray-700 block mb-2" style={{ fontWeight: 500 }}>Location</label>
+                <input type="text" className="w-full px-4 py-3 rounded-xl border border-gray-200 text-[14px]" placeholder="e.g., Garden terrace" />
+              </div>
+              <div>
+                <label className="text-[13px] text-gray-700 block mb-2" style={{ fontWeight: 500 }}>Expected guests</label>
+                <input type="number" className="w-full px-4 py-3 rounded-xl border border-gray-200 text-[14px]" placeholder="120" />
+              </div>
+            </div>
+            <button onClick={() => { setActiveFormModal(null); setEditingEventId(null); }} className="w-full bg-[#285301] text-white py-3 rounded-xl mt-6" style={{ fontWeight: 500 }}>
+              {activeFormModal === 'edit-event' ? 'Save changes' : 'Add event'}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Pinterest Connect Modal */}
+      {activeFormModal === 'pinterest-connect' && (
+        <div className="fixed inset-0 bg-black/50 z-[60] flex items-end" onClick={() => setActiveFormModal(null)}>
+          <div className="bg-white w-full rounded-t-3xl p-6 max-h-[85vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+            <div className="w-12 h-1 bg-gray-300 rounded-full mx-auto mb-6"></div>
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-[22px] text-[#285301]" style={{ fontFamily: 'Crimson Pro, serif', fontWeight: 500 }}>Connect Pinterest</h2>
+              <button onClick={() => setActiveFormModal(null)} className="text-gray-400 hover:text-gray-600">
+                <X size={24} />
+              </button>
+            </div>
+            {!pinterestConnected ? (
+              <div className="text-center py-8">
+                <div className="inline-flex items-center justify-center w-20 h-20 bg-[#f8edeb] rounded-full mb-4">
+                  <Image className="text-[#285301]" size={40} />
+                </div>
+                <h3 className="text-[16px] text-gray-800 mb-2" style={{ fontWeight: 500 }}>Import from Pinterest</h3>
+                <p className="text-[13px] text-gray-600 mb-6" style={{ fontWeight: 400, lineHeight: 1.6 }}>
+                  Connect your Pinterest account to import boards and pins directly into your lookbook.
+                </p>
+                <button onClick={() => setPinterestConnected(true)} className="w-full bg-[#E60023] text-white py-3 rounded-xl flex items-center justify-center mb-3" style={{ fontWeight: 500 }}>
+                  Connect Pinterest account
+                </button>
+                <button onClick={() => setActiveFormModal(null)} className="w-full border border-gray-300 py-3 rounded-xl text-gray-700" style={{ fontWeight: 500 }}>
+                  Cancel
+                </button>
+              </div>
+            ) : (
+              <div>
+                <div className="bg-[#f8edeb]/40 rounded-xl p-4 mb-4 flex items-center gap-3">
+                  <Check className="text-[#285301]" size={20} />
+                  <span className="text-[13px] text-gray-700" style={{ fontWeight: 500 }}>Pinterest connected</span>
+                </div>
+                <div className="space-y-3">
+                  <label className="text-[13px] text-gray-700 block mb-2" style={{ fontWeight: 500 }}>Select boards to import</label>
+                  {['Wedding Inspiration', 'Venue Ideas', 'Floral Arrangements', 'Table Settings'].map((board, idx) => (
+                    <div key={idx} className="flex items-center justify-between p-3 bg-white rounded-lg border border-gray-100">
+                      <span className="text-[13px] text-gray-700" style={{ fontWeight: 400 }}>{board}</span>
+                      <input type="checkbox" className="w-5 h-5 rounded text-[#285301]" />
+                    </div>
+                  ))}
+                </div>
+                <button onClick={() => { setActiveFormModal(null); }} className="w-full bg-[#285301] text-white py-3 rounded-xl mt-6" style={{ fontWeight: 500 }}>
+                  Import selected boards
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Upload Photo Modal */}
+      {activeFormModal === 'upload-lookbook-photo' && (
+        <div className="fixed inset-0 bg-black/50 z-[60] flex items-end" onClick={() => setActiveFormModal(null)}>
+          <div className="bg-white w-full rounded-t-3xl p-6 max-h-[85vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+            <div className="w-12 h-1 bg-gray-300 rounded-full mx-auto mb-6"></div>
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-[22px] text-[#285301]" style={{ fontFamily: 'Crimson Pro, serif', fontWeight: 500 }}>Upload inspiration</h2>
+              <button onClick={() => setActiveFormModal(null)} className="text-gray-400 hover:text-gray-600">
+                <X size={24} />
+              </button>
+            </div>
+            <div className="space-y-4">
+              <div className="border-2 border-dashed border-gray-300 rounded-xl p-8 text-center hover:border-[#285301] transition-colors cursor-pointer">
+                <Upload className="mx-auto text-gray-400 mb-3" size={40} />
+                <p className="text-[14px] text-gray-700 mb-1" style={{ fontWeight: 500 }}>Drag and drop photos here</p>
+                <p className="text-[12px] text-gray-500" style={{ fontWeight: 400 }}>or click to browse</p>
+              </div>
+              <div>
+                <label className="text-[13px] text-gray-700 block mb-2" style={{ fontWeight: 500 }}>Category</label>
+                <select className="w-full px-4 py-3 rounded-xl border border-gray-200 text-[14px]">
+                  <option>Venue</option>
+                  <option>Flowers</option>
+                  <option>Fashion</option>
+                  <option>Table design</option>
+                  <option>Lighting</option>
+                  <option>Ceremony</option>
+                </select>
+              </div>
+              <div>
+                <label className="text-[13px] text-gray-700 block mb-2" style={{ fontWeight: 500 }}>Notes (optional)</label>
+                <textarea className="w-full px-4 py-3 rounded-xl border border-gray-200 text-[14px]" rows={3} placeholder="Why this inspires you..."></textarea>
+              </div>
+            </div>
+            <button onClick={() => setActiveFormModal(null)} className="w-full bg-[#285301] text-white py-3 rounded-xl mt-6" style={{ fontWeight: 500 }}>
+              Upload
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Share Lookbook Modal */}
+      {activeFormModal === 'share-lookbook' && (
+        <div className="fixed inset-0 bg-black/50 z-[60] flex items-end" onClick={() => setActiveFormModal(null)}>
+          <div className="bg-white w-full rounded-t-3xl p-6 max-h-[85vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+            <div className="w-12 h-1 bg-gray-300 rounded-full mx-auto mb-6"></div>
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-[22px] text-[#285301]" style={{ fontFamily: 'Crimson Pro, serif', fontWeight: 500 }}>Share lookbook</h2>
+              <button onClick={() => setActiveFormModal(null)} className="text-gray-400 hover:text-gray-600">
+                <X size={24} />
+              </button>
+            </div>
+            <div className="space-y-4">
+              <p className="text-[13px] text-gray-600" style={{ fontWeight: 400, lineHeight: 1.6 }}>
+                Share your lookbook with vendors, your planner, or your wedding party.
+              </p>
+              <div>
+                <label className="text-[13px] text-gray-700 block mb-2" style={{ fontWeight: 500 }}>Shareable link</label>
+                <div className="flex gap-2">
+                  <input type="text" className="flex-1 px-4 py-3 rounded-xl border border-gray-200 text-[14px] bg-gray-50" defaultValue="udo.wedding/lookbook/emily-james" readOnly />
+                  <button className="px-4 py-3 bg-[#285301] text-white rounded-xl flex items-center gap-2" onClick={() => {
+                    navigator.clipboard.writeText('udo.wedding/lookbook/emily-james');
+                  }}>
+                    <Link size={18} />
+                  </button>
+                </div>
+              </div>
+              <div>
+                <label className="text-[13px] text-gray-700 block mb-2" style={{ fontWeight: 500 }}>Share with</label>
+                <div className="space-y-2">
+                  {['Wedding planner', 'Florist', 'Photographer', 'Wedding party'].map((recipient, idx) => (
+                    <div key={idx} className="flex items-center justify-between p-3 bg-[#fefdfb] rounded-lg border border-gray-100">
+                      <span className="text-[13px] text-gray-700" style={{ fontWeight: 400 }}>{recipient}</span>
+                      <input type="checkbox" className="w-5 h-5 rounded text-[#285301]" />
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <label className="text-[13px] text-gray-700 block mb-2" style={{ fontWeight: 500 }}>Permission level</label>
+                <select className="w-full px-4 py-3 rounded-xl border border-gray-200 text-[14px]">
+                  <option>View only</option>
+                  <option>Can comment</option>
+                  <option>Can add photos</option>
+                </select>
+              </div>
+            </div>
+            <button onClick={() => setActiveFormModal(null)} className="w-full bg-[#285301] text-white py-3 rounded-xl mt-6" style={{ fontWeight: 500 }}>
+              Share lookbook
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Add Wedding Party Member */}
+      {activeFormModal === 'add-wedding-party-member' && (
+        <div className="fixed inset-0 bg-black/50 z-[60] flex items-end" onClick={() => setActiveFormModal(null)}>
+          <div className="bg-white w-full rounded-t-3xl p-6 max-h-[85vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+            <div className="w-12 h-1 bg-gray-300 rounded-full mx-auto mb-6"></div>
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-[22px] text-[#285301]" style={{ fontFamily: 'Crimson Pro, serif', fontWeight: 500 }}>Add wedding party member</h2>
+              <button onClick={() => setActiveFormModal(null)} className="text-gray-400 hover:text-gray-600">
+                <X size={24} />
+              </button>
+            </div>
+            <div className="space-y-4">
+              <div>
+                <label className="text-[13px] text-gray-700 block mb-2" style={{ fontWeight: 500 }}>Name</label>
+                <input type="text" className="w-full px-4 py-3 rounded-xl border border-gray-200 text-[14px]" placeholder="Full name" />
+              </div>
+              <div>
+                <label className="text-[13px] text-gray-700 block mb-2" style={{ fontWeight: 500 }}>Role</label>
+                <select className="w-full px-4 py-3 rounded-xl border border-gray-200 text-[14px]">
+                  <option>Bridesmaid</option>
+                  <option>Groomsman</option>
+                  <option>Maid of honour</option>
+                  <option>Best man</option>
+                  <option>Flower girl</option>
+                  <option>Ring bearer</option>
+                </select>
+              </div>
+              <div>
+                <label className="text-[13px] text-gray-700 block mb-2" style={{ fontWeight: 500 }}>Email</label>
+                <input type="email" className="w-full px-4 py-3 rounded-xl border border-gray-200 text-[14px]" placeholder="email@example.com" />
+              </div>
+              <div>
+                <label className="text-[13px] text-gray-700 block mb-2" style={{ fontWeight: 500 }}>Phone</label>
+                <input type="tel" className="w-full px-4 py-3 rounded-xl border border-gray-200 text-[14px]" placeholder="555-0000" />
+              </div>
+              <div className="flex items-center justify-between p-3 bg-[#fefdfb] rounded-lg border border-gray-100">
+                <span className="text-[13px] text-gray-700" style={{ fontWeight: 400 }}>Speech planned</span>
+                <input type="checkbox" className="w-5 h-5 rounded text-[#285301]" />
+              </div>
+            </div>
+            <button onClick={() => setActiveFormModal(null)} className="w-full bg-[#285301] text-white py-3 rounded-xl mt-6" style={{ fontWeight: 500 }}>
+              Add member
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Additional modals for other buttons */}
+      {activeFormModal === 'add-timeline-moment' && (
+        <div className="fixed inset-0 bg-black/50 z-[60] flex items-end" onClick={() => setActiveFormModal(null)}>
+          <div className="bg-white w-full rounded-t-3xl p-6 max-h-[85vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+            <div className="w-12 h-1 bg-gray-300 rounded-full mx-auto mb-6"></div>
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-[22px] text-[#285301]" style={{ fontFamily: 'Crimson Pro, serif', fontWeight: 500 }}>Add timeline moment</h2>
+              <button onClick={() => setActiveFormModal(null)} className="text-gray-400 hover:text-gray-600"><X size={24} /></button>
+            </div>
+            <div className="space-y-4">
+              <div>
+                <label className="text-[13px] text-gray-700 block mb-2" style={{ fontWeight: 500 }}>Moment name</label>
+                <input type="text" className="w-full px-4 py-3 rounded-xl border border-gray-200 text-[14px]" placeholder="e.g., First dance" />
+              </div>
+              <div>
+                <label className="text-[13px] text-gray-700 block mb-2" style={{ fontWeight: 500 }}>Time</label>
+                <input type="time" className="w-full px-4 py-3 rounded-xl border border-gray-200 text-[14px]" />
+              </div>
+              <div>
+                <label className="text-[13px] text-gray-700 block mb-2" style={{ fontWeight: 500 }}>Type</label>
+                <div className="flex gap-2">
+                  {['Ceremony', 'Reception'].map(t => (
+                    <button key={t} className="flex-1 py-2 rounded-lg border border-gray-200 text-[13px] hover:border-[#285301] hover:bg-[#285301]/5">{t}</button>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <label className="text-[13px] text-gray-700 block mb-2" style={{ fontWeight: 500 }}>Owner</label>
+                <input type="text" className="w-full px-4 py-3 rounded-xl border border-gray-200 text-[14px]" placeholder="e.g., DJ, Couple" />
+              </div>
+            </div>
+            <button onClick={() => setActiveFormModal(null)} className="w-full bg-[#285301] text-white py-3 rounded-xl mt-6" style={{ fontWeight: 500 }}>Add moment</button>
+          </div>
+        </div>
+      )}
+
+      {activeFormModal === 'add-additional-event' && (
+        <div className="fixed inset-0 bg-black/50 z-[60] flex items-end" onClick={() => setActiveFormModal(null)}>
+          <div className="bg-white w-full rounded-t-3xl p-6 max-h-[85vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+            <div className="w-12 h-1 bg-gray-300 rounded-full mx-auto mb-6"></div>
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-[22px] text-[#285301]" style={{ fontFamily: 'Crimson Pro, serif', fontWeight: 500 }}>Add additional event</h2>
+              <button onClick={() => setActiveFormModal(null)} className="text-gray-400 hover:text-gray-600"><X size={24} /></button>
+            </div>
+            <div className="space-y-4">
+              <div>
+                <label className="text-[13px] text-gray-700 block mb-2" style={{ fontWeight: 500 }}>Event name</label>
+                <input type="text" className="w-full px-4 py-3 rounded-xl border border-gray-200 text-[14px]" placeholder="e.g., Welcome drinks" />
+              </div>
+              <div>
+                <label className="text-[13px] text-gray-700 block mb-2" style={{ fontWeight: 500 }}>Date</label>
+                <input type="date" className="w-full px-4 py-3 rounded-xl border border-gray-200 text-[14px]" />
+              </div>
+              <div>
+                <label className="text-[13px] text-gray-700 block mb-2" style={{ fontWeight: 500 }}>Host</label>
+                <input type="text" className="w-full px-4 py-3 rounded-xl border border-gray-200 text-[14px]" placeholder="Who is hosting?" />
+              </div>
+              <div>
+                <label className="text-[13px] text-gray-700 block mb-2" style={{ fontWeight: 500 }}>Expected guests</label>
+                <input type="number" className="w-full px-4 py-3 rounded-xl border border-gray-200 text-[14px]" />
+              </div>
+              <div>
+                <label className="text-[13px] text-gray-700 block mb-2" style={{ fontWeight: 500 }}>Location</label>
+                <input type="text" className="w-full px-4 py-3 rounded-xl border border-gray-200 text-[14px]" />
+              </div>
+            </div>
+            <button onClick={() => setActiveFormModal(null)} className="w-full bg-[#285301] text-white py-3 rounded-xl mt-6" style={{ fontWeight: 500 }}>Add event</button>
+          </div>
+        </div>
+      )}
+
+      {activeFormModal === 'add-custom-moment' && (
+        <div className="fixed inset-0 bg-black/50 z-[60] flex items-end" onClick={() => setActiveFormModal(null)}>
+          <div className="bg-white w-full rounded-t-3xl p-6 max-h-[85vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+            <div className="w-12 h-1 bg-gray-300 rounded-full mx-auto mb-6"></div>
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-[22px] text-[#285301]" style={{ fontFamily: 'Crimson Pro, serif', fontWeight: 500 }}>Add custom moment</h2>
+              <button onClick={() => setActiveFormModal(null)} className="text-gray-400 hover:text-gray-600"><X size={24} /></button>
+            </div>
+            <div className="space-y-4">
+              <div>
+                <label className="text-[13px] text-gray-700 block mb-2" style={{ fontWeight: 500 }}>Moment name</label>
+                <input type="text" className="w-full px-4 py-3 rounded-xl border border-gray-200 text-[14px]" placeholder="e.g., Unity candle" />
+              </div>
+              <div>
+                <label className="text-[13px] text-gray-700 block mb-2" style={{ fontWeight: 500 }}>Description</label>
+                <textarea className="w-full px-4 py-3 rounded-xl border border-gray-200 text-[14px]" rows={3} placeholder="What makes this moment special?"></textarea>
+              </div>
+              <div>
+                <label className="text-[13px] text-gray-700 block mb-2" style={{ fontWeight: 500 }}>When does this happen?</label>
+                <select className="w-full px-4 py-3 rounded-xl border border-gray-200 text-[14px]">
+                  <option>During ceremony</option>
+                  <option>During reception</option>
+                  <option>Throughout the day</option>
+                </select>
+              </div>
+            </div>
+            <button onClick={() => setActiveFormModal(null)} className="w-full bg-[#285301] text-white py-3 rounded-xl mt-6" style={{ fontWeight: 500 }}>Add moment</button>
+          </div>
+        </div>
+      )}
+
+      {(activeFormModal === 'edit-honeymoon' || activeFormModal === 'track-bookings') && (
+        <div className="fixed inset-0 bg-black/50 z-[60] flex items-end" onClick={() => setActiveFormModal(null)}>
+          <div className="bg-white w-full rounded-t-3xl p-6 max-h-[85vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+            <div className="w-12 h-1 bg-gray-300 rounded-full mx-auto mb-6"></div>
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-[22px] text-[#285301]" style={{ fontFamily: 'Crimson Pro, serif', fontWeight: 500 }}>
+                {activeFormModal === 'track-bookings' ? 'Track bookings' : 'Edit honeymoon'}
+              </h2>
+              <button onClick={() => setActiveFormModal(null)} className="text-gray-400 hover:text-gray-600"><X size={24} /></button>
+            </div>
+            <div className="space-y-4">
+              <div>
+                <label className="text-[13px] text-gray-700 block mb-2" style={{ fontWeight: 500 }}>Destination</label>
+                <input type="text" className="w-full px-4 py-3 rounded-xl border border-gray-200 text-[14px]" defaultValue="Bali" />
+              </div>
+              <div>
+                <label className="text-[13px] text-gray-700 block mb-2" style={{ fontWeight: 500 }}>Number of days</label>
+                <input type="number" className="w-full px-4 py-3 rounded-xl border border-gray-200 text-[14px]" defaultValue="10" />
+              </div>
+              <div>
+                <label className="text-[13px] text-gray-700 block mb-2" style={{ fontWeight: 500 }}>Budget</label>
+                <input type="number" className="w-full px-4 py-3 rounded-xl border border-gray-200 text-[14px]" defaultValue="8500" />
+              </div>
+            </div>
+            <button onClick={() => setActiveFormModal(null)} className="w-full bg-[#285301] text-white py-3 rounded-xl mt-6" style={{ fontWeight: 500 }}>Save changes</button>
+          </div>
+        </div>
+      )}
+
+      {(activeFormModal === 'edit-insurance' || activeFormModal === 'upload-policy') && (
+        <div className="fixed inset-0 bg-black/50 z-[60] flex items-end" onClick={() => setActiveFormModal(null)}>
+          <div className="bg-white w-full rounded-t-3xl p-6 max-h-[85vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+            <div className="w-12 h-1 bg-gray-300 rounded-full mx-auto mb-6"></div>
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-[22px] text-[#285301]" style={{ fontFamily: 'Crimson Pro, serif', fontWeight: 500 }}>
+                {activeFormModal === 'upload-policy' ? 'Upload policy document' : 'Edit insurance policy'}
+              </h2>
+              <button onClick={() => setActiveFormModal(null)} className="text-gray-400 hover:text-gray-600"><X size={24} /></button>
+            </div>
+            {activeFormModal === 'upload-policy' ? (
+              <div className="space-y-4">
+                <div className="border-2 border-dashed border-gray-300 rounded-xl p-8 text-center hover:border-[#285301] transition-colors cursor-pointer">
+                  <Upload className="mx-auto text-gray-400 mb-3" size={40} />
+                  <p className="text-[14px] text-gray-700 mb-1" style={{ fontWeight: 500 }}>Upload policy document</p>
+                  <p className="text-[12px] text-gray-500" style={{ fontWeight: 400 }}>PDF, DOC, or image files</p>
+                </div>
+                <button onClick={() => setActiveFormModal(null)} className="w-full bg-[#285301] text-white py-3 rounded-xl" style={{ fontWeight: 500 }}>Upload</button>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <div>
+                  <label className="text-[13px] text-gray-700 block mb-2" style={{ fontWeight: 500 }}>Provider</label>
+                  <input type="text" className="w-full px-4 py-3 rounded-xl border border-gray-200 text-[14px]" defaultValue="WedSafe Insurance Co." />
+                </div>
+                <div>
+                  <label className="text-[13px] text-gray-700 block mb-2" style={{ fontWeight: 500 }}>Policy number</label>
+                  <input type="text" className="w-full px-4 py-3 rounded-xl border border-gray-200 text-[14px]" defaultValue="WS-2026-78451" />
+                </div>
+                <div>
+                  <label className="text-[13px] text-gray-700 block mb-2" style={{ fontWeight: 500 }}>Coverage amount</label>
+                  <input type="text" className="w-full px-4 py-3 rounded-xl border border-gray-200 text-[14px]" defaultValue="$50,000" />
+                </div>
+                <button onClick={() => setActiveFormModal(null)} className="w-full bg-[#285301] text-white py-3 rounded-xl mt-6" style={{ fontWeight: 500 }}>Save changes</button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {activeFormModal === 'start-seating' && (
+        <div className="fixed inset-0 bg-black/50 z-[60] flex items-end" onClick={() => setActiveFormModal(null)}>
+          <div className="bg-white w-full rounded-t-3xl p-6 max-h-[85vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+            <div className="w-12 h-1 bg-gray-300 rounded-full mx-auto mb-6"></div>
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-[22px] text-[#285301]" style={{ fontFamily: 'Crimson Pro, serif', fontWeight: 500 }}>Start seating plan</h2>
+              <button onClick={() => setActiveFormModal(null)} className="text-gray-400 hover:text-gray-600"><X size={24} /></button>
+            </div>
+            <div className="space-y-4">
+              <p className="text-[13px] text-gray-600" style={{ fontWeight: 400, lineHeight: 1.6 }}>
+                Create your seating arrangement by organizing guests into tables. You can drag and drop guests to arrange them.
+              </p>
+              <div className="bg-[#f8edeb]/40 rounded-xl p-4">
+                <h3 className="text-[14px] text-gray-800 mb-2" style={{ fontWeight: 500 }}>Quick setup options</h3>
+                <div className="space-y-2">
+                  <button onClick={() => setActiveFormModal('seating-board')} className="w-full p-3 bg-white rounded-lg border border-gray-200 text-left hover:border-[#285301]">
+                    <div className="text-[13px] text-gray-800" style={{ fontWeight: 500 }}>Auto-assign by family groups</div>
+                    <div className="text-[11px] text-gray-500" style={{ fontWeight: 400 }}>Group guests with their families</div>
+                  </button>
+                  <button onClick={() => setActiveFormModal('seating-board')} className="w-full p-3 bg-white rounded-lg border border-gray-200 text-left hover:border-[#285301]">
+                    <div className="text-[13px] text-gray-800" style={{ fontWeight: 500 }}>Manual arrangement</div>
+                    <div className="text-[11px] text-gray-500" style={{ fontWeight: 400 }}>Drag and drop guests yourself</div>
+                  </button>
+                </div>
+              </div>
+            </div>
+            <button onClick={() => setActiveFormModal('seating-board')} className="w-full bg-[#285301] text-white py-3 rounded-xl mt-6" style={{ fontWeight: 500 }}>Continue to seating board</button>
+          </div>
+        </div>
+      )}
+
+      {activeFormModal === 'seating-board' && (
+        <div className="fixed inset-0 bg-black/50 z-[60] flex items-end" onClick={() => setActiveFormModal(null)}>
+          <div className="bg-white w-full rounded-t-3xl p-6 max-h-[85vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+            <div className="w-12 h-1 bg-gray-300 rounded-full mx-auto mb-6"></div>
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-[22px] text-[#285301]" style={{ fontFamily: 'Crimson Pro, serif', fontWeight: 500 }}>Seating arrangement</h2>
+              <button onClick={() => setActiveFormModal(null)} className="text-gray-400 hover:text-gray-600"><X size={24} /></button>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4 mb-6">
+              <div className="bg-[#f8edeb]/40 rounded-xl p-4">
+                <div className="text-[13px] text-gray-600 mb-1" style={{ fontWeight: 400 }}>Total guests</div>
+                <div className="text-[24px] text-[#285301]" style={{ fontWeight: 500 }}>
+                  {Object.values(seatingTables).reduce((sum, guests) => sum + guests.length, 0) + unassignedGuests.length}
+                </div>
+              </div>
+              <div className="bg-[#f8edeb]/40 rounded-xl p-4">
+                <div className="text-[13px] text-gray-600 mb-1" style={{ fontWeight: 400 }}>Unassigned</div>
+                <div className="text-[24px] text-[#d45d78]" style={{ fontWeight: 500 }}>{unassignedGuests.length}</div>
+              </div>
+            </div>
+
+            {/* Unassigned guests pool */}
+            <div className="mb-6">
+              <h3 className="text-[14px] text-gray-800 mb-3" style={{ fontWeight: 500 }}>Unassigned guests</h3>
+              <div
+                className="bg-[#fefdfb] rounded-xl p-4 border-2 border-dashed border-gray-200 min-h-[120px]"
+                onDragOver={(e) => e.preventDefault()}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  if (draggedGuest) {
+                    // Move guest to unassigned
+                    const newTables = {...seatingTables};
+                    Object.keys(newTables).forEach(table => {
+                      const index = newTables[table].indexOf(draggedGuest);
+                      if (index > -1) {
+                        newTables[table].splice(index, 1);
+                      }
+                    });
+                    setSeatingTables(newTables);
+                    if (!unassignedGuests.includes(draggedGuest)) {
+                      setUnassignedGuests([...unassignedGuests, draggedGuest]);
+                    }
+                    setDraggedGuest(null);
+                  }
+                }}
+              >
+                <div className="flex flex-wrap gap-2">
+                  {unassignedGuests.map((guest, idx) => (
+                    <div
+                      key={idx}
+                      draggable
+                      onDragStart={() => setDraggedGuest(guest)}
+                      onDragEnd={() => setDraggedGuest(null)}
+                      className="bg-white px-3 py-2 rounded-lg border border-gray-200 text-[13px] cursor-move hover:border-[#285301] flex items-center gap-2"
+                    >
+                      <GripVertical size={14} className="text-gray-400" />
+                      {guest}
+                    </div>
+                  ))}
+                  {unassignedGuests.length === 0 && (
+                    <div className="text-[13px] text-gray-400 py-4">All guests assigned!</div>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Tables */}
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <h3 className="text-[14px] text-gray-800" style={{ fontWeight: 500 }}>Tables</h3>
+                <button
+                  onClick={() => {
+                    const newTableNum = Object.keys(seatingTables).length + 1;
+                    setSeatingTables({...seatingTables, [`Table ${newTableNum}`]: []});
+                  }}
+                  className="text-[13px] text-[#285301] flex items-center gap-1"
+                >
+                  <Plus size={16} />
+                  Add table
+                </button>
+              </div>
+
+              {Object.entries(seatingTables).map(([tableName, guests]) => (
+                <div
+                  key={tableName}
+                  className="bg-gradient-to-br from-[#f8edeb]/40 to-white rounded-xl p-4 border border-gray-200"
+                  onDragOver={(e) => e.preventDefault()}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    if (draggedGuest && !guests.includes(draggedGuest)) {
+                      // Remove from unassigned
+                      setUnassignedGuests(unassignedGuests.filter(g => g !== draggedGuest));
+
+                      // Remove from other tables
+                      const newTables = {...seatingTables};
+                      Object.keys(newTables).forEach(table => {
+                        const index = newTables[table].indexOf(draggedGuest);
+                        if (index > -1) {
+                          newTables[table].splice(index, 1);
+                        }
+                      });
+
+                      // Add to this table
+                      newTables[tableName] = [...newTables[tableName], draggedGuest];
+                      setSeatingTables(newTables);
+                      setDraggedGuest(null);
+                    }
+                  }}
+                >
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-2">
+                      <h4 className="text-[14px] text-gray-800" style={{ fontWeight: 500 }}>{tableName}</h4>
+                      <span className="text-[12px] text-gray-500">({guests.length}/8)</span>
+                    </div>
+                    <button
+                      onClick={() => {
+                        const newTables = {...seatingTables};
+                        // Move guests back to unassigned
+                        setUnassignedGuests([...unassignedGuests, ...guests]);
+                        delete newTables[tableName];
+                        setSeatingTables(newTables);
+                      }}
+                      className="text-gray-400 hover:text-red-500"
+                    >
+                      <Trash2 size={16} />
+                    </button>
+                  </div>
+
+                  <div
+                    className="min-h-[80px] bg-white/50 rounded-lg p-3 border-2 border-dashed border-gray-200"
+                  >
+                    {guests.length > 0 ? (
+                      <div className="flex flex-wrap gap-2">
+                        {guests.map((guest, idx) => (
+                          <div
+                            key={idx}
+                            draggable
+                            onDragStart={() => setDraggedGuest(guest)}
+                            onDragEnd={() => setDraggedGuest(null)}
+                            className="bg-[#285301] text-white px-3 py-1.5 rounded-lg text-[12px] cursor-move flex items-center gap-1"
+                          >
+                            <GripVertical size={12} />
+                            {guest}
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="text-[12px] text-gray-400 text-center py-4">
+                        Drag guests here
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <button onClick={() => setActiveFormModal(null)} className="w-full bg-[#285301] text-white py-3 rounded-xl mt-6" style={{ fontWeight: 500 }}>
+              Save seating plan
+            </button>
+          </div>
+        </div>
+      )}
+
+      {activeFormModal === 'assign-duties' && (
+        <div className="fixed inset-0 bg-black/50 z-[60] flex items-end" onClick={() => setActiveFormModal(null)}>
+          <div className="bg-white w-full rounded-t-3xl p-6 max-h-[85vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+            <div className="w-12 h-1 bg-gray-300 rounded-full mx-auto mb-6"></div>
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-[22px] text-[#285301]" style={{ fontFamily: 'Crimson Pro, serif', fontWeight: 500 }}>Assign duties</h2>
+              <button onClick={() => setActiveFormModal(null)} className="text-gray-400 hover:text-gray-600"><X size={24} /></button>
+            </div>
+
+            <div className="bg-[#f8edeb]/40 rounded-xl p-4 mb-6">
+              <p className="text-[13px] text-gray-600" style={{ fontWeight: 400, lineHeight: 1.6 }}>
+                Assign wedding party members to help with various tasks throughout the day.
+              </p>
+            </div>
+
+            <div className="space-y-3">
+              {[
+                { duty: 'Help with guest book', category: 'Reception' },
+                { duty: 'Coordinate guest transport', category: 'Logistics' },
+                { duty: 'Manage gift table', category: 'Reception' },
+                { duty: 'Distribute programs', category: 'Ceremony' },
+                { duty: 'Assist elderly guests', category: 'Logistics' },
+                { duty: 'Direct guests to ceremony', category: 'Ceremony' },
+                { duty: 'Coordinate with vendors', category: 'Coordination' },
+                { duty: 'Oversee setup', category: 'Coordination' },
+                { duty: 'Handle last-minute issues', category: 'Coordination' },
+                { duty: 'Collect RSVPs', category: 'Pre-wedding' },
+                { duty: 'Distribute favors', category: 'Reception' },
+                { duty: 'Manage coat check', category: 'Reception' },
+                { duty: 'Assist with decorations', category: 'Setup' },
+                { duty: 'Gather family for photos', category: 'Photography' },
+                { duty: 'Hold rings during ceremony', category: 'Ceremony' },
+                { duty: 'Manage music playlist', category: 'Reception' },
+                { duty: 'Coordinate send-off', category: 'Departure' },
+                { duty: 'Supervise cleanup', category: 'Departure' },
+              ].map((item, idx) => (
+                <div key={idx} className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+                  <div className="grid grid-cols-[1fr,auto] gap-0">
+                    {/* Left column - Duty */}
+                    <div className="p-4 border-r border-gray-200">
+                      <div className="text-[13px] text-gray-800 mb-1" style={{ fontWeight: 500 }}>{item.duty}</div>
+                      <div className="text-[11px] text-gray-500" style={{ fontWeight: 400 }}>{item.category}</div>
+                    </div>
+
+                    {/* Right column - Assignment */}
+                    <div className="p-4 min-w-[180px] flex items-center">
+                      <select className="w-full px-3 py-2 rounded-lg border border-gray-200 text-[12px] bg-[#fefdfb]">
+                        <option>Assign to...</option>
+                        <option>Sarah Johnson (Maid of Honor)</option>
+                        <option>Michael Chen (Best Man)</option>
+                        <option>Emily Davis (Bridesmaid)</option>
+                        <option>James Wilson (Groomsman)</option>
+                        <option>Anna Martinez (Bridesmaid)</option>
+                        <option>David Lee (Groomsman)</option>
+                        <option>Sophie Brown (Bridesmaid)</option>
+                        <option>Robert Taylor (Groomsman)</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div className="flex gap-3 mt-6">
+              <button
+                onClick={() => setActiveFormModal('add-custom-duty')}
+                className="flex-1 border border-gray-300 py-3 rounded-xl text-gray-700 flex items-center justify-center gap-2"
+                style={{ fontWeight: 500 }}
+              >
+                <Plus size={18} />
+                Add custom duty
+              </button>
+              <button onClick={() => setActiveFormModal(null)} className="flex-[2] bg-[#285301] text-white py-3 rounded-xl" style={{ fontWeight: 500 }}>
+                Save assignments
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {activeFormModal === 'add-custom-duty' && (
+        <div className="fixed inset-0 bg-black/50 z-[70] flex items-end" onClick={() => setActiveFormModal(null)}>
+          <div className="bg-white w-full rounded-t-3xl p-6 max-h-[85vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+            <div className="w-12 h-1 bg-gray-300 rounded-full mx-auto mb-6"></div>
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-[22px] text-[#285301]" style={{ fontFamily: 'Crimson Pro, serif', fontWeight: 500 }}>Add custom duty</h2>
+              <button onClick={() => setActiveFormModal(null)} className="text-gray-400 hover:text-gray-600"><X size={24} /></button>
+            </div>
+            <div className="space-y-4">
+              <div>
+                <label className="text-[13px] text-gray-700 block mb-2" style={{ fontWeight: 500 }}>Duty name</label>
+                <input type="text" className="w-full px-4 py-3 rounded-xl border border-gray-200 text-[14px]" placeholder="e.g., Check in with DJ every hour" />
+              </div>
+              <div>
+                <label className="text-[13px] text-gray-700 block mb-2" style={{ fontWeight: 500 }}>Category</label>
+                <select className="w-full px-4 py-3 rounded-xl border border-gray-200 text-[14px]">
+                  <option>Select category</option>
+                  <option>Ceremony</option>
+                  <option>Reception</option>
+                  <option>Logistics</option>
+                  <option>Coordination</option>
+                  <option>Setup</option>
+                  <option>Photography</option>
+                  <option>Departure</option>
+                  <option>Pre-wedding</option>
+                </select>
+              </div>
+              <div>
+                <label className="text-[13px] text-gray-700 block mb-2" style={{ fontWeight: 500 }}>Assign to</label>
+                <select className="w-full px-4 py-3 rounded-xl border border-gray-200 text-[14px]">
+                  <option>Select person</option>
+                  <option>Sarah Johnson (Maid of Honor)</option>
+                  <option>Michael Chen (Best Man)</option>
+                  <option>Emily Davis (Bridesmaid)</option>
+                  <option>James Wilson (Groomsman)</option>
+                  <option>Anna Martinez (Bridesmaid)</option>
+                  <option>David Lee (Groomsman)</option>
+                </select>
+              </div>
+              <div>
+                <label className="text-[13px] text-gray-700 block mb-2" style={{ fontWeight: 500 }}>Notes (optional)</label>
+                <textarea className="w-full px-4 py-3 rounded-xl border border-gray-200 text-[14px]" rows={3} placeholder="Any special instructions..."></textarea>
+              </div>
+            </div>
+            <button onClick={() => setActiveFormModal('assign-duties')} className="w-full bg-[#285301] text-white py-3 rounded-xl mt-6" style={{ fontWeight: 500 }}>
+              Add duty
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* IMAGE VIEWER MODAL */}
+      {viewingImage !== null && (
+        <div className="fixed inset-0 bg-black/90 z-[70] flex items-center justify-center" onClick={() => setViewingImage(null)}>
+          <div className="relative max-w-4xl w-full mx-4" onClick={(e) => e.stopPropagation()}>
+            <button
+              onClick={() => setViewingImage(null)}
+              className="absolute top-4 right-4 text-white bg-black/50 rounded-full p-2 hover:bg-black/70"
+            >
+              <X size={24} />
+            </button>
+            <div className="bg-gradient-to-br from-[#f8edeb] to-[#f194b2]/30 rounded-2xl aspect-video flex items-center justify-center">
+              <div className="text-center">
+                <Image className="text-white/50 mx-auto mb-4" size={64} />
+                <p className="text-white text-[14px]" style={{ fontWeight: 400 }}>
+                  Lookbook image #{viewingImage + 1}
+                </p>
+              </div>
+            </div>
+            <div className="flex gap-2 mt-4 justify-center">
+              <button
+                onClick={() => setViewingImage(Math.max(0, viewingImage - 1))}
+                className="px-4 py-2 bg-white rounded-lg text-[13px]"
+                disabled={viewingImage === 0}
+              >
+                Previous
+              </button>
+              <button
+                onClick={() => setViewingImage(Math.min(7, viewingImage + 1))}
+                className="px-4 py-2 bg-white rounded-lg text-[13px]"
+                disabled={viewingImage === 7}
+              >
+                Next
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}

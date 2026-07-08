@@ -6,8 +6,9 @@ use Database\Factories\UserFactory;
 use Filament\Models\Contracts\FilamentUser;
 use Filament\Panel;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
-use Illuminate\Database\Eloquent\Relations\BelongsToMany;
-use Illuminate\Database\Eloquent\Relations\HasManyThrough;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
@@ -20,11 +21,16 @@ class User extends Authenticatable implements FilamentUser
 
     protected $fillable = [
         'name',
+        'first_name',
+        'last_name',
         'email',
         'password',
+        'phone',
         'avatar_url',
-        'social_provider',
-        'social_id',
+        'auth_provider',
+        'auth_provider_id',
+        'active_wedding_id',
+        'onboarding_completed',
     ];
 
     protected $hidden = [
@@ -37,20 +43,61 @@ class User extends Authenticatable implements FilamentUser
         return [
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
+            'onboarding_completed' => 'boolean',
         ];
     }
 
-    // Gate Filament ops panel to users with the 'ops' role.
-    // Grant with: User::find($id)->assignRole('ops')
     public function canAccessPanel(Panel $panel): bool
     {
-        return $this->hasRole(['ops', 'super-admin']);
+        return $this->hasRole(['super_admin', 'admin']);
     }
 
-    public function weddings(): BelongsToMany
+    public function getFilamentName(): string
     {
-        return $this->belongsToMany(Wedding::class, 'wedding_users')
-            ->withPivot(['role', 'permissions', 'joined_at'])
-            ->withTimestamps();
+        return $this->first_name
+            ? trim($this->first_name . ' ' . $this->last_name)
+            : $this->name;
+    }
+
+    public function getFilamentAvatarUrl(): ?string
+    {
+        return $this->avatar_url;
+    }
+
+    public function activeWedding(): BelongsTo
+    {
+        return $this->belongsTo(Wedding::class, 'active_wedding_id');
+    }
+
+    public function ownedWeddings(): HasMany
+    {
+        return $this->hasMany(Wedding::class, 'owner_user_id');
+    }
+
+    public function collaborations(): HasMany
+    {
+        return $this->hasMany(WeddingCollaborator::class);
+    }
+
+    public function subscription(): HasOne
+    {
+        return $this->hasOne(Subscription::class)->latestOfMany();
+    }
+
+    public function subscriptions(): HasMany
+    {
+        return $this->hasMany(Subscription::class);
+    }
+
+    public function supportTickets(): HasMany
+    {
+        return $this->hasMany(SupportTicket::class);
+    }
+
+    public function getFullNameAttribute(): string
+    {
+        return $this->first_name
+            ? trim($this->first_name . ' ' . $this->last_name)
+            : $this->name;
     }
 }

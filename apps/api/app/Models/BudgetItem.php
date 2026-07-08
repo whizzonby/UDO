@@ -2,40 +2,25 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class BudgetItem extends Model
 {
-    use HasFactory;
-
     protected $fillable = [
-        'wedding_id',
-        'vendor_id',
-        'category',
-        'name',
-        'budgeted_amount',
-        'actual_amount',
-        'status',
-        'notes',
+        'wedding_id', 'vendor_id', 'category', 'name',
+        'estimated_amount', 'actual_amount', 'paid_amount',
+        'due_date', 'payment_status', 'notes', 'is_essential',
     ];
 
-    protected function casts(): array
-    {
-        return [
-            'budgeted_amount' => 'decimal:2',
-            'actual_amount' => 'decimal:2',
-        ];
-    }
+    protected $casts = [
+        'due_date' => 'date',
+        'estimated_amount' => 'decimal:2',
+        'actual_amount' => 'decimal:2',
+        'paid_amount' => 'decimal:2',
+        'is_essential' => 'boolean',
+    ];
 
-    public function wedding(): BelongsTo
-    {
-        return $this->belongsTo(Wedding::class);
-    }
-
-    public function vendor(): BelongsTo
-    {
-        return $this->belongsTo(Vendor::class);
-    }
+    public function wedding(): BelongsTo { return $this->belongsTo(Wedding::class); }
+    public function vendor(): BelongsTo { return $this->belongsTo(Vendor::class); }
 }

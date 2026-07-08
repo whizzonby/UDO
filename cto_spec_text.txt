@@ -1,0 +1,684 @@
+﻿UDO APP: CTO SYSTEM SPECIFICATION
+Core App Architecture, Page Responsibilities, Data Flows, and Product Logic
+1. Product Positioning and Architectural Principle
+Udo is not just a wedding planning app. It should be built as a calm operating system for weddings, where the user experiences a guided flow from planning to coordination to execution to memory-keeping. The product must feel emotionally intelligent, but the underlying system must be extremely clear and modular.
+There are two distinct experience layers in the product:
+A. Admin / Planner App Experience
+This is the actual mobile app used by:
+the couple 
+the planner 
+optionally trusted collaborators such as maid of honor, best man, family organizers 
+This is where the user:
+plans 
+configures 
+tracks 
+sends 
+updates 
+manages 
+B. Guest Experience Layer
+Guests should not be forced into the app by default. Their primary experience should be through a personalized link-based guest web experience, which can optionally open in-app if they are invited to collaborate or explicitly choose to install. This guest link acts like a wedding microsite personalized by guest role and status.
+The key rule is:
+The app is for control. The link is for experience.
+That means the app pages below are primarily admin pages, but they must all contribute to the final guest-facing experience.
+2. Primary Navigation and Role of Each Page
+The bottom-level app navigation should remain:
+Home 
+Plan 
+Guests 
+Live 
+Gallery 
+More 
+Each top-level page has a distinct purpose and must not become a dumping ground for other systems.
+Home
+The calm command center. This is the summary page and guidance layer.
+Plan
+The structured planning engine. This owns tasks, checklists, budgeting, timelines, seating, vendors, and plan-level configuration.
+Guests
+The guest operating system. This owns guest records, invitations, guest communication, guest experience settings, and guest logistics.
+Live
+The wedding week and wedding-day reassurance and coordination layer. This should be dual-mode internally: calming bride/couple view and operational planner/backend view.
+Gallery
+The inspiration + memory + upload ecosystem. This owns inspiration boards, moments timeline, guest uploads, favorites, and archive.
+More
+Secondary settings, preferences, account, billing, support, integrations, etc.
+3. Global System Rules
+Rule 1: One Source of Truth Per Function
+Every feature must have a single owner page. Derived views may appear elsewhere, but editing ownership must be clear.
+Examples:
+Seating is owned by Plan, not Guests. 
+Guest records are owned by Guests, not Plan. 
+The guest-facing website structure is owned by Guests → Guest Experience, not Home. 
+Registry is a standalone module, but distribution is controlled from Invitations and Guest Experience. 
+Rule 2: Derived Views Can Appear Elsewhere
+A page may show summary data from another module, but not duplicate its full logic.
+Examples:
+Home can show “seating progress,” but seating editor belongs in Plan. 
+Live can show “most guests arrived,” but guest arrivals logic is fed from Guests / Logistics. 
+Guests can show “seating assigned” as a field, but not a full seating planner. 
+Rule 3: No Dead Screens
+Every button, card, badge, filter, and CTA must either:
+navigate to another page 
+open a modal/drawer 
+update state visibly 
+apply filters 
+trigger a real action 
+Rule 4: Calm UX on the Surface, Structured Logic Underneath
+The user experience should feel soft and guided, but the backend should be explicit, rule-based, and deterministic.
+Rule 5: Role-Based Experience
+The app should support role-based rendering and permissions:
+Owner / Bride / Groom 
+Planner 
+Collaborator 
+Wedding party collaborator (optional scoped access) 
+Guest (primarily link-based) 
+Guests should not see admin pages.
+4. Core Data Domains
+The app should be organized around the following main data models.
+Wedding
+Core wedding object containing:
+wedding_id 
+title 
+couple names 
+date 
+timezone 
+city / venue 
+brand theme / visual style 
+registry settings 
+guest experience settings 
+live settings 
+collaborators 
+RSVP deadline 
+wedding status (planning / final week / live / post-wedding) 
+Guest
+guest_id 
+wedding_id 
+name 
+email 
+phone 
+guest_group (family / friends / colleagues / wedding party / custom) 
+VIP flag 
+invitation status 
+RSVP status 
+plus_one_count 
+meal preference 
+allergy / dietary note 
+travel_required (bool) 
+arrival_date / time 
+departure_date / time 
+arrival_airport 
+accommodation_id 
+transport_group_id 
+seating_assignment_id 
+guest_role_for_view (attending / travelling / wedding party / pending) 
+access_rules / visible events 
+notes 
+tags 
+invite history 
+message history 
+Invitation
+invitation_id 
+wedding_id 
+template_id 
+theme_id 
+content fields (headline, names, date, time, venue, message, RSVP deadline, etc.) 
+delivery channels 
+send records 
+open status 
+response metrics 
+Guest Experience Configuration
+wedding_id 
+enabled_sections 
+guest access rules 
+content blocks 
+layout order 
+visual theme 
+live update preferences 
+guest experience publish state 
+Message / Update
+message_id 
+wedding_id 
+message_type (standard / reminder / live update) 
+title 
+body 
+audience query / segment 
+channels 
+attachments 
+sent_at 
+delivery status 
+open status if trackable 
+Logistics
+accommodation records 
+transport groups 
+airport guidance 
+travel notes 
+guest logistics completeness 
+Plan
+tasks 
+deadlines 
+vendor records 
+budget lines 
+seating tables / assignments 
+plan milestones 
+Live Event State
+current timeline position 
+current event 
+next event 
+operational notes 
+public live updates 
+planner-only status records 
+arrival / readiness summary 
+Gallery
+image_id 
+wedding_id 
+source type (inspiration / guest upload / moment / archive) 
+caption 
+tags 
+visibility 
+approval state 
+featured state 
+event association 
+Registry
+registry_id 
+wedding_id 
+cash funds 
+wishlist items 
+external link items 
+gift status 
+contributor name / anonymous 
+thank-you status 
+reminder logic 
+
+5. Home Page — CTO Specification
+Purpose
+Home is the emotional control center and summary layer. It should not own planning logic, guest logic, or deep editing. It should synthesize them.
+What Home should do
+Home should answer:
+Where are we overall? 
+What matters now? 
+What is on track? 
+What needs attention this week? 
+Core sections Home should contain
+countdown to wedding 
+progress / readiness summary 
+“What to focus on next” 
+recent milestone wins 
+RSVP progress summary 
+budget snapshot 
+latest guest activity 
+quick actions 
+emotional reassurance / tone-setting 
+shortcut into crisis / support if needed 
+Data Home consumes
+Home reads from:
+Wedding 
+Plan tasks / deadlines 
+Guest completion metrics 
+Invitation progress 
+Logistics completion 
+Registry progress 
+Live state for final days 
+Data Home should not own
+Home should not own:
+actual task editing logic 
+seating builder 
+guest record editing 
+invitation builder 
+logistics assignment 
+gallery moderation 
+Interactions from Home
+Every major card on Home should deep link into the owning module.
+Examples:
+“12 guests pending RSVP” → Guests with Pending filter 
+“Budget needs attention” → Plan → Budget subsection 
+“3 transport items incomplete” → Guests → Guest Logistics 
+“Registry not published” → Registry module 
+Final week behavior
+In the final 7 days, Home should begin surfacing more Live-oriented awareness:
+final messages scheduled 
+key vendors confirmed 
+guest logistics nearing completion 
+“Live mode activates soon” tone 
+6. Plan Page — CTO Specification
+Purpose
+Plan is the structured execution engine for wedding preparation. This is the page where users actively build and maintain the plan.
+What Plan should own
+Plan owns:
+master checklist 
+planning milestones 
+wedding timeline builder 
+tasks and assignments 
+vendors 
+expenses / budget 
+seating planner 
+event schedule structure 
+plan templates 
+dependencies between planning items 
+What Plan should not own
+Plan should not own:
+guest messaging 
+invitation sending 
+guest record management 
+travel and hotel assignment 
+guest-facing website structure 
+Critical note: Seating ownership
+Seating is owned by Plan. Guests may show seating status or assignment preview, but the actual seating planner, tables, drag-and-drop seating logic, and seat map belong here.
+Key sections within Plan
+checklist and timeline 
+vendor tracker 
+budget + payments 
+event structure 
+seating planner 
+reminders / deadlines 
+Interactions with other modules
+Plan feeds:
+Home progress 
+Live timeline 
+Guest Experience “Your Events” 
+certain logistics dependencies 
+Gallery event tags 
+Registry display timing if needed 
+Example dependency
+If the ceremony time changes in Plan, that must propagate to:
+Invitations preview if configured 
+Guest Experience schedule 
+Live page current / next event logic 
+message templates for updates 
+Plan is therefore a core data owner that downstream modules must observe.
+7. Guests Page — CTO Specification
+Guests is the most complex section of the app and should be treated as a subsystem with internal tabs and advanced supporting pages.
+Primary tabs:
+Overview 
+Guest List 
+Invitations 
+Guest Experience 
+Messages 
+Guest Logistics 
+Advanced supporting pages:
+Guest Insights 
+Guest Journey 
+VIP / Priority Guests 
+Experience Design 
+Message Performance / Communication Center 
+Guest Detail Drawer / Profile 
+7.1 Guests Overview
+Purpose
+Guests Overview is the guest control tower. It is not a guest list. It is a summary and decision layer.
+What it should show
+guest count and RSVP milestone context 
+confirmed / pending / incomplete summary 
+guest progress by dimension 
+“what to focus on next” 
+take action shortcuts 
+guest groups summary 
+recent meaningful activity 
+calm emotional reinforcement 
+Critical UX details
+The page must reduce uncertainty instantly. The contextual line under the title such as “120 guests · RSVP deadline June 1 (12 days left)” is essential.
+What it links to
+Guest List filtered states 
+Messages reminder flows 
+Guest Logistics filtered states 
+Plan seating summary if needed 
+Guest Insights and Guest Journey advanced pages 
+7.2 Guest List
+Purpose
+The operational guest database / CRM.
+What it should do
+search 
+filter 
+add / import guests 
+bulk actions 
+open guest profiles 
+quick edit and quick actions 
+support high-scale guest management 
+What the list must support
+RSVP status chips 
+tags 
+travel flag 
+meal state 
+plus one state 
+missing details indicator 
+Bulk actions
+send reminder 
+assign tag 
+assign hotel 
+assign transport 
+mark RSVP manually 
+export selected 
+Guest Detail Drawer
+This is central. It should contain:
+contact 
+RSVP 
+meals 
+plus one 
+travel details 
+invite history 
+access rules 
+notes 
+actions 
+This drawer is where the system connects the guest object to invitations, messaging, logistics, and guest-facing visibility.
+7.3 Invitations
+Purpose
+Invitation creation, sending, and tracking.
+Invitation flow
+build invitation 
+preview full guest experience 
+send by channel 
+track performance 
+Critical rule
+The invitation is not just a pretty card. It is the entry point into the full guest experience link.
+Channels
+email 
+SMS 
+WhatsApp 
+copy link 
+Tracking
+sent 
+delivered 
+opened 
+responded 
+bounced 
+pending 
+Interaction with Guest Experience
+The Preview button must show the guest-facing link experience, not only the card.
+7.4 Guest Experience
+Purpose
+This is the builder for what guests see when they open their link.
+Core modules
+live preview 
+what guests can see 
+access rules 
+live updates 
+website structure 
+themes / templates 
+Key principle
+This page is not “settings.” It is a builder.
+Preview requirements
+The preview must simulate:
+different guest types 
+mobile/web 
+actual sections rendered 
+popup live updates 
+RSVP gating for pending guests 
+What it controls
+visible sections 
+audience-specific visibility 
+message board 
+travel display 
+gallery visibility 
+registry visibility 
+live updates visibility 
+7.5 Messages
+Purpose
+Communication engine.
+What it should support
+smart alerts 
+segmented audiences 
+compose flow 
+reminders 
+message history 
+guest replies 
+live update broadcast option 
+structured attachments 
+Smart attachments
+location 
+image 
+document 
+link 
+Critical integration
+Messages must be able to send as:
+standard message 
+reminder 
+live update to guest page popup 
+7.6 Guest Logistics
+Purpose
+Command center for guest arrival, stay, and movement.
+What it should show
+logistics action center 
+missing flights / hotels / transport 
+readiness tracker 
+guests requiring attention 
+hotel management 
+transport management 
+smart grouping suggestions 
+What it should not duplicate
+No full seating planner. That remains in Plan.
+7.7 Guest Insights
+Purpose
+Interpret guest data.
+What it should analyze
+guest mix 
+travel burden 
+response behavior 
+group clusters 
+Why it matters
+This is where the system becomes intelligent rather than administrative.
+7.8 Guest Journey
+Purpose
+Show the lifecycle of each guest.
+Stages
+Invite → RSVP → Flight → Hotel → Transport → Event → Post-wedding / Thank-you
+Use
+Identify where guests are stuck and trigger targeted actions.
+7.9 VIP / Priority Guests
+Purpose
+Track and handle special guests with more care.
+Possible use cases
+parents 
+core family 
+best man / maid of honor 
+luxury weddings with high-priority guests 
+7.10 Experience Design
+Purpose
+Curate emotional experience by guest segment.
+Examples
+wedding party sees rehearsal timing 
+travelling guests see hotels first 
+pending guests see RSVP first 
+VIP guests get elevated access 
+
+8. Live Page — CTO Specification
+Purpose
+Live should be the wedding week and wedding day reassurance / coordination layer. It must add value before and on the day, not sit as dead weight.
+There should effectively be two modes:
+calm couple / bride-facing view 
+operational planner-facing logic underneath or via privileged mode 
+Bride-facing principle
+The bride should not see stressful operational details. The bride-facing layer should only expose:
+calm status 
+what is happening now 
+what is next 
+quiet confirmations 
+relevant updates 
+weather if helpful 
+support team access 
+Planner-facing logic
+The backend operational layer may track:
+guest arrivals 
+transportation exceptions 
+delays 
+vendor updates 
+readiness checks 
+manual confirmations from ushers / planners 
+Before the wedding
+In the final days, Live should act as:
+countdown + coordination layer 
+scheduled communications checkpoint 
+logistics awareness surface 
+final week readiness guide 
+preview of what guests will experience in live mode 
+Wedding day
+Live should act as:
+real-time event reassurance 
+announcement layer 
+timeline awareness 
+update broadcaster 
+calm interface for current and next moment 
+Important realism constraint
+The system should not pretend it knows things it cannot know. For example, it should not claim “everyone is seated” unless that is based on manual or check-in logic. Use:
+estimated arrivals 
+section confirmed 
+family seated confirmed 
+wedding party assembledrather than fake precision. 
+What Live should integrate
+schedule from Plan 
+guest visibility from Guest Experience 
+live update broadcasting from Messages / Guest Experience 
+logistics status from Guest Logistics 
+map / transport / weather as lightweight tools 
+photo / gallery moment prompts if desired 
+What it should not do
+full guest database management 
+full task planning 
+deep invitation editing 
+9. Gallery Page — CTO Specification
+Purpose
+Gallery should be a visual ecosystem, not a storage page.
+Primary subpages
+Inspiration 
+Moments 
+Guest Uploads 
+Saved 
+Archive 
+9.1 Inspiration
+This is the Pinterest integration layer.
+What it should do
+connect Pinterest board 
+import selected inspiration 
+organize inspiration into curated categories 
+allow saving into Udo mood categories 
+Important design note
+Do not make it a Pinterest clone. It should remain an elegant Udo surface.
+9.2 Moments
+This is the editorial, mini social-style memory timeline.
+What it should show
+key pre-wedding and wedding moments 
+image cards and collages 
+captions 
+event tags 
+date 
+featured “moment we’re loving” option 
+9.3 Guest Uploads
+This is the contribution layer.
+What it should support
+share guest upload link 
+QR code 
+no-login upload page 
+moderation settings 
+pending review and approved states 
+ability to promote uploads into Moments or Saved 
+9.4 Saved
+Cross-gallery shortlist.
+9.5 Archive
+Long-term keepsake vault organized by event / phase.
+Interactions with other modules
+Guest Experience can show gallery visibility 
+Live can optionally reference live photo feed 
+Registry thank-you may later connect to gallery memories if desired 
+
+10. Registry Page — CTO Specification
+Purpose
+Registry should be a frictionless gifting and gratitude system, not a retail registry clone.
+Core setup options
+Cash Fund 
+Add Any Link 
+Simple Wishlist 
+Why this approach
+This is globally usable, fast, and avoids overengineering store integrations at MVP stage.
+Active registry state should support
+overview card 
+share registry 
+cash fund progress 
+item grid 
+reserve / gifted states 
+Guest view
+The registry guest view should be a clean web page with:
+warm opening copy 
+cash fund 
+gift items 
+simple contribution / reserve flow 
+no login requirement 
+Thank-you tracking
+This is important and should absolutely be included.
+It should support
+pending thanks list 
+completed thanks list 
+write message flow 
+mark as thanked 
+optional sent message record 
+Auto reminders
+These should be quiet and tasteful.
+Types
+pre-wedding registry reminder suggestion if guests viewed but did not act 
+post-wedding thank-you reminder 
+follow-up reminder after a set period 
+Registry interactions with other pages
+invitation can include registry link 
+guest experience can show registry section if enabled 
+messages can include registry reminder templates 
+post-wedding communication can be supported via thank-you tracking 
+11. Cross-Page Interaction Logic
+This section is critical. The app will only feel coherent if these connections are implemented properly.
+Home ↔ Plan
+Home summarizes Plan but does not edit it.
+Home ↔ Guests
+Home shows guest completion and links into filtered Guest or Logistics states.
+Plan ↔ Guests
+Plan owns seating and event schedule. Guests consumes seating status and schedule visibility.
+Plan ↔ Live
+Live uses the event timeline from Plan.
+Guests ↔ Invitations
+Invitations use guest records and recipient segmentation from Guests.
+Guests ↔ Guest Experience
+Guest Experience renders content based on guest record, segment, and status.
+Guests ↔ Messages
+Messages target guest segments, missing states, and logistics needs.
+Guests ↔ Logistics
+Guest travel records, accommodation, and transport status feed Guest Logistics.
+Guest Experience ↔ Live
+Live updates can be surfaced inside the guest-facing experience.
+Invitations ↔ Guest Experience
+Invitation link should open into the guest-facing wedding experience.
+Messages ↔ Live
+A message may be sent as a live update, which appears as a popup or feed item in the guest-facing experience.
+Gallery ↔ Guest Experience
+Guest Experience can show gallery or upload prompts if enabled.
+Registry ↔ Invitations / Guest Experience / Messages
+Registry link can be included in invitations, shown in guest experience, and surfaced in reminder templates.
+Registry ↔ Post-wedding Flow
+Thank-you tracking becomes relevant after the event and may surface on Home or in a post-wedding checklist if desired.
+12. Suggested Technical Pattern
+Frontend
+A modular mobile app for admin users, likely Flutter or React Native / native depending stack.
+Guest link
+A responsive web experience rendered from guest-specific state.
+Backend
+Role-aware API layer with:
+wedding-scoped data 
+guest-scoped access tokens for personalized link rendering 
+modular services for messaging, invitations, uploads, registry, and logistics 
+Data access pattern
+Prefer:
+normalized backend models 
+denormalized summary objects / computed views for Home, Overview, Live, and analytics pages 
+Event-driven logic
+Use internal triggers for:
+reminder suggestions 
+progress updates 
+live update propagation 
+thank-you reminders 
+invitation tracking updates 
+Security
+Guests should access a personalized, permission-scoped link. Collaborators should require authenticated app access with role permissions.
+13. App Store / Play Store Readiness Considerations
+For release readiness, the CTO should ensure:
+robust guest link rendering on mobile web 
+smooth deep-link handling from invitation channels 
+proper notification permissions for collaborators and possibly couple/planner 
+image upload handling with moderation queues 
+resilient offline/loading states 
+clean auth and onboarding for admins 
+privacy-safe handling of guest contact data 
+responsive UI that matches Figma exactly enough to preserve trust 
+The user experience must feel polished enough that the user believes the product can carry emotional and operational weight. That means transitions, loading states, confirmations, and empty states matter.
+

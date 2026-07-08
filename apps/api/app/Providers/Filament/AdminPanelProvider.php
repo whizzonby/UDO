@@ -2,10 +2,33 @@
 
 namespace App\Providers\Filament;
 
-use App\Filament\Widgets\StatsOverview;
+use App\Filament\Resources\AccommodationOptionResource;
+use App\Filament\Resources\BlogPostResource;
+use App\Filament\Resources\BudgetItemResource;
+use App\Filament\Resources\FaqResource;
+use App\Filament\Resources\GalleryAssetResource;
+use App\Filament\Resources\GuestResource;
+use App\Filament\Resources\LiveUpdateResource;
+use App\Filament\Resources\MessageResource;
+use App\Filament\Resources\RegistryContributionResource;
+use App\Filament\Resources\SeatingTableResource;
+use App\Filament\Resources\SubscriptionResource;
+use App\Filament\Resources\SupportTicketResource;
+use App\Filament\Resources\TaskResource;
+use App\Filament\Resources\TestimonialResource;
+use App\Filament\Resources\TimelineItemResource;
+use App\Filament\Resources\TransportGroupResource;
+use App\Filament\Resources\UserResource;
+use App\Filament\Resources\VendorResource;
+use App\Filament\Resources\WeddingCollaboratorResource;
+use App\Filament\Resources\WeddingResource;
+use App\Filament\Widgets\RecentSignupsWidget;
+use App\Filament\Widgets\StatsOverviewWidget;
+use App\Filament\Widgets\WeddingsChartWidget;
 use Filament\Http\Middleware\Authenticate;
 use Filament\Http\Middleware\DisableBladeIconComponents;
 use Filament\Http\Middleware\DispatchServingFilamentEvent;
+use Filament\Pages;
 use Filament\Panel;
 use Filament\PanelProvider;
 use Filament\Support\Colors\Color;
@@ -22,15 +45,56 @@ class AdminPanelProvider extends PanelProvider
     public function panel(Panel $panel): Panel
     {
         return $panel
+            ->default()
             ->id('admin')
-            ->path('ops')
+            ->path('admin')
             ->login()
-            ->brandName('Udo Ops')
-            ->colors(['primary' => Color::hex('#FF4D8C')])
-            ->discoverResources(in: app_path('Filament/Resources'), for: 'App\\Filament\\Resources')
-            ->discoverPages(in: app_path('Filament/Pages'), for: 'App\\Filament\\Pages')
-            ->discoverWidgets(in: app_path('Filament/Widgets'), for: 'App\\Filament\\Widgets')
-            ->widgets([StatsOverview::class])
+            ->colors([
+                'primary' => Color::hex('#285301'),
+                'danger'  => Color::hex('#D45D78'),
+                'warning' => Color::Amber,
+                'success' => Color::Green,
+                'info'    => Color::Blue,
+            ])
+            ->brandName('Udo Admin')
+            ->brandLogo(null)
+            ->favicon(null)
+            ->darkMode(false)
+            ->resources([
+                // Platform
+                UserResource::class,
+                WeddingResource::class,
+                GuestResource::class,
+                WeddingCollaboratorResource::class,
+                // Operations
+                MessageResource::class,
+                VendorResource::class,
+                TaskResource::class,
+                GalleryAssetResource::class,
+                LiveUpdateResource::class,
+                BudgetItemResource::class,
+                TimelineItemResource::class,
+                // Logistics
+                SeatingTableResource::class,
+                AccommodationOptionResource::class,
+                TransportGroupResource::class,
+                // Finance & Support
+                SubscriptionResource::class,
+                RegistryContributionResource::class,
+                // Content
+                BlogPostResource::class,
+                TestimonialResource::class,
+                FaqResource::class,
+                SupportTicketResource::class,
+            ])
+            ->pages([
+                Pages\Dashboard::class,
+            ])
+            ->widgets([
+                StatsOverviewWidget::class,
+                WeddingsChartWidget::class,
+                RecentSignupsWidget::class,
+            ])
             ->middleware([
                 EncryptCookies::class,
                 AddQueuedCookiesToResponse::class,
@@ -42,6 +106,8 @@ class AdminPanelProvider extends PanelProvider
                 DisableBladeIconComponents::class,
                 DispatchServingFilamentEvent::class,
             ])
-            ->authMiddleware([Authenticate::class]);
+            ->authMiddleware([
+                Authenticate::class,
+            ]);
     }
 }

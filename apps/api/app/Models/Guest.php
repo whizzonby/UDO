@@ -2,67 +2,53 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Illuminate\Support\Str;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class Guest extends Model
 {
-    use HasFactory;
-
     protected $fillable = [
         'wedding_id',
         'first_name',
         'last_name',
         'email',
         'phone',
-        'rsvp_status',
-        'group',
-        'relationship',
-        'age_group',
-        'is_vip',
-        'dietary_requirements',
+        'guest_group',
+        'custom_tags',
+        'vip_flag',
+        'attending_status',
+        'invite_status',
         'plus_one_allowed',
-        'plus_one_name',
-        'plus_one_rsvp_attending',
-        'invitation_sent_at',
-        'rsvp_responded_at',
-        'checked_in_at',
-        'address',
-        'language',
-        'needs_transport',
-        'needs_accommodation',
-        'is_child',
-        'sort_order',
-        'token',
+        'plus_one_count',
+        'meal_preference',
+        'allergies',
+        'dietary_note',
+        'travel_required',
+        'arrival_date',
+        'arrival_time',
+        'departure_date',
+        'departure_time',
+        'arrival_airport',
+        'hotel_assignment_id',
+        'transport_assignment_id',
+        'seating_assignment_id',
+        'guest_view_type',
         'notes',
     ];
 
-    protected function casts(): array
-    {
-        return [
-            'is_vip'                   => 'boolean',
-            'plus_one_allowed'         => 'boolean',
-            'plus_one_rsvp_attending'  => 'boolean',
-            'needs_transport'          => 'boolean',
-            'needs_accommodation'      => 'boolean',
-            'is_child'                 => 'boolean',
-            'invitation_sent_at'       => 'datetime',
-            'rsvp_responded_at'        => 'datetime',
-            'checked_in_at'            => 'datetime',
-        ];
-    }
+    protected $casts = [
+        'custom_tags' => 'array',
+        'vip_flag' => 'boolean',
+        'plus_one_allowed' => 'boolean',
+        'travel_required' => 'boolean',
+        'arrival_date' => 'date',
+        'departure_date' => 'date',
+    ];
 
-    protected static function boot(): void
+    public function getFullNameAttribute(): string
     {
-        parent::boot();
-
-        static::creating(function (Guest $guest) {
-            if (empty($guest->token)) {
-                $guest->token = Str::random(32);
-            }
-        });
+        return trim($this->first_name . ' ' . $this->last_name);
     }
 
     public function wedding(): BelongsTo
@@ -70,8 +56,8 @@ class Guest extends Model
         return $this->belongsTo(Wedding::class);
     }
 
-    public function getFullNameAttribute(): string
+    public function token(): HasOne
     {
-        return trim("{$this->first_name} {$this->last_name}");
+        return $this->hasOne(GuestToken::class);
     }
 }

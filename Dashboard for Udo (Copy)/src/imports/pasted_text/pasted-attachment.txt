@@ -1,0 +1,1244 @@
+Use this exactly as your Figma prompt:
+
+---
+
+Redesign and complete the **UDO Wedding App – Plan Page** so it feels fully built, clean, calm, modern, premium, feminine, and easy to use. Do **not** change the overall brand direction that already exists. Keep the current soft elegant visual language from the Home page and align this entire Plan section to that same standard.
+
+## Core visual direction to preserve
+
+Use the current UDO colour palette consistently:
+
+* Dark green: `#285301`
+* Crimson: `#d45d78`
+* Pastel crimson: `#f194b2`
+* Light red/blush: `#f8edeb`
+* White / soft off-white backgrounds
+
+The experience should feel:
+
+* peaceful
+* organized
+* emotionally intelligent
+* calm but premium
+* less clinical
+* less “prototype”
+* more “real product ready for launch next week”
+
+Do **not** make it loud, busy, boxy, or over-designed. Do **not** use harsh contrast. Do **not** make it childish. It should feel like a beautiful adult product for women planning weddings.
+
+## Main goal
+
+The current Plan page looks better than before, but it still has too many dead ends, too many placeholder states, and too many extra clicks before users can actually do something. I want this redesigned so that:
+
+1. every visible section feels intentional
+2. every card opens a real built-out screen
+3. every important button visibly does something
+4. every “coming soon” screen is replaced with a proper detail screen
+5. every module is tied to onboarding choices and existing data
+6. the hierarchy is calm, obvious, and easy to scan
+7. the user always knows what to do next without feeling pressured
+
+The whole Plan page should work like a **peaceful command center**.
+
+---
+
+# OVERALL PAGE STRUCTURE TO FIX
+
+## Header section
+
+Keep the page title:
+**Plan**
+
+Keep or refine the subtitle:
+**Everything important in one peaceful place.**
+
+This header should feel soft and spacious. Keep the blush-tinted background area at the top like Home. Do not overfill it.
+
+## Top navigation pills
+
+Keep these top tabs:
+
+* Overview
+* Tasks
+* Budget
+* Vendors
+* Details
+
+But improve spacing, padding, and visual consistency so they look polished and balanced with the Home page. Keep the active tab in dark green with soft rounded pill styling. Inactive tabs should remain blush/neutral and soft.
+
+Important:
+These tabs must not lead to blank “coming soon” areas anymore. Each tab must show a real designed view.
+
+---
+
+# REDESIGN THE OVERVIEW TAB
+
+The Overview tab should remain the first tab and should function as the main entry point into planning.
+
+## Keep this calm intro card, but refine it
+
+Current version says this is your planning space and has a “Guide me” button.
+
+Keep this concept, but make the card more graceful and useful.
+
+### Intro card requirements:
+
+Title:
+**Today with UDO**
+
+Body copy should feel supportive, calm, and intelligent. Example tone:
+“You are in a really good place right now. Based on your timeline, the most helpful things to focus on next are your venue shortlist and guest details.”
+
+Small text link:
+**How this works**
+
+Primary button:
+**Guide me**
+
+Small soft heart icon may remain.
+
+The content of this card should be dynamic in the design, meaning it should clearly look like it can change depending on progress and timing.
+
+Do not use wording like “take a breath” unless the user actually selected overwhelmed support preferences. In general, keep tone softer and more universally elegant.
+
+---
+
+## “Most important right now” section
+
+Keep this section, but make it more visually efficient and cleaner.
+
+### Required design:
+
+Three stacked priority cards is okay, but refine the hierarchy so each card is more compact and elegant.
+
+Each priority card should include:
+
+* task title
+* one line on why it matters
+* one line on timing/recommendation
+* status bubble aligned consistently
+* CTA: **Open**
+
+Examples:
+
+* Finalize venue shortlist
+* Set guest meal preferences
+* Publish guest page
+
+### Status badges must align properly
+
+Fix badge alignment so all badges have the **same left starting point internally** and visually line up cleanly on the right edge of cards.
+
+Badges to use:
+
+* Urgent
+* Soon
+* This week
+* Ready
+* In progress
+
+Keep them soft and elegant, not aggressive.
+
+---
+
+## “Your planning modules” section
+
+This section is the backbone of the page. This should remain a **2-column widget grid** on desktop/tablet width, because that is cleaner and less overwhelming than long stacked cards.
+
+Refine these cards heavily.
+
+### Module cards to include:
+
+* Event structure
+* Timeline / Run of show
+* Budget
+* Food & dining
+* Vendors & suppliers
+* Wedding party
+* Seating
+* Additional events
+* Personal moments
+* Honeymoon
+* Insurance
+* Lookbook
+* Reminders
+
+### Card content structure
+
+Each card must have:
+
+* small soft icon in a circular blush background
+* module title
+* summary line pulled from onboarding or user data
+* status chip at top right
+* progress bar
+* one calm supporting line under the progress bar
+
+Example:
+**Food & dining**
+Plated dinner • 5 dietary needs tracked
+[In progress]
+progress bar
+“Menu enhancements still need review.”
+
+### Card copy rules
+
+Supporting text should feel calm and lightly guiding, not robotic.
+
+Bad examples:
+
+* “Budget detail view coming soon”
+* “Detailed view for this module coming soon”
+* “Not yet sourced”
+
+Better examples:
+
+* “A few essentials still need to be confirmed.”
+* “Your menu is taking shape nicely.”
+* “Guest placement has not been arranged yet.”
+* “Special moments can still be refined.”
+* “You are covered.”
+* “Your visual direction is taking shape.”
+
+---
+
+# CRITICAL FIX: REMOVE ALL “COMING SOON” DETAIL SCREENS
+
+Anything that currently opens and says:
+
+* Detail view coming soon
+* Budget view coming soon
+* Vendors view coming soon
+* Tasks view coming soon
+* Detail view for this module coming soon
+
+must be fully designed.
+
+That is the biggest issue in the current product. I need every one of these built out visually.
+
+---
+
+# BUILD OUT EACH SECONDARY SCREEN / POPUP IN GREAT DETAIL
+
+All module cards in Overview must open a fully designed secondary screen or drawer/modal. Keep the same current modal language:
+
+* rounded large white panel
+* centered drag handle at top
+* close X top right
+* clean spacing
+* soft green headline
+* optional progress bar beneath title
+* supportive one-line message beneath progress bar
+
+These modals should feel like proper working product screens, not placeholders.
+
+---
+
+## 1. EVENT STRUCTURE DETAIL SCREEN
+
+Current direction is good but refine it.
+
+### Screen title:
+
+**Event structure**
+
+### Top area:
+
+* progress bar
+* supportive line:
+  “Shape the flow of your day, beautifully and clearly.”
+
+### Main content:
+
+A vertically stacked sequence of event cards showing:
+
+* Ceremony
+* Cocktail hour
+* Reception
+* After party
+
+Each event card must show:
+
+* drag handle icon on left
+* event name
+* time
+* location
+* expected guests
+* edit icon on right
+
+### Add functionality visually
+
+At the bottom:
+Primary button:
+**+ Add event**
+
+### Add event modal within this flow
+
+When user clicks Add event, show a secondary modal or form state with fields:
+
+* Event name
+* Event type
+* Start time
+* End time
+* Location
+* Expected guests
+* Notes
+* Apply to guest page? yes/no
+* Include in run of show? yes/no
+
+### Also include:
+
+Small soft helper note:
+“Only include moments you want the day to flow around.”
+
+---
+
+## 2. TIMELINE / RUN OF SHOW DETAIL SCREEN
+
+This one is important and should feel more operational.
+
+### Screen title:
+
+**Timeline / Run of show**
+
+### Top area:
+
+* progress bar
+* helper line:
+  “Keep the day flowing smoothly for everyone involved.”
+
+### Tabs inside this modal:
+
+* All
+* Ceremony
+* Reception
+* Additional events
+
+### Timeline cards
+
+Each timeline item card should show:
+
+* drag handle
+* time in crimson
+* event label chip if relevant
+* task / moment title
+* owner underneath (DJ, Photographer, Couple, Planner, etc.)
+* edit icon on right
+
+Examples:
+
+* 3:00 PM Venue setup complete
+* 3:30 PM Bridal party arrival
+* 4:00 PM Ceremony begins
+* 4:45 PM Family photos
+* 6:00 PM Grand entrance
+* 7:30 PM Speeches
+* 8:00 PM Cake cutting
+* 8:15 PM Dance floor opens
+
+### Bottom CTA:
+
+**+ Add moment**
+
+### Add moment screen / state
+
+Fields:
+
+* Time
+* Title
+* Event section
+* Owner
+* Notes
+* Visible to vendors? yes/no
+* Visible in live mode? yes/no
+
+Add a quiet hint:
+“This is the version of the day people rely on when it matters most.”
+
+---
+
+## 3. BUDGET DETAIL SCREEN
+
+This one must be fully built. Right now it is empty. Fix completely.
+
+### Screen title:
+
+**Budget**
+
+### Top area:
+
+* progress bar
+* helper line:
+  “Keep your spending aligned with the day you want to create.”
+
+### Summary cards at top
+
+Use 4 small clean metric cards:
+
+* Total budget
+* Allocated
+* Spent
+* Remaining
+
+Use colour carefully:
+
+* dark text for total
+* green for positive / remaining
+* crimson for spent only where needed
+
+### Main section: Category breakdown
+
+Show category cards or rows for:
+
+* Venue
+* Food & drink
+* Photography
+* Decor & flowers
+* Entertainment
+* Attire
+* Stationery
+* Transport
+* Beauty
+* Miscellaneous
+
+Each row shows:
+
+* category name
+* spent / allocated
+* remaining
+* progress bar
+
+### Additional sections:
+
+#### Payment schedule
+
+List upcoming payments:
+
+* Vendor
+* Amount
+* Due date
+* Status chip
+
+#### Budget notes / guidance panel
+
+A calm insight card:
+“Your venue spend is locked in; food still has room to shape.”
+
+#### Buttons
+
+* **Add expense**
+* **Edit budget categories**
+* **View payment schedule**
+
+### Add expense modal
+
+Fields:
+
+* Vendor
+* Category
+* Amount
+* Deposit or final payment
+* Due date
+* Paid yes/no
+* Notes
+* Attach receipt
+
+This screen should feel complete enough that it could almost be built tomorrow.
+
+---
+
+## 4. FOOD & DINING DETAIL SCREEN
+
+Current direction is promising. Build it out more fully.
+
+### Screen title:
+
+**Food & dining**
+
+### Top area:
+
+* progress bar
+* helper line:
+  “Your dining choices shape comfort, hospitality, and atmosphere.”
+
+### Section 1: Dining style
+
+Show current selected style in a bordered card:
+
+* Plated dinner
+* Buffet
+* Family-style
+* Cocktail / stations
+* Not decided yet
+
+Allow edit icon.
+
+### Section 2: Dietary requirements tracked
+
+Show 4-6 small metric cards:
+
+* Vegetarian
+* Vegan
+* Gluten-free
+* Allergies
+* Halal
+* Kids meals
+
+### Section 3: Dining enhancements
+
+Use a clean checklist style for:
+
+* Cocktail hour
+* Signature cocktails
+* Champagne toast
+* Dessert table
+* Late-night snacks
+* Coffee cart
+* Kids menu
+* Custom requests
+
+### Section 4: Meal collection
+
+Show a smaller operational section:
+
+* meal responses received
+* pending responses
+* send reminder button
+
+### Buttons
+
+* **Update dining plan**
+* **Send meal form**
+* **Review dietary notes**
+
+### Make it clear visually that this ties to guest responses and dashboard data.
+
+---
+
+## 5. VENDORS & SUPPLIERS DETAIL SCREEN
+
+Current vendor screen is on the right track. Expand it.
+
+### Screen title:
+
+**Vendors & suppliers**
+
+### Top area:
+
+* progress bar
+* helper line:
+  “Everything you book here should bring your day closer to feeling complete.”
+
+### Top metrics
+
+Three colored summary blocks:
+
+* Booked
+* Shortlisted
+* Still needed
+
+Keep elegant and not too loud.
+
+### Vendor categories to include:
+
+* Venue
+* Planner
+* Photographer
+* Videographer
+* Caterer
+* Florist
+* Decor
+* Entertainment / DJ
+* Hair & makeup
+* Officiant
+* Cake
+* Transport
+* Content creator
+* Rentals
+* Lighting
+* Security
+* Photo booth
+* Other
+
+### Each vendor row should show:
+
+* category
+* selected vendor name or “Not yet sourced”
+* booking date if booked
+* status chip on right
+* CTA if not sourced: **Add vendor**
+* CTA if booked: **View / edit**
+
+### Buttons
+
+* **+ Add new vendor**
+* **Compare shortlisted**
+* **Upload contract**
+
+### Vendor profile screen when clicked
+
+Create a secondary vendor detail state showing:
+
+* business name
+* contact name
+* phone
+* email
+* quote amount
+* deposit paid
+* remaining balance
+* contract uploaded
+* notes
+* tags like booked / shortlisted / needed
+
+This should feel like a real mini CRM.
+
+---
+
+## 6. WEDDING PARTY DETAIL SCREEN
+
+This must be fully interactive-looking. Right now you cannot really change role settings properly.
+
+### Screen title:
+
+**Wedding party**
+
+### Top area:
+
+* progress bar
+* helper line:
+  “Keep everyone clear on their role without having to chase people.”
+
+### List of people
+
+Each person card must show:
+
+* full name
+* role
+* email
+* phone
+* status tags where relevant (speech planned, confirmed, needs outfit details, etc.)
+* edit icon
+
+### Important:
+
+Allow role editing visually.
+When user clicks edit, a form opens with:
+
+* Name
+* Role dropdown
+* Email
+* Phone
+* Group (bride side / groom side / shared)
+* Responsibilities
+* Walking order
+* Speech planned yes/no
+* Needs reminder yes/no
+
+### Bottom CTAs:
+
+* **+ Add person**
+* **Assign duties**
+
+### Assign duties flow
+
+Design a screen where duties can be assigned by person:
+Examples:
+
+* hold rings
+* speech
+* dress support
+* vendor point person
+* guest coordination
+* emergency kit holder
+
+This should feel useful and organized.
+
+---
+
+## 7. SEATING DETAIL SCREEN
+
+This is extremely important because the current button does not really go anywhere meaningful.
+
+### Screen title:
+
+**Seating**
+
+### Top area:
+
+* progress bar
+* helper line:
+  “A thoughtful seating plan makes the whole day feel smoother.”
+
+### Summary metric cards
+
+* Total guests
+* Assigned
+* Tables planned
+* Seats per table
+
+### Two-stage seating experience
+
+This should be designed as a real flow.
+
+#### State A: Empty / early stage
+
+Show:
+
+* “Start by creating your tables, then assign guests by dragging them into position.”
+* Primary button: **Start seating plan**
+* Secondary quick actions:
+
+  * Auto-assign by family groups
+  * Auto-assign by dietary needs
+  * Auto-assign by wedding party proximity
+
+#### State B: Seating board
+
+Design a proper seating canvas view.
+This does not have to be technically complex in the mockup, but it must visually show a workable system.
+
+Include:
+
+* left panel: unassigned guests
+* center area: table cards / table layout
+* right panel: guest details / filters
+
+### Table cards should show:
+
+* Table name
+* Capacity
+* Assigned count
+* dietary flags
+* edit icon
+
+### Guest chips should be draggable visually
+
+Use small pills with names.
+Show example guests being dragged to tables.
+
+### Filters:
+
+* Family
+* Wedding party
+* Kids
+* Dietary
+* Plus ones
+* Unassigned only
+
+### Buttons:
+
+* **Add table**
+* **Auto-arrange**
+* **Save seating plan**
+
+This screen should feel like a real planning tool, not just a summary.
+
+---
+
+## 8. ADDITIONAL EVENTS DETAIL SCREEN
+
+Currently empty. Build it.
+
+### Screen title:
+
+**Additional events**
+
+### Top area:
+
+* progress bar
+* helper line:
+  “Keep extra moments organized without letting them take over the day.”
+
+### Event list cards
+
+Examples:
+
+* Rehearsal dinner
+* Post-wedding brunch
+* Welcome drinks
+* Engagement party
+* Hen party
+* Stag party
+
+Each event card should show:
+
+* name
+* date
+* host / owner
+* guest count
+* location
+* status
+
+### Buttons:
+
+* **+ Add additional event**
+* **Edit event**
+* **Share details**
+
+### Event detail view
+
+Fields:
+
+* Event name
+* Date
+* Time
+* Location
+* Who is attending
+* Notes
+* Include on guest page yes/no
+* Need vendor support yes/no
+
+---
+
+## 9. PERSONAL MOMENTS DETAIL SCREEN
+
+This needs depth.
+
+### Screen title:
+
+**Personal moments**
+
+### Top area:
+
+* quote banner at top
+* helper line:
+  “These are the moments people remember in their hearts.”
+
+### Sections:
+
+#### Speeches planned
+
+List cards:
+
+* Best man – Michael Chen
+* Maid of honour – Sarah Johnson
+* Father of the bride
+* Groom’s speech
+
+Each with edit icon.
+
+#### Cultural traditions
+
+Checklist or selected items:
+
+* First dance with parents
+* Bouquet toss
+* Cake cutting ceremony
+* Tea ceremony
+* Moment of silence
+* Memory table
+* Special blessing
+* Other custom moment
+
+#### Custom moments
+
+Allow add custom moment with button:
+**+ Add custom moment**
+
+### Custom moment form fields:
+
+* Title
+* Type
+* When in timeline
+* Who is involved
+* Notes
+* Visible to guests yes/no
+* Visible in run of show yes/no
+
+---
+
+## 10. HONEYMOON DETAIL SCREEN
+
+Currently empty. Build it.
+
+### Screen title:
+
+**Honeymoon**
+
+### Top area:
+
+* progress bar
+* helper line:
+  “Keep your getaway simple, joyful, and easy to look forward to.”
+
+### Sections:
+
+* Destination
+* Number of days
+* Departure timing
+* Budget
+* Flights booked?
+* Hotel booked?
+* Activities saved?
+* Passport / travel docs ready?
+
+### Metric cards:
+
+* destination
+* nights
+* estimated spend
+* readiness %
+
+### Buttons:
+
+* **Edit honeymoon plan**
+* **Track bookings**
+* **Add travel reminder**
+
+---
+
+## 11. INSURANCE DETAIL SCREEN
+
+Currently empty. Build it.
+
+### Screen title:
+
+**Insurance**
+
+### Top area:
+
+* progress bar
+* helper line:
+  “A little protection can make the whole plan feel steadier.”
+
+### Sections:
+
+* Coverage status
+* Provider
+* Policy number
+* Start date
+* What is covered
+* Payment status
+
+### States:
+
+* insured
+* considering
+* not sure
+* not getting insurance
+
+### Buttons:
+
+* **Edit insurance choice**
+* **Upload policy**
+* **Review coverage**
+
+---
+
+## 12. LOOKBOOK DETAIL SCREEN
+
+Currently empty. Build it.
+
+### Screen title:
+
+**Lookbook**
+
+### Top area:
+
+* progress bar
+* helper line:
+  “Keep your visual direction clear so every choice feels connected.”
+
+### Layout:
+
+Use a beautiful grid / masonry style.
+
+### Sections:
+
+* Saved inspiration images
+* By category:
+
+  * Venue
+  * Flowers
+  * Fashion
+  * Table design
+  * Lighting
+  * Ceremony setup
+  * Reception mood
+  * Hair / makeup
+  * Cakes
+  * Bridesmaids
+  * Groom styling
+
+### Functions to show visually:
+
+* upload image
+* add note
+* tag image
+* mark as core inspiration
+* move to mood board
+
+### Buttons:
+
+* **Upload inspiration**
+* **Create mood board**
+* **Share with planner/vendor**
+
+---
+
+## 13. REMINDERS DETAIL SCREEN
+
+Currently empty. Build it.
+
+This should be one of the most useful calm screens in the product.
+
+### Screen title:
+
+**Reminders**
+
+### Top area:
+
+* helper line:
+  “We will keep you gently informed, without overwhelming you.”
+
+### Sections:
+
+#### Reminder style
+
+* Minimal
+* Weekly
+* Real-time
+
+#### Reminder channels
+
+* Push notifications
+* Email
+* Planner alerts
+* Wedding party alerts
+
+#### Reminder types
+
+* Upcoming payments
+* RSVP follow-ups
+* Vendor deadlines
+* Timeline checks
+* Seating reminders
+* Outfit / fitting reminders
+* Travel reminders
+* Honeymoon reminders
+
+### Use toggles, chips, and clean grouped settings.
+
+### Bottom CTAs:
+
+* **Save reminder settings**
+* **Send test reminder**
+
+This page should feel soothing, not tech-heavy.
+
+---
+
+# BUILD OUT THE TOP NAV TABS TOO
+
+Right now the top tabs still go to empty states. Fix them.
+
+---
+
+## TASKS TAB FULL VIEW
+
+Create a proper Tasks tab screen.
+
+### Layout:
+
+* Summary row at top: overdue / this week / done
+* Search bar
+* Filter chips:
+
+  * All
+  * Urgent
+  * This week
+  * Assigned to me
+  * Completed
+
+### Task list grouped by:
+
+* Most important right now
+* Upcoming
+* Done
+
+Task cards show:
+
+* title
+* due date
+* owner
+* linked module
+* status
+* open / check off
+
+Button:
+**+ Add task**
+
+---
+
+## BUDGET TAB FULL VIEW
+
+Separate from budget popup, this tab should be a more expanded dashboard-style budget management page.
+
+Include:
+
+* summary cards
+* full budget table
+* recent expenses
+* upcoming payments
+* category allocation chart placeholder
+* “Add expense” button
+
+---
+
+## VENDORS TAB FULL VIEW
+
+Expanded vendor management view:
+
+* Booked
+* Shortlisted
+* Still needed
+* Category filters
+* Search
+* Add vendor
+
+---
+
+## DETAILS TAB FULL VIEW
+
+This should be the master information page.
+
+Include:
+
+* Wedding date
+* Couple names
+* Main location
+* Guest count target
+* Support preferences
+* Guest page status
+* Privacy / permissions
+* Decision makers
+* Planner access
+* Wedding tone / feeling
+* Notes
+
+Buttons:
+
+* edit wedding details
+* manage access
+* update guest page settings
+
+---
+
+# CLEAN UP THE OVERALL INFORMATION ARCHITECTURE
+
+The Plan page should not feel like random cards. Add **very light grouping labels** if needed, but only if elegant.
+
+Possible subtle sub-grouping:
+
+* Foundation
+* Guests
+* Experience
+* Personal
+* Extras
+
+Do not overuse this. It should remain clean.
+
+---
+
+# BUTTON AND INTERACTION FIXES
+
+This is critical.
+
+Every button currently visible in these screens must visibly lead somewhere in the Figma flow.
+
+That includes:
+
+* Guide me
+* Open
+* Add event
+* Add moment
+* Update dining plan
+* Add vendor
+* Add person
+* Assign duties
+* Start seating plan
+* Auto-assign options
+* Save changes
+* Edit settings
+* Back to overview
+* top nav tabs
+
+No dead buttons.
+No fake CTA without linked frame.
+No blank state unless intentionally designed as empty data state.
+
+If a page has an empty state, it must still be functional and useful.
+
+---
+
+# COPY / TONE RULES FOR ALL SCREENS
+
+Use copy that feels:
+
+* calm
+* encouraging
+* emotionally intelligent
+* elegant
+* practical
+
+Avoid:
+
+* robotic phrasing
+* harsh urgency
+* fake cheerleading
+* clinical wording
+* “coming soon”
+* “detail view coming soon”
+* “not yet sourced” without context
+* “take a breath” unless the emotional state calls for it
+
+Better tone examples:
+
+* “A few essentials still need to be confirmed.”
+* “Your visual direction is taking shape.”
+* “This is a lovely time to finalize these details.”
+* “Your menu is beginning to feel complete.”
+* “Special moments can still be refined.”
+* “You are covered.”
+* “Keep everyone clear on their role without having to chase people.”
+
+---
+
+# LAYOUT AND DESIGN CLEANUP RULES
+
+Apply these globally:
+
+* tighter alignment
+* better spacing between titles, subtitles, badges, and progress bars
+* fewer oversized empty white areas
+* keep cards balanced in width and height
+* make 2-column grids align perfectly
+* progress bars should feel neat and intentional
+* all status chips should align visually and have consistent padding
+* icon circles should be uniform
+* buttons should match Home page style
+* soft shadows only
+* rounded corners consistent throughout
+* mobile-first but premium
+
+Make the final result feel like:
+**A wedding operating system that reduces stress the moment someone opens it.**
+
+---
+
+# IMPORTANT FINAL INSTRUCTION
+
+Do **not** redesign this from scratch into a different product.
+Do **not** remove the calm premium UDO identity.
+Do **not** create placeholder pages.
+Do **not** leave unfinished modals.
+
+Instead:
+
+Take the current improved Plan page and turn it into a fully designed, deeply thought-through, end-to-end interactive planning system with every secondary screen built out and every visible action connected.
+
+The end result should feel launch-ready, polished, peaceful, and complete.
+
+---
+
+If you want, next I can do the same thing for the **Guest / Live / Memories / More** sections in this same level of detail.

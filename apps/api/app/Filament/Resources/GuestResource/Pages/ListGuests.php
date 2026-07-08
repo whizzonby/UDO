@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\GuestResource\Pages;
 
 use App\Filament\Resources\GuestResource;
+use Filament\Actions;
 use Filament\Resources\Pages\ListRecords;
 
 class ListGuests extends ListRecords
@@ -11,6 +12,6 @@ class ListGuests extends ListRecords
 
     protected function getHeaderActions(): array
     {
-        return [];
+        return [Actions\CreateAction::make()];
     }
 }
