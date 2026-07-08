@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
+use App\Mail\TemplatedMail;
 use App\Models\User;
 use Firebase\JWT\JWT;
 use Firebase\JWT\JWK;
@@ -11,6 +12,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Str;
 
 class MobileSocialAuthController extends Controller
@@ -183,7 +185,7 @@ class MobileSocialAuthController extends Controller
         $stableEmail = $email ?? "{$providerId}@{$provider}.placeholder";
         $name        = trim("$firstName $lastName") ?: $stableEmail;
 
-        return User::create([
+        $user = User::create([
             'email'            => $stableEmail,
             'name'             => $name,
             'first_name'       => $firstName,
@@ -194,6 +196,15 @@ class MobileSocialAuthController extends Controller
             'password'         => bcrypt(Str::random(32)),
             'onboarding_completed' => false,
         ]);
+
+        if ($email) {
+            Mail::to($user)->send(new TemplatedMail('welcome', [
+                'first_name' => $user->first_name,
+                'last_name'  => $user->last_name,
+            ]));
+        }
+
+        return $user;
     }
 
     private function tokenResponse(User $user): JsonResponse

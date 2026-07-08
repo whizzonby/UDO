@@ -3,11 +3,13 @@
 namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
+use App\Mail\TemplatedMail;
 use App\Models\User;
 use App\Models\Wedding;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
@@ -31,6 +33,11 @@ class AuthController extends Controller
         ]);
 
         $token = $user->createToken('api')->plainTextToken;
+
+        Mail::to($user)->send(new TemplatedMail('welcome', [
+            'first_name' => $user->first_name,
+            'last_name'  => $user->last_name,
+        ]));
 
         return response()->json([
             'token' => $token,

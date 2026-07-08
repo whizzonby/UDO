@@ -5,6 +5,7 @@ namespace App\Providers\Filament;
 use App\Filament\Resources\AccommodationOptionResource;
 use App\Filament\Resources\BlogPostResource;
 use App\Filament\Resources\BudgetItemResource;
+use App\Filament\Resources\EmailTemplateResource;
 use App\Filament\Resources\FaqResource;
 use App\Filament\Resources\GalleryAssetResource;
 use App\Filament\Resources\GuestResource;
@@ -86,6 +87,7 @@ class AdminPanelProvider extends PanelProvider
                 TestimonialResource::class,
                 FaqResource::class,
                 SupportTicketResource::class,
+                EmailTemplateResource::class,
             ])
             ->pages([
                 Pages\Dashboard::class,

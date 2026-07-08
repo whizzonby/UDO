@@ -2,7 +2,6 @@
 
 namespace App\Providers;
 
-use Illuminate\Auth\Notifications\ResetPassword;
 use Illuminate\Support\ServiceProvider;
 use Laravel\Socialite\Contracts\Factory as SocialiteFactory;
 
@@ -24,14 +23,6 @@ class AppServiceProvider extends ServiceProvider
                     config('services.apple')
                 );
             });
-        });
-
-        // This is an API-only app with no `password.reset` web route, so the
-        // default notification (which calls route('password.reset', ...))
-        // would 500. Point it at the Next.js guest/admin web app instead.
-        ResetPassword::createUrlUsing(function ($notifiable, string $token) {
-            $frontendUrl = rtrim(env('FRONTEND_URL', 'http://localhost:3000'), '/');
-            return "{$frontendUrl}/reset-password?token={$token}&email=" . urlencode($notifiable->getEmailForPasswordReset());
         });
     }
 }

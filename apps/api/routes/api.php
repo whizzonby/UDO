@@ -29,16 +29,16 @@ use Illuminate\Support\Facades\Route;
 |--------------------------------------------------------------------------
 */
 Route::prefix('auth')->group(function () {
-    Route::post('register', [AuthController::class, 'register']);
-    Route::post('login', [AuthController::class, 'login']);
-    Route::post('forgot-password', [PasswordResetController::class, 'sendLink']);
-    Route::post('reset-password', [PasswordResetController::class, 'reset']);
+    Route::post('register', [AuthController::class, 'register'])->middleware('throttle:6,1');
+    Route::post('login', [AuthController::class, 'login'])->middleware('throttle:10,1');
+    Route::post('forgot-password', [PasswordResetController::class, 'sendLink'])->middleware('throttle:5,1');
+    Route::post('reset-password', [PasswordResetController::class, 'reset'])->middleware('throttle:10,1');
     // Web OAuth redirect flow (for Next.js)
     Route::get('{provider}/redirect', [SocialAuthController::class, 'redirect']);
     Route::get('{provider}/callback', [SocialAuthController::class, 'callback']);
     // Mobile token exchange (Flutter passes native SDK token)
-    Route::post('mobile/google', [MobileSocialAuthController::class, 'google']);
-    Route::post('mobile/apple', [MobileSocialAuthController::class, 'apple']);
+    Route::post('mobile/google', [MobileSocialAuthController::class, 'google'])->middleware('throttle:10,1');
+    Route::post('mobile/apple', [MobileSocialAuthController::class, 'apple'])->middleware('throttle:10,1');
 });
 
 /*

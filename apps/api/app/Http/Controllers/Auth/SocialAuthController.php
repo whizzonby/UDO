@@ -3,9 +3,11 @@
 namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
+use App\Mail\TemplatedMail;
 use App\Models\User;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Str;
 use Laravel\Socialite\Facades\Socialite;
 
@@ -38,6 +40,13 @@ class SocialAuthController extends Controller
                 'password'         => Hash::make(Str::random(32)),
             ]
         );
+
+        if ($user->wasRecentlyCreated) {
+            Mail::to($user)->send(new TemplatedMail('welcome', [
+                'first_name' => $user->first_name,
+                'last_name'  => $user->last_name,
+            ]));
+        }
 
         $user->tokens()->where('name', 'api')->delete();
         $token = $user->createToken('api')->plainTextToken;
