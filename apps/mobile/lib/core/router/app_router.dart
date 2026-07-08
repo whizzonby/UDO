@@ -35,7 +35,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       if (isLoading) return loc == '/splash' ? null : '/splash';
 
       if (!isAuth) {
-        if (loc == '/login' || loc == '/register' || loc == '/splash' || loc == '/forgot-password') return null;
+        if (loc == '/login' || loc == '/register' || loc == '/forgot-password') return null;
         return '/login';
       }
 
