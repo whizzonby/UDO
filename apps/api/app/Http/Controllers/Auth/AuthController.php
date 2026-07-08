@@ -38,6 +38,7 @@ class AuthController extends Controller
             'first_name' => $user->first_name,
             'last_name'  => $user->last_name,
         ]));
+        $user->sendEmailVerificationNotification();
 
         return response()->json([
             'token' => $token,
@@ -91,6 +92,7 @@ class AuthController extends Controller
             'avatar_url'           => $user->avatar_url,
             'wedding_id'           => $user->active_wedding_id,
             'onboarding_completed' => $user->onboarding_completed,
+            'email_verified'       => $user->hasVerifiedEmail(),
         ];
     }
 }

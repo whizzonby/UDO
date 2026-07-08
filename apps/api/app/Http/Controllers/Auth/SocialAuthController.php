@@ -42,6 +42,10 @@ class SocialAuthController extends Controller
         );
 
         if ($user->wasRecentlyCreated) {
+            // Google/Apple already proved ownership of this address during
+            // the OAuth handshake, so there's nothing for us to verify.
+            $user->markEmailAsVerified();
+
             Mail::to($user)->send(new TemplatedMail('welcome', [
                 'first_name' => $user->first_name,
                 'last_name'  => $user->last_name,
@@ -53,7 +57,7 @@ class SocialAuthController extends Controller
 
         $frontendUrl = config('app.frontend_url', env('FRONTEND_URL', 'http://localhost:3000'));
 
-        return redirect("{$frontendUrl}/auth/callback?token={$token}&onboarding={$user->onboarding_completed}");
+        return redirect("{$frontendUrl}/auth/callback?token={$token}&onboarding={$user->onboarding_completed}&verified={$user->hasVerifiedEmail()}");
     }
 
     private function extractFirstName(?string $name): string

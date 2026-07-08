@@ -32,6 +32,7 @@ class EmailTemplateResource extends Resource
             'first_name' => 'Alex',
             'last_name'  => 'Morgan',
             'reset_url'  => "{$frontendUrl}/reset-password?token=sample-token&email=alex%40example.com",
+            'verify_url' => url('/api/auth/email/verify/0/sample-hash?expires=9999999999&signature=sample'),
         ];
 
         return collect($record->available_variables ?? [])

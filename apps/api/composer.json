@@ -13,6 +13,7 @@
         "laravel/sanctum": "^4.3",
         "laravel/socialite": "^5.27",
         "laravel/tinker": "^2.10.1",
+        "sentry/sentry-laravel": "^4.26",
         "socialiteproviders/apple": "*",
         "spatie/laravel-permission": "^6.25"
     },

@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Auth\AuthController;
+use App\Http\Controllers\Auth\EmailVerificationController;
 use App\Http\Controllers\Auth\MobileSocialAuthController;
 use App\Http\Controllers\Auth\SocialAuthController;
 use App\Http\Controllers\Auth\PasswordResetController;
@@ -39,6 +40,10 @@ Route::prefix('auth')->group(function () {
     // Mobile token exchange (Flutter passes native SDK token)
     Route::post('mobile/google', [MobileSocialAuthController::class, 'google'])->middleware('throttle:10,1');
     Route::post('mobile/apple', [MobileSocialAuthController::class, 'apple'])->middleware('throttle:10,1');
+    // Signed link from the verification email — no Sanctum guard, the signature is the proof.
+    Route::get('email/verify/{id}/{hash}', [EmailVerificationController::class, 'verify'])
+        ->middleware('signed')
+        ->name('verification.verify');
 });
 
 /*
@@ -62,6 +67,7 @@ Route::middleware('auth:sanctum')->group(function () {
     // Auth utilities
     Route::get('auth/me', [AuthController::class, 'me']);
     Route::post('auth/logout', [AuthController::class, 'logout']);
+    Route::post('auth/email/resend', [EmailVerificationController::class, 'resend'])->middleware('throttle:6,1');
 
     // Onboarding
     Route::post('onboarding', [OnboardingController::class, 'store']);

@@ -195,6 +195,9 @@ class MobileSocialAuthController extends Controller
             'auth_provider_id' => $providerId,
             'password'         => bcrypt(Str::random(32)),
             'onboarding_completed' => false,
+            // Google/Apple already proved ownership of this address during
+            // the OAuth handshake, so there's nothing for us to verify.
+            'email_verified_at' => $email ? now() : null,
         ]);
 
         if ($email) {
@@ -222,6 +225,7 @@ class MobileSocialAuthController extends Controller
                 'name'                 => $user->name,
                 'avatar_url'           => $user->avatar_url,
                 'onboarding_completed' => (bool) $user->onboarding_completed,
+                'email_verified'       => $user->hasVerifiedEmail(),
                 'wedding_id'           => $user->ownedWeddings()->value('id'),
             ],
         ]);
