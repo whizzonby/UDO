@@ -46,7 +46,7 @@ class LogisticsController extends Controller
             'notes'             => 'nullable|string',
         ]);
 
-        $accommodation = $wedding->accommodationOptions()->create($data);
+        $accommodation = $wedding->accommodationOptions()->create($this->mapAccommodationFields($data));
         return response()->json(['data' => $accommodation], 201);
     }
 
@@ -72,8 +72,32 @@ class LogisticsController extends Controller
             'notes'             => 'nullable|string',
         ]);
 
-        $accommodationOption->update($data);
+        $accommodationOption->update($this->mapAccommodationFields($data));
         return response()->json(['data' => $accommodationOption->fresh()]);
+    }
+
+    /**
+     * The accommodation form uses field names that don't match the model's
+     * columns 1:1 (e.g. `total_rooms` vs `total_rooms_blocked`) — remap them
+     * here rather than changing the API contract the mobile app already sends.
+     */
+    private function mapAccommodationFields(array $data): array
+    {
+        $renames = [
+            'distance_km'     => 'distance_from_venue_km',
+            'total_rooms'     => 'total_rooms_blocked',
+            'rooms_available' => 'rooms_assigned',
+            'booking_url'     => 'website',
+        ];
+
+        foreach ($renames as $from => $to) {
+            if (array_key_exists($from, $data)) {
+                $data[$to] = $data[$from];
+                unset($data[$from]);
+            }
+        }
+
+        return $data;
     }
 
     public function destroyAccommodation(Request $request, AccommodationOption $accommodationOption): JsonResponse

@@ -22,6 +22,9 @@ use App\Http\Controllers\Plan\BudgetController;
 use App\Http\Controllers\Plan\TaskController;
 use App\Http\Controllers\Plan\TimelineController;
 use App\Http\Controllers\Plan\VendorController;
+use App\Http\Controllers\WeddingParty\EmergencyContactController;
+use App\Http\Controllers\WeddingParty\FileController as WeddingPartyFileController;
+use App\Http\Controllers\WeddingParty\ResponsibilityController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -143,6 +146,24 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::delete('logistics/transport/{transportGroup}', [LogisticsController::class, 'destroyTransportGroup']);
     Route::post('logistics/transport/{transportGroup}/assign', [LogisticsController::class, 'assignTransport']);
     Route::delete('logistics/transport/{transportGroup}/guests/{guestId}', [LogisticsController::class, 'removeTransport']);
+
+    // Wedding party
+    Route::prefix('wedding-party')->group(function () {
+        Route::get('responsibilities', [ResponsibilityController::class, 'index']);
+        Route::post('responsibilities', [ResponsibilityController::class, 'store']);
+        Route::patch('responsibilities/{responsibility}', [ResponsibilityController::class, 'update']);
+        Route::delete('responsibilities/{responsibility}', [ResponsibilityController::class, 'destroy']);
+
+        Route::get('emergency-contacts', [EmergencyContactController::class, 'index']);
+        Route::post('emergency-contacts', [EmergencyContactController::class, 'store']);
+        Route::patch('emergency-contacts/{emergencyContact}', [EmergencyContactController::class, 'update']);
+        Route::delete('emergency-contacts/{emergencyContact}', [EmergencyContactController::class, 'destroy']);
+        Route::post('emergency-contacts/broadcast', [EmergencyContactController::class, 'broadcast']);
+
+        Route::get('files', [WeddingPartyFileController::class, 'index']);
+        Route::post('files', [WeddingPartyFileController::class, 'store']);
+        Route::delete('files/{file}', [WeddingPartyFileController::class, 'destroy']);
+    });
 
     // Guest experience builder
     Route::get('experience', [GuestExperienceController::class, 'show']);

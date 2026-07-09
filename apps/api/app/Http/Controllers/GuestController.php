@@ -50,6 +50,9 @@ class GuestController extends Controller
             'meal_preference' => 'nullable|string',
             'allergies'       => 'nullable|string',
             'notes'           => 'nullable|string',
+            'wedding_party_role' => 'nullable|string|max:100',
+            'attire_status'      => 'nullable|in:not_started,ordered,fitted,ready',
+            'rehearsal_status'   => 'nullable|in:pending,confirmed,declined',
         ]);
 
         $guest = $wedding->guests()->create($data);
@@ -88,6 +91,9 @@ class GuestController extends Controller
             'departure_date'   => 'nullable|date',
             'arrival_airport'  => 'nullable|string',
             'notes'            => 'nullable|string',
+            'wedding_party_role' => 'nullable|string|max:100',
+            'attire_status'      => 'nullable|in:not_started,ordered,fitted,ready',
+            'rehearsal_status'   => 'nullable|in:pending,confirmed,declined',
         ]);
 
         $guest->update($data);

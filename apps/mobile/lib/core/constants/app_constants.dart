@@ -10,6 +10,13 @@ class AppConstants {
     return kIsWeb ? 'http://api.test/api' : 'http://10.0.2.2/api';
   }
 
+  /// Server origin without the `/api` suffix — for resolving relative
+  /// `/storage/...` URLs returned by upload endpoints into absolute links.
+  static String get apiOrigin {
+    final base = apiBaseUrl;
+    return base.endsWith('/api') ? base.substring(0, base.length - 4) : base;
+  }
+
   // Colors
   static const int udoGreenHex = 0xFF285301;
   static const int udoCrimsonHex = 0xFFD45D78;

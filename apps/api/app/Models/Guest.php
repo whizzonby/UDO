@@ -35,6 +35,9 @@ class Guest extends Model
         'seating_assignment_id',
         'guest_view_type',
         'notes',
+        'wedding_party_role',
+        'attire_status',
+        'rehearsal_status',
     ];
 
     protected $casts = [

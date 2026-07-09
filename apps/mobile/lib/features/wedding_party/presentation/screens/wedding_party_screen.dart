@@ -1,7 +1,79 @@
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+import 'package:intl/intl.dart';
+import 'package:url_launcher/url_launcher.dart';
+import '../../../../core/constants/app_constants.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../providers/wedding_party_provider.dart';
+
+String _fullName(Map<String, dynamic> g) => '${g['first_name'] ?? ''} ${g['last_name'] ?? ''}'.trim();
+
+String _formatTime(String? t) {
+  if (t == null || t.isEmpty) return '';
+  final parts = t.split(':');
+  if (parts.length < 2) return t;
+  final h = int.tryParse(parts[0]) ?? 0;
+  final m = int.tryParse(parts[1]) ?? 0;
+  final suffix = h >= 12 ? 'PM' : 'AM';
+  final hour = h > 12 ? h - 12 : (h == 0 ? 12 : h);
+  return '$hour:${m.toString().padLeft(2, '0')} $suffix';
+}
+
+String _formatDate(String? iso) {
+  if (iso == null || iso.isEmpty) return '';
+  final d = DateTime.tryParse(iso);
+  if (d == null) return iso;
+  return DateFormat('EEE, MMM d').format(d);
+}
+
+String _formatFileSize(int? bytes) {
+  if (bytes == null) return '';
+  if (bytes < 1024) return '$bytes B';
+  if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(1)} KB';
+  return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
+}
+
+Widget _errorBox(String title, String message) => Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          const Icon(Icons.error_outline, size: 40, color: AppTheme.udoCrimson),
+          const SizedBox(height: 12),
+          Text(title, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: AppTheme.udoCrimson)),
+          const SizedBox(height: 6),
+          Text(message, style: const TextStyle(fontSize: 12, color: AppTheme.udoTextSecondary), textAlign: TextAlign.center),
+        ]),
+      ),
+    );
+
+Widget _emptyBox(String message, {IconData icon = Icons.inbox_outlined}) => Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          Icon(icon, size: 36, color: AppTheme.udoTextSecondary),
+          const SizedBox(height: 10),
+          Text(message, style: const TextStyle(fontSize: 13, color: AppTheme.udoTextSecondary), textAlign: TextAlign.center),
+        ]),
+      ),
+    );
+
+Future<void> _launchTel(BuildContext context, String? phone) async {
+  if (phone == null || phone.isEmpty) {
+    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('No phone number on file.')));
+    return;
+  }
+  await launchUrl(Uri.parse('tel:$phone'));
+}
+
+Future<void> _launchSms(BuildContext context, String? phone) async {
+  if (phone == null || phone.isEmpty) {
+    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('No phone number on file.')));
+    return;
+  }
+  await launchUrl(Uri.parse('sms:$phone'));
+}
 
 class WeddingPartyScreen extends ConsumerStatefulWidget {
   const WeddingPartyScreen({super.key});
@@ -24,45 +96,31 @@ class _WeddingPartyScreenState extends ConsumerState<WeddingPartyScreen> with Si
     super.dispose();
   }
 
-  List<Map<String, dynamic>> _mapMembers(List<Map<String, dynamic>> raw) {
-    return raw.map((g) => {
-      'id': g['id']?.toString() ?? '',
-      'name': '${g['first_name'] ?? ''} ${g['last_name'] ?? ''}'.trim(),
-      'role': g['notes'] ?? 'Guest',
-      'responsiveness': 'medium',
-      'pendingTasks': 0,
-      'travelStatus': g['travel_status'] ?? 'unknown',
-      'attireStatus': 'pending',
-      'rehearsalStatus': 'pending',
-      'unreadUpdates': 0,
-    }).toList();
-  }
-
   @override
   Widget build(BuildContext context) {
-    final partyState = ref.watch(weddingPartyProvider);
-    final members = _mapMembers(partyState.members);
+    final state = ref.watch(weddingPartyProvider);
+    final notifier = ref.read(weddingPartyProvider.notifier);
 
     return Scaffold(
       backgroundColor: AppTheme.udoBackground,
-      body: partyState.isLoading
+      body: state.isLoading
           ? const Center(child: CircularProgressIndicator())
           : Column(
               children: [
-                _Header(tabs: _tabs, count: members.length),
+                _Header(tabs: _tabs, count: state.members.length, onRefresh: notifier.refresh),
                 Expanded(
                   child: TabBarView(
                     controller: _tabs,
                     children: [
-                      _OverviewTab(members: members, onPersonTap: (id) => _showPersonDetail(context, members, id)),
-                      _PeopleTab(members: members, onPersonTap: (id) => _showPersonDetail(context, members, id)),
-                      _ResponsibilitiesTab(members: members),
-                      _BuzzesTab(),
-                      _WeddingTimelineTab(),
-                      _TravelTab(members: members),
-                      _RehearsalTab(members: members),
-                      _EmergencyTab(members: members),
-                      _FilesSpeechesTab(members: members),
+                      _OverviewTab(state: state, onPersonTap: (id) => _showPersonDetail(context, state, id)),
+                      _PeopleTab(state: state, onPersonTap: (id) => _showPersonDetail(context, state, id)),
+                      _ResponsibilitiesTab(state: state),
+                      _BuzzesTab(state: state),
+                      _WeddingTimelineTab(state: state),
+                      _TravelTab(state: state),
+                      _RehearsalTab(state: state),
+                      _EmergencyTab(state: state),
+                      _FilesSpeechesTab(state: state),
                     ],
                   ),
                 ),
@@ -77,14 +135,15 @@ class _WeddingPartyScreenState extends ConsumerState<WeddingPartyScreen> with Si
     );
   }
 
-  void _showPersonDetail(BuildContext context, List<Map<String, dynamic>> members, String id) {
-    final person = members.firstWhere((m) => m['id'] == id, orElse: () => {});
+  void _showPersonDetail(BuildContext context, WeddingPartyState state, String id) {
+    final person = state.members.firstWhere((m) => m['id'].toString() == id, orElse: () => {});
     if (person.isEmpty) return;
+    final responsibilities = state.responsibilities.where((r) => r['guest_id']?.toString() == id).toList();
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
-      builder: (_) => _PersonDetailSheet(person: person),
+      builder: (_) => _PersonDetailSheet(person: person, responsibilities: responsibilities),
     );
   }
 
@@ -94,14 +153,18 @@ class _WeddingPartyScreenState extends ConsumerState<WeddingPartyScreen> with Si
       isScrollControlled: true,
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
       builder: (_) => _AddPersonModal(
-        onAdd: ({required firstName, required lastName, required role, email, phone}) {
-          ref.read(weddingPartyProvider.notifier).addMember(
-            firstName: firstName,
-            lastName: lastName,
-            role: role,
-            email: email,
-            phone: phone,
-          );
+        onAdd: ({required firstName, required lastName, required role, email, phone}) async {
+          final ok = await ref.read(weddingPartyProvider.notifier).addMember(
+                firstName: firstName,
+                lastName: lastName,
+                role: role,
+                email: email,
+                phone: phone,
+              );
+          if (!context.mounted) return;
+          if (!ok) {
+            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Couldn't add this person. Try again.")));
+          }
         },
       ),
     );
@@ -113,7 +176,8 @@ class _WeddingPartyScreenState extends ConsumerState<WeddingPartyScreen> with Si
 class _Header extends StatelessWidget {
   final TabController tabs;
   final int count;
-  const _Header({required this.tabs, required this.count});
+  final VoidCallback onRefresh;
+  const _Header({required this.tabs, required this.count, required this.onRefresh});
 
   @override
   Widget build(BuildContext context) {
@@ -128,9 +192,10 @@ class _Header extends StatelessWidget {
               const BackButton(color: Colors.white),
               const Expanded(child: Text('Wedding Party', style: TextStyle(color: Colors.white, fontFamily: 'Playfair', fontSize: 22, fontWeight: FontWeight.w400))),
               Text('$count people', style: const TextStyle(color: Colors.white70, fontSize: 13)),
+              IconButton(onPressed: onRefresh, icon: const Icon(Icons.refresh, color: Colors.white, size: 20), tooltip: 'Refresh'),
             ]),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 4),
           TabBar(
             controller: tabs,
             isScrollable: true,
@@ -158,32 +223,44 @@ class _Header extends StatelessWidget {
 
 // ── OVERVIEW TAB ───────────────────────────────────────────────────────────────
 
-class _OverviewTab extends StatelessWidget {
-  final List<Map<String, dynamic>> members;
+class _OverviewTab extends ConsumerWidget {
+  final WeddingPartyState state;
   final void Function(String) onPersonTap;
-  const _OverviewTab({required this.members, required this.onPersonTap});
+  const _OverviewTab({required this.state, required this.onPersonTap});
 
   @override
-  Widget build(BuildContext context) {
-    final needsAttention = members.where((m) => (m['pendingTasks'] as int) > 0 || m['responsiveness'] == 'low').toList();
+  Widget build(BuildContext context, WidgetRef ref) {
+    final members = state.members;
+    final openByGuest = <String, int>{};
+    for (final r in state.responsibilities) {
+      if (r['status'] == 'done' || r['guest_id'] == null) continue;
+      final gid = r['guest_id'].toString();
+      openByGuest[gid] = (openByGuest[gid] ?? 0) + 1;
+    }
+    final needsAttention = members.where((m) => (openByGuest[m['id'].toString()] ?? 0) > 0).toList();
+    final travelConfirmed = members.where((m) => m['hotel_assignment_id'] != null || m['transport_assignment_id'] != null).length;
+    final attireReady = members.where((m) => m['attire_status'] == 'ready').length;
+    final rehearsalConfirmed = members.where((m) => m['rehearsal_status'] == 'confirmed').length;
+
+    if (state.membersError != null) {
+      return _errorBox("Couldn't load your wedding party.", state.membersError!);
+    }
 
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
-        // Status summary
         Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16), border: Border.all(color: AppTheme.udoBorder)),
           child: Row(children: [
             _MiniStat('${members.length}', 'Total', AppTheme.udoGreen),
-            _MiniStat('${members.where((m) => m['travelStatus'] == 'confirmed').length}', 'Travel\nconfirmed', const Color(0xFF22C55E)),
-            _MiniStat('${members.where((m) => m['attireStatus'] == 'complete').length}', 'Attire\nready', Colors.blue),
-            _MiniStat('${members.where((m) => m['rehearsalStatus'] == 'confirmed').length}', 'Rehearsal\nconfirmed', Colors.purple),
+            _MiniStat('$travelConfirmed', 'Travel\narranged', const Color(0xFF22C55E)),
+            _MiniStat('$attireReady', 'Attire\nready', Colors.blue),
+            _MiniStat('$rehearsalConfirmed', 'Rehearsal\nconfirmed', Colors.purple),
           ]),
         ),
         const SizedBox(height: 12),
 
-        // Alerts
         if (needsAttention.isNotEmpty) ...[
           Container(
             padding: const EdgeInsets.all(16),
@@ -192,48 +269,57 @@ class _OverviewTab extends StatelessWidget {
               Row(children: [
                 const Icon(Icons.warning_amber_outlined, color: AppTheme.udoCrimson, size: 18),
                 const SizedBox(width: 8),
-                Text('${needsAttention.length} need your attention', style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: AppTheme.udoCrimson)),
+                Text('${needsAttention.length} need${needsAttention.length == 1 ? 's' : ''} your attention', style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: AppTheme.udoCrimson)),
               ]),
               const SizedBox(height: 10),
-              for (final m in needsAttention) Container(
-                margin: const EdgeInsets.only(bottom: 6),
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12)),
-                child: Row(children: [
-                  _Avatar(name: m['name'] as String),
-                  const SizedBox(width: 10),
-                  Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    Text(m['name'] as String, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500)),
-                    Text(m['role'] as String, style: const TextStyle(fontSize: 12, color: AppTheme.udoTextSecondary)),
-                  ])),
-                  if ((m['pendingTasks'] as int) > 0)
-                    Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3), decoration: BoxDecoration(color: AppTheme.udoCrimson.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(20)), child: Text('${m['pendingTasks']} tasks', style: const TextStyle(fontSize: 11, color: AppTheme.udoCrimson))),
-                ]),
+              for (final m in needsAttention) GestureDetector(
+                onTap: () => onPersonTap(m['id'].toString()),
+                child: Container(
+                  margin: const EdgeInsets.only(bottom: 6),
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12)),
+                  child: Row(children: [
+                    _Avatar(name: _fullName(m)),
+                    const SizedBox(width: 10),
+                    Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      Text(_fullName(m), style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500)),
+                      Text((m['wedding_party_role'] as String?) ?? 'Wedding party', style: const TextStyle(fontSize: 12, color: AppTheme.udoTextSecondary)),
+                    ])),
+                    Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3), decoration: BoxDecoration(color: AppTheme.udoCrimson.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(20)), child: Text('${openByGuest[m['id'].toString()]} open', style: const TextStyle(fontSize: 11, color: AppTheme.udoCrimson))),
+                  ]),
+                ),
               ),
             ]),
           ),
           const SizedBox(height: 12),
         ],
 
-        // Quick send buzz
         Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16), border: Border.all(color: AppTheme.udoBorder)),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             const Text('Send a buzz', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500)),
             const SizedBox(height: 8),
-            Wrap(spacing: 8, children: [
+            Wrap(spacing: 8, runSpacing: 8, children: [
               for (final label in ['Morning check-in', 'Rehearsal reminder', 'Day-of update', 'Thank you note'])
-                ActionChip(label: Text(label, style: const TextStyle(fontSize: 12)), onPressed: () {}, side: const BorderSide(color: AppTheme.udoBorder)),
+                ActionChip(
+                  label: Text(label, style: const TextStyle(fontSize: 12)),
+                  onPressed: members.isEmpty ? null : () async {
+                    final ok = await ref.read(weddingPartyProvider.notifier).sendBuzz(body: label, channel: 'email');
+                    if (!context.mounted) return;
+                    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(ok ? 'Buzz sent to your wedding party.' : "Couldn't send that buzz.")));
+                  },
+                  side: const BorderSide(color: AppTheme.udoBorder),
+                ),
             ]),
           ]),
         ),
         const SizedBox(height: 12),
 
-        // All members
         const Text('All members', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w500)),
         const SizedBox(height: 8),
-        for (final m in members) _MemberRow(member: m, onTap: () => onPersonTap(m['id'] as String)),
+        if (members.isEmpty) _emptyBox('No one added to your wedding party yet. Tap + to add someone.', icon: Icons.people_outline)
+        else for (final m in members) _MemberRow(member: m, onTap: () => onPersonTap(m['id'].toString())),
       ],
     );
   }
@@ -263,114 +349,100 @@ class _MemberRow extends StatelessWidget {
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(14), border: Border.all(color: AppTheme.udoBorder)),
       child: Row(children: [
-        _Avatar(name: member['name'] as String),
+        _Avatar(name: _fullName(member)),
         const SizedBox(width: 12),
         Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(member['name'] as String, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500)),
-          Text(member['role'] as String, style: const TextStyle(fontSize: 12, color: AppTheme.udoTextSecondary)),
+          Text(_fullName(member), style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500)),
+          Text((member['wedding_party_role'] as String?) ?? 'Wedding party', style: const TextStyle(fontSize: 12, color: AppTheme.udoTextSecondary)),
         ])),
-        if ((member['unreadUpdates'] as int) > 0)
-          Container(
-            margin: const EdgeInsets.only(right: 8),
-            width: 20, height: 20,
-            decoration: const BoxDecoration(color: AppTheme.udoCrimson, shape: BoxShape.circle),
-            child: Center(child: Text('${member['unreadUpdates']}', style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w600))),
-          ),
-        _StatusDot(member['travelStatus'] as String),
+        _AttireDot(member['attire_status'] as String?),
         const SizedBox(width: 4),
-        _StatusDot(member['attireStatus'] as String),
+        _RehearsalDot(member['rehearsal_status'] as String?),
       ]),
     ),
   );
 }
 
-class _StatusDot extends StatelessWidget {
-  final String status;
-  const _StatusDot(this.status);
-
-  Color get _color {
-    if (status == 'confirmed' || status == 'complete') return const Color(0xFF22C55E);
-    if (status == 'needs-response' || status == 'needs-fitting' || status == 'measurements-needed') return AppTheme.udoCrimson;
-    return Colors.orange;
-  }
-
+class _AttireDot extends StatelessWidget {
+  final String? status;
+  const _AttireDot(this.status);
   @override
-  Widget build(BuildContext context) => Container(width: 8, height: 8, decoration: BoxDecoration(color: _color, shape: BoxShape.circle));
+  Widget build(BuildContext context) {
+    final color = status == 'ready' ? const Color(0xFF22C55E) : status == 'fitted' || status == 'ordered' ? Colors.orange : AppTheme.udoBorder;
+    return Container(width: 8, height: 8, decoration: BoxDecoration(color: color, shape: BoxShape.circle));
+  }
+}
+
+class _RehearsalDot extends StatelessWidget {
+  final String? status;
+  const _RehearsalDot(this.status);
+  @override
+  Widget build(BuildContext context) {
+    final color = status == 'confirmed' ? const Color(0xFF22C55E) : status == 'declined' ? AppTheme.udoCrimson : AppTheme.udoBorder;
+    return Container(width: 8, height: 8, decoration: BoxDecoration(color: color, shape: BoxShape.circle));
+  }
 }
 
 // ── PEOPLE TAB ─────────────────────────────────────────────────────────────────
 
 class _PeopleTab extends StatelessWidget {
-  final List<Map<String, dynamic>> members;
+  final WeddingPartyState state;
   final void Function(String) onPersonTap;
-  const _PeopleTab({required this.members, required this.onPersonTap});
+  const _PeopleTab({required this.state, required this.onPersonTap});
+
+  String _attireLabel(String? s) => switch (s) {
+        'ready' => 'Attire ready',
+        'fitted' => 'Fitted',
+        'ordered' => 'Ordered',
+        'not_started' => 'Not started',
+        _ => 'Attire pending',
+      };
+
+  Color _attireColor(String? s) => s == 'ready' ? const Color(0xFF22C55E) : (s == 'fitted' || s == 'ordered') ? Colors.orange : AppTheme.udoTextSecondary;
+
+  String _rehearsalLabel(String? s) => switch (s) {
+        'confirmed' => 'Rehearsal ✓',
+        'declined' => "Won't attend",
+        _ => 'Rehearsal ?',
+      };
+
+  Color _rehearsalColor(String? s) => s == 'confirmed' ? const Color(0xFF22C55E) : s == 'declined' ? AppTheme.udoCrimson : Colors.orange;
 
   @override
-  Widget build(BuildContext context) => ListView.builder(
-    padding: const EdgeInsets.all(16),
-    itemCount: members.length,
-    itemBuilder: (_, i) {
-      final m = members[i];
-      return GestureDetector(
-        onTap: () => onPersonTap(m['id'] as String),
-        child: Container(
-          margin: const EdgeInsets.only(bottom: 10),
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16), border: Border.all(color: AppTheme.udoBorder)),
-          child: Row(children: [
-            _Avatar(name: m['name'] as String, radius: 24),
-            const SizedBox(width: 14),
-            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(m['name'] as String, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w500)),
-              Text(m['role'] as String, style: const TextStyle(fontSize: 13, color: AppTheme.udoTextSecondary)),
-              const SizedBox(height: 6),
-              Row(children: [
-                _MiniChip(_travelLabel(m['travelStatus'] as String), _travelColor(m['travelStatus'] as String)),
-                const SizedBox(width: 6),
-                _MiniChip(_attireLabel(m['attireStatus'] as String), _attireColor(m['attireStatus'] as String)),
-              ]),
-            ])),
-            Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
+  Widget build(BuildContext context) {
+    if (state.membersError != null) return _errorBox("Couldn't load your wedding party.", state.membersError!);
+    if (state.members.isEmpty) return _emptyBox('No one added to your wedding party yet. Tap + to add someone.', icon: Icons.people_outline);
+
+    return ListView.builder(
+      padding: const EdgeInsets.all(16),
+      itemCount: state.members.length,
+      itemBuilder: (_, i) {
+        final m = state.members[i];
+        return GestureDetector(
+          onTap: () => onPersonTap(m['id'].toString()),
+          child: Container(
+            margin: const EdgeInsets.only(bottom: 10),
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16), border: Border.all(color: AppTheme.udoBorder)),
+            child: Row(children: [
+              _Avatar(name: _fullName(m), radius: 24),
+              const SizedBox(width: 14),
+              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text(_fullName(m), style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w500)),
+                Text((m['wedding_party_role'] as String?) ?? 'Wedding party', style: const TextStyle(fontSize: 13, color: AppTheme.udoTextSecondary)),
+                const SizedBox(height: 6),
+                Row(children: [
+                  _MiniChip(_attireLabel(m['attire_status'] as String?), _attireColor(m['attire_status'] as String?)),
+                  const SizedBox(width: 6),
+                  _MiniChip(_rehearsalLabel(m['rehearsal_status'] as String?), _rehearsalColor(m['rehearsal_status'] as String?)),
+                ]),
+              ])),
               const Icon(Icons.chevron_right, color: AppTheme.udoTextSecondary),
-              if ((m['pendingTasks'] as int) > 0)
-                Text('${m['pendingTasks']} tasks', style: const TextStyle(fontSize: 11, color: AppTheme.udoCrimson)),
             ]),
-          ]),
-        ),
-      );
-    },
-  );
-
-  String _travelLabel(String s) {
-    switch (s) {
-      case 'confirmed': return 'Travel ✓';
-      case 'needs-response': return 'Travel ?';
-      case 'travelling': return 'Travelling';
-      case 'delayed': return 'Delayed';
-      default: return s;
-    }
-  }
-
-  Color _travelColor(String s) {
-    if (s == 'confirmed') return const Color(0xFF22C55E);
-    if (s == 'needs-response' || s == 'delayed') return AppTheme.udoCrimson;
-    return Colors.orange;
-  }
-
-  String _attireLabel(String s) {
-    switch (s) {
-      case 'complete': return 'Attire ✓';
-      case 'needs-fitting': return 'Fitting needed';
-      case 'pending-approval': return 'Awaiting approval';
-      case 'measurements-needed': return 'Measurements needed';
-      default: return s;
-    }
-  }
-
-  Color _attireColor(String s) {
-    if (s == 'complete') return const Color(0xFF22C55E);
-    if (s == 'needs-fitting' || s == 'measurements-needed') return AppTheme.udoCrimson;
-    return Colors.orange;
+          ),
+        );
+      },
+    );
   }
 }
 
@@ -389,262 +461,81 @@ class _MiniChip extends StatelessWidget {
 
 // ── RESPONSIBILITIES TAB ───────────────────────────────────────────────────────
 
-class _ResponsibilitiesTab extends StatefulWidget {
-  final List<Map<String, dynamic>> members;
-  const _ResponsibilitiesTab({required this.members});
-  @override
-  State<_ResponsibilitiesTab> createState() => _ResponsibilitiesTabState();
-}
+class _ResponsibilitiesTab extends ConsumerWidget {
+  final WeddingPartyState state;
+  const _ResponsibilitiesTab({required this.state});
 
-class _ResponsibilitiesTabState extends State<_ResponsibilitiesTab> {
-  late List<Map<String, dynamic>> _tasks;
-
-  @override
-  void initState() {
-    super.initState();
-    _tasks = [
-      {'title': 'Coordinate bridesmaids arrivals', 'description': 'Ensure all bridesmaids are ready and in position before the ceremony starts.', 'owner': 'Sarah Johnson', 'backupOwner': '', 'time': '9:00 AM', 'location': 'Bridal suite', 'status': 'in-progress', 'urgency': 'high', 'linkedEvent': 'Ceremony - 4:00 PM', 'dependencies': '', 'notes': '', 'transport': ''},
-      {'title': 'Manage vendor check-ins', 'description': 'Greet and direct all vendors to their designated areas.', 'owner': 'Michael Chen', 'backupOwner': '', 'time': '2:00 PM', 'location': 'Venue entrance', 'status': 'assigned', 'urgency': 'high', 'linkedEvent': 'None', 'dependencies': '', 'notes': '', 'transport': ''},
-      {'title': 'Distribute bouquets and buttonholes', 'description': 'Collect florals from florist and distribute to all wedding party members.', 'owner': 'Emily Davis', 'backupOwner': 'Amanda White', 'time': '3:30 PM', 'location': 'Florist prep room', 'status': 'assigned', 'urgency': 'medium', 'linkedEvent': 'None', 'dependencies': 'Florist delivery confirmed', 'notes': '', 'transport': ''},
-      {'title': 'Escort parents to seats', 'description': 'Escort both sets of parents down the aisle to their reserved seats before the ceremony.', 'owner': 'James Wilson', 'backupOwner': '', 'time': '4:00 PM', 'location': 'Ceremony aisle', 'status': 'assigned', 'urgency': 'medium', 'linkedEvent': 'Ceremony - 4:00 PM', 'dependencies': '', 'notes': '', 'transport': ''},
-      {'title': 'Coordinate cake cutting', 'description': 'Signal the DJ and photographer, cue the couple, and have venue staff ready with plates.', 'owner': 'Amanda White', 'backupOwner': '', 'time': '8:00 PM', 'location': 'Reception hall', 'status': 'assigned', 'urgency': 'low', 'linkedEvent': 'Reception - 6:00 PM', 'dependencies': '', 'notes': '', 'transport': ''},
-      {'title': 'Gather gifts at end of night', 'description': 'Collect all gifts and cards and secure them in the designated vehicle.', 'owner': 'Ryan Taylor', 'backupOwner': '', 'time': '11:00 PM', 'location': 'Reception exit', 'status': 'assigned', 'urgency': 'low', 'linkedEvent': 'None', 'dependencies': '', 'notes': '', 'transport': ''},
-    ];
-  }
-
-  void _openDetail(Map<String, dynamic> task) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
-      builder: (_) => _ResponsibilityDetailSheet(
-        task: Map<String, dynamic>.from(task),
-        members: widget.members,
-        onSave: (updated) => setState(() {
-          final i = _tasks.indexWhere((t) => t['title'] == task['title']);
-          if (i >= 0) _tasks[i] = updated;
-        }),
-        onDelete: () => setState(() => _tasks.removeWhere((t) => t['title'] == task['title'])),
-      ),
-    );
+  String _guestName(WeddingPartyState state, dynamic guestId) {
+    if (guestId == null) return 'Unassigned';
+    final g = state.members.firstWhere((m) => m['id'].toString() == guestId.toString(), orElse: () => {});
+    return g.isEmpty ? 'Unassigned' : _fullName(g);
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    if (state.responsibilitiesError != null) {
+      return _errorBox("Couldn't load responsibilities.", state.responsibilitiesError!);
+    }
+
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
         Row(children: [
           const Expanded(child: Text('Day-of responsibilities', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w500))),
-          TextButton.icon(onPressed: () {}, icon: const Icon(Icons.add, size: 16), label: const Text('Add', style: TextStyle(fontSize: 13))),
+          TextButton.icon(
+            onPressed: () => _openEditor(context, ref, null),
+            icon: const Icon(Icons.add, size: 16),
+            label: const Text('Add', style: TextStyle(fontSize: 13)),
+          ),
         ]),
         const SizedBox(height: 8),
-        for (final task in _tasks) GestureDetector(
-          onTap: () => _openDetail(task),
-          child: Container(
-            margin: const EdgeInsets.only(bottom: 8),
-            padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: task['status'] == 'in-progress' ? AppTheme.udoGreen.withValues(alpha: 0.4) : AppTheme.udoBorder),
+        if (state.responsibilities.isEmpty)
+          _emptyBox('No responsibilities yet. Tap Add to assign one.', icon: Icons.checklist_outlined)
+        else
+          for (final task in state.responsibilities) GestureDetector(
+            onTap: () => _openEditor(context, ref, task),
+            child: Container(
+              margin: const EdgeInsets.only(bottom: 8),
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: task['status'] == 'in_progress' ? AppTheme.udoGreen.withValues(alpha: 0.4) : AppTheme.udoBorder),
+              ),
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Row(children: [
+                  Expanded(child: Text(task['title'] as String, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500))),
+                  _StatusBadge(task['status'] as String? ?? 'pending'),
+                ]),
+                const SizedBox(height: 6),
+                Row(children: [
+                  const Icon(Icons.person_outline, size: 14, color: AppTheme.udoTextSecondary),
+                  const SizedBox(width: 4),
+                  Text(_guestName(state, task['guest_id']), style: const TextStyle(fontSize: 12, color: AppTheme.udoTextSecondary)),
+                  if (task['due_date'] != null) ...[
+                    const Spacer(),
+                    const Icon(Icons.schedule, size: 14, color: AppTheme.udoTextSecondary),
+                    const SizedBox(width: 4),
+                    Text(_formatDate(task['due_date'] as String?), style: const TextStyle(fontSize: 12, color: AppTheme.udoTextSecondary)),
+                  ],
+                ]),
+                if ((task['description'] as String?)?.isNotEmpty == true) ...[
+                  const SizedBox(height: 6),
+                  Text(task['description'] as String, style: const TextStyle(fontSize: 12, color: AppTheme.udoTextSecondary), maxLines: 2, overflow: TextOverflow.ellipsis),
+                ],
+              ]),
             ),
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Row(children: [
-                Expanded(child: Text(task['title'] as String, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500))),
-                _UrgencyBadge(task['urgency'] as String),
-              ]),
-              const SizedBox(height: 6),
-              Row(children: [
-                const Icon(Icons.person_outline, size: 14, color: AppTheme.udoTextSecondary),
-                const SizedBox(width: 4),
-                Text(task['owner'] as String, style: const TextStyle(fontSize: 12, color: AppTheme.udoTextSecondary)),
-                const Spacer(),
-                const Icon(Icons.schedule, size: 14, color: AppTheme.udoTextSecondary),
-                const SizedBox(width: 4),
-                Text(task['time'] as String, style: const TextStyle(fontSize: 12, color: AppTheme.udoTextSecondary)),
-              ]),
-              const SizedBox(height: 6),
-              Row(children: [
-                _StatusBadge(task['status'] as String),
-                const Spacer(),
-                const Icon(Icons.chevron_right, size: 16, color: AppTheme.udoTextSecondary),
-              ]),
-            ]),
           ),
-        ),
       ],
     );
   }
-}
 
-// ── RESPONSIBILITY DETAIL SHEET ────────────────────────────────────────────────
-
-class _ResponsibilityDetailSheet extends StatefulWidget {
-  final Map<String, dynamic> task;
-  final List<Map<String, dynamic>> members;
-  final void Function(Map<String, dynamic>) onSave;
-  final VoidCallback onDelete;
-  const _ResponsibilityDetailSheet({required this.task, required this.members, required this.onSave, required this.onDelete});
-  @override
-  State<_ResponsibilityDetailSheet> createState() => _ResponsibilityDetailSheetState();
-}
-
-class _ResponsibilityDetailSheetState extends State<_ResponsibilityDetailSheet> {
-  late final TextEditingController _title, _description, _location, _dependencies, _notes;
-  late String _owner, _backupOwner, _status, _urgency, _linkedEvent;
-
-  @override
-  void initState() {
-    super.initState();
-    final t = widget.task;
-    _title = TextEditingController(text: t['title'] as String);
-    _description = TextEditingController(text: t['description'] as String);
-    _location = TextEditingController(text: t['location'] as String);
-    _dependencies = TextEditingController(text: t['dependencies'] as String);
-    _notes = TextEditingController(text: t['notes'] as String);
-    _owner = t['owner'] as String;
-    _backupOwner = t['backupOwner'] as String;
-    _status = t['status'] as String;
-    _urgency = t['urgency'] as String;
-    _linkedEvent = t['linkedEvent'] as String;
-  }
-
-  @override
-  void dispose() {
-    _title.dispose(); _description.dispose(); _location.dispose();
-    _dependencies.dispose(); _notes.dispose();
-    super.dispose();
-  }
-
-  void _save() {
-    widget.onSave({
-      ...widget.task,
-      'title': _title.text, 'description': _description.text,
-      'location': _location.text, 'dependencies': _dependencies.text,
-      'notes': _notes.text, 'owner': _owner, 'backupOwner': _backupOwner,
-      'status': _status, 'urgency': _urgency, 'linkedEvent': _linkedEvent,
-    });
-    Navigator.pop(context);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final peopleNames = widget.members.map((m) => m['name'] as String).toList();
-    return DraggableScrollableSheet(
-      expand: false, initialChildSize: 0.92, maxChildSize: 0.98,
-      builder: (_, ctrl) => Column(children: [
-        // Sticky header
-        Container(
-          decoration: const BoxDecoration(color: Colors.white, borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
-          padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
-          child: Row(children: [
-            const Expanded(child: Text('Responsibility Details', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600))),
-            IconButton(onPressed: () => Navigator.pop(context), icon: const Icon(Icons.close), padding: EdgeInsets.zero),
-          ]),
-        ),
-        const Divider(height: 1),
-        // Scrollable fields
-        Expanded(child: SingleChildScrollView(controller: ctrl, padding: const EdgeInsets.fromLTRB(20, 16, 20, 0), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          _SheetField('Title', _title),
-          const SizedBox(height: 14),
-          _SheetField('Description', _description, maxLines: 4),
-          const SizedBox(height: 14),
-          _SheetDropdown('Assigned person', _owner, peopleNames, (v) => setState(() => _owner = v)),
-          const SizedBox(height: 14),
-          _SheetDropdownNullable('Backup person (optional)', _backupOwner, ['', ...peopleNames], (v) => setState(() => _backupOwner = v ?? '')),
-          const SizedBox(height: 14),
-          _SheetField('Location', _location),
-          const SizedBox(height: 14),
-          _SheetDropdown('Linked timeline event', _linkedEvent, ['None', 'Hair & Makeup - 10:00 AM', 'Photography - 2:00 PM', 'Ceremony - 4:00 PM', 'Reception - 6:00 PM'], (v) => setState(() => _linkedEvent = v)),
-          const SizedBox(height: 14),
-          _SheetField('Dependencies', _dependencies, hint: 'e.g. Florist delivery confirmed'),
-          const SizedBox(height: 14),
-          _SheetDropdown('Priority', _urgency, ['high', 'medium', 'low'], (v) => setState(() => _urgency = v), display: {'high': 'High', 'medium': 'Medium', 'low': 'Low'}),
-          const SizedBox(height: 14),
-          _SheetDropdown('Status', _status, ['assigned', 'viewed', 'acknowledged', 'in-progress', 'delayed', 'needs-help', 'escalated', 'completed'], (v) => setState(() => _status = v), display: {'assigned': 'Assigned', 'viewed': 'Viewed', 'acknowledged': 'Acknowledged', 'in-progress': 'In Progress', 'delayed': 'Delayed', 'needs-help': 'Needs Help', 'escalated': 'Escalated', 'completed': 'Completed'}),
-          const SizedBox(height: 14),
-          _SheetField('Notes', _notes, maxLines: 3, hint: 'Additional notes or instructions...'),
-          const SizedBox(height: 14),
-          const Text('Communication history', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500)),
-          const SizedBox(height: 8),
-          Container(padding: const EdgeInsets.all(14), decoration: BoxDecoration(color: const Color(0xFFF3EFEA), borderRadius: BorderRadius.circular(12)), child: const Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text('2h ago: Sent reminder via WhatsApp', style: TextStyle(fontSize: 13, color: AppTheme.udoTextSecondary)),
-            SizedBox(height: 4),
-            Text('1d ago: Task assigned', style: TextStyle(fontSize: 13, color: AppTheme.udoTextSecondary)),
-          ])),
-          const SizedBox(height: 24),
-        ]))),
-        // Sticky footer
-        const Divider(height: 1),
-        Container(
-          color: AppTheme.udoBackground,
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 20),
-          child: SafeArea(top: false, child: Wrap(spacing: 8, runSpacing: 8, children: [
-            _FooterBtn('Save', AppTheme.udoGreen, Icons.save_outlined, _save),
-            _FooterBtn('Mark complete', const Color(0xFF22C55E), Icons.check_circle_outline, () {
-              setState(() => _status = 'completed');
-              _save();
-            }),
-            _FooterBtn('Send buzz', Colors.blue, Icons.send_outlined, () => Navigator.pop(context)),
-            _FooterBtn('Reassign', Colors.purple, Icons.person_outlined, () {}),
-            _FooterBtn('Delete', Colors.red, Icons.delete_outline, () {
-              Navigator.pop(context);
-              widget.onDelete();
-            }),
-          ])),
-        ),
-      ]),
-    );
-  }
-}
-
-Widget _FooterBtn(String label, Color color, IconData icon, VoidCallback onTap) => ElevatedButton.icon(
-  onPressed: onTap,
-  icon: Icon(icon, size: 16),
-  label: Text(label, style: const TextStyle(fontSize: 13)),
-  style: ElevatedButton.styleFrom(backgroundColor: color, foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
-);
-
-Widget _SheetField(String label, TextEditingController ctrl, {int maxLines = 1, String? hint}) => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-  Text(label, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500)),
-  const SizedBox(height: 6),
-  TextField(controller: ctrl, maxLines: maxLines, decoration: InputDecoration(hintText: hint, hintStyle: const TextStyle(color: AppTheme.udoTextSecondary, fontSize: 13), filled: true, fillColor: const Color(0xFFF3EFEA), border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none), enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none), focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: AppTheme.udoGreen, width: 1.5)), contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12))),
-]);
-
-Widget _SheetDropdown(String label, String value, List<String> options, ValueChanged<String> onChanged, {Map<String, String>? display}) => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-  Text(label, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500)),
-  const SizedBox(height: 6),
-  DropdownButtonFormField<String>(
-    value: options.contains(value) ? value : options.first,
-    decoration: InputDecoration(filled: true, fillColor: const Color(0xFFF3EFEA), border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none), enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none), contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4)),
-    items: options.map((o) => DropdownMenuItem(value: o, child: Text(display?[o] ?? o, style: const TextStyle(fontSize: 14)))).toList(),
-    onChanged: (v) { if (v != null) onChanged(v); },
-  ),
-]);
-
-Widget _SheetDropdownNullable(String label, String value, List<String> options, ValueChanged<String?> onChanged) => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-  Text(label, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500)),
-  const SizedBox(height: 6),
-  DropdownButtonFormField<String>(
-    value: options.contains(value) ? value : '',
-    decoration: InputDecoration(filled: true, fillColor: const Color(0xFFF3EFEA), border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none), enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none), contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4)),
-    items: options.map((o) => DropdownMenuItem(value: o, child: Text(o.isEmpty ? 'None' : o, style: const TextStyle(fontSize: 14)))).toList(),
-    onChanged: onChanged,
-  ),
-]);
-
-class _UrgencyBadge extends StatelessWidget {
-  final String urgency;
-  const _UrgencyBadge(this.urgency);
-
-  @override
-  Widget build(BuildContext context) {
-    final color = urgency == 'high' ? AppTheme.udoCrimson : urgency == 'medium' ? Colors.orange : Colors.grey;
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-      decoration: BoxDecoration(color: color.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(20)),
-      child: Text(urgency[0].toUpperCase() + urgency.substring(1), style: TextStyle(fontSize: 10, color: color, fontWeight: FontWeight.w500)),
+  void _openEditor(BuildContext context, WidgetRef ref, Map<String, dynamic>? task) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+      builder: (_) => _ResponsibilityEditorSheet(task: task, members: state.members),
     );
   }
 }
@@ -655,9 +546,9 @@ class _StatusBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = status == 'in-progress' ? AppTheme.udoGreen : status == 'completed' ? const Color(0xFF22C55E) : AppTheme.udoTextSecondary;
-    final label = status == 'in-progress' ? 'In progress' : status == 'completed' ? 'Done' : 'Assigned';
-    return Row(children: [
+    final color = status == 'in_progress' ? AppTheme.udoGreen : status == 'done' ? const Color(0xFF22C55E) : AppTheme.udoTextSecondary;
+    final label = status == 'in_progress' ? 'In progress' : status == 'done' ? 'Done' : 'Pending';
+    return Row(mainAxisSize: MainAxisSize.min, children: [
       Container(width: 8, height: 8, decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
       const SizedBox(width: 6),
       Text(label, style: TextStyle(fontSize: 12, color: color)),
@@ -665,20 +556,212 @@ class _StatusBadge extends StatelessWidget {
   }
 }
 
-// ── BUZZES TAB ─────────────────────────────────────────────────────────────────
+// ── RESPONSIBILITY EDITOR SHEET ────────────────────────────────────────────────
 
-class _BuzzesTab extends StatefulWidget {
+class _ResponsibilityEditorSheet extends ConsumerStatefulWidget {
+  final Map<String, dynamic>? task;
+  final List<Map<String, dynamic>> members;
+  const _ResponsibilityEditorSheet({required this.task, required this.members});
   @override
-  State<_BuzzesTab> createState() => _BuzzesTabState();
+  ConsumerState<_ResponsibilityEditorSheet> createState() => _ResponsibilityEditorSheetState();
 }
 
-class _BuzzesTabState extends State<_BuzzesTab> {
-  final _ctrl = TextEditingController();
-  String _tone = 'gentle';
-  String _channel = 'WhatsApp';
+class _ResponsibilityEditorSheetState extends ConsumerState<_ResponsibilityEditorSheet> {
+  late final TextEditingController _title, _description;
+  String? _guestId;
+  String _status = 'pending';
+  DateTime? _dueDate;
+  bool _saving = false;
+  String? _error;
+
+  bool get _isEdit => widget.task != null;
+
+  @override
+  void initState() {
+    super.initState();
+    final t = widget.task;
+    _title = TextEditingController(text: t?['title'] as String? ?? '');
+    _description = TextEditingController(text: t?['description'] as String? ?? '');
+    _guestId = t?['guest_id']?.toString();
+    _status = t?['status'] as String? ?? 'pending';
+    final due = t?['due_date'] as String?;
+    _dueDate = due != null ? DateTime.tryParse(due) : null;
+  }
+
+  @override
+  void dispose() {
+    _title.dispose();
+    _description.dispose();
+    super.dispose();
+  }
+
+  Future<void> _save() async {
+    if (_title.text.trim().isEmpty) {
+      setState(() => _error = 'Give this responsibility a title.');
+      return;
+    }
+    setState(() { _saving = true; _error = null; });
+    final notifier = ref.read(weddingPartyProvider.notifier);
+    final ok = _isEdit
+        ? await notifier.updateResponsibility(widget.task!['id'] as int, {
+            'title': _title.text.trim(),
+            'description': _description.text.trim(),
+            'guest_id': _guestId != null ? int.parse(_guestId!) : null,
+            'status': _status,
+            if (_dueDate != null) 'due_date': _dueDate!.toIso8601String().split('T').first,
+          })
+        : await notifier.createResponsibility(
+            title: _title.text.trim(),
+            description: _description.text.trim(),
+            guestId: _guestId != null ? int.parse(_guestId!) : null,
+            status: _status,
+            dueDate: _dueDate,
+          );
+    if (!mounted) return;
+    if (ok) {
+      Navigator.pop(context);
+    } else {
+      setState(() { _saving = false; _error = "Couldn't save. Try again."; });
+    }
+  }
+
+  Future<void> _delete() async {
+    if (!_isEdit) return;
+    Navigator.pop(context);
+    await ref.read(weddingPartyProvider.notifier).deleteResponsibility(widget.task!['id'] as int);
+  }
 
   @override
   Widget build(BuildContext context) {
+    return DraggableScrollableSheet(
+      expand: false, initialChildSize: 0.85, maxChildSize: 0.95,
+      builder: (_, ctrl) => Column(children: [
+        Container(
+          decoration: const BoxDecoration(color: Colors.white, borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+          padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
+          child: Row(children: [
+            Expanded(child: Text(_isEdit ? 'Edit responsibility' : 'New responsibility', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600))),
+            IconButton(onPressed: () => Navigator.pop(context), icon: const Icon(Icons.close), padding: EdgeInsets.zero),
+          ]),
+        ),
+        const Divider(height: 1),
+        Expanded(child: SingleChildScrollView(controller: ctrl, padding: const EdgeInsets.fromLTRB(20, 16, 20, 0), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          _SheetField('Title', _title),
+          const SizedBox(height: 14),
+          _SheetField('Description', _description, maxLines: 3, hint: 'Optional'),
+          const SizedBox(height: 14),
+          const Text('Assigned to', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500)),
+          const SizedBox(height: 6),
+          DropdownButtonFormField<String?>(
+            value: _guestId,
+            decoration: _sheetDecoration(),
+            items: [
+              const DropdownMenuItem<String?>(value: null, child: Text('Unassigned')),
+              ...widget.members.map((m) => DropdownMenuItem<String?>(value: m['id'].toString(), child: Text(_fullName(m)))),
+            ],
+            onChanged: (v) => setState(() => _guestId = v),
+          ),
+          const SizedBox(height: 14),
+          const Text('Due date', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500)),
+          const SizedBox(height: 6),
+          GestureDetector(
+            onTap: () async {
+              final picked = await showDatePicker(context: context, initialDate: _dueDate ?? DateTime.now(), firstDate: DateTime(2020), lastDate: DateTime(2100));
+              if (picked != null) setState(() => _dueDate = picked);
+            },
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+              decoration: BoxDecoration(color: const Color(0xFFF3EFEA), borderRadius: BorderRadius.circular(12)),
+              child: Row(children: [
+                Expanded(child: Text(_dueDate != null ? DateFormat('EEE, MMM d, yyyy').format(_dueDate!) : 'No due date', style: const TextStyle(fontSize: 14))),
+                const Icon(Icons.calendar_today_outlined, size: 16, color: AppTheme.udoTextSecondary),
+              ]),
+            ),
+          ),
+          const SizedBox(height: 14),
+          const Text('Status', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500)),
+          const SizedBox(height: 6),
+          DropdownButtonFormField<String>(
+            value: _status,
+            decoration: _sheetDecoration(),
+            items: const [
+              DropdownMenuItem(value: 'pending', child: Text('Pending')),
+              DropdownMenuItem(value: 'in_progress', child: Text('In progress')),
+              DropdownMenuItem(value: 'done', child: Text('Done')),
+            ],
+            onChanged: (v) => setState(() => _status = v ?? 'pending'),
+          ),
+          if (_error != null) ...[
+            const SizedBox(height: 12),
+            Text(_error!, style: const TextStyle(fontSize: 12, color: AppTheme.udoCrimson)),
+          ],
+          const SizedBox(height: 24),
+        ]))),
+        const Divider(height: 1),
+        Container(
+          color: AppTheme.udoBackground,
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 20),
+          child: SafeArea(top: false, child: Row(children: [
+            Expanded(child: ElevatedButton.icon(
+              onPressed: _saving ? null : _save,
+              icon: _saving ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : const Icon(Icons.save_outlined, size: 16),
+              label: Text(_saving ? 'Saving…' : 'Save', style: const TextStyle(fontSize: 13)),
+              style: ElevatedButton.styleFrom(backgroundColor: AppTheme.udoGreen, foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(vertical: 12)),
+            )),
+            if (_isEdit) ...[
+              const SizedBox(width: 8),
+              OutlinedButton.icon(
+                onPressed: _delete,
+                icon: const Icon(Icons.delete_outline, size: 16, color: Colors.red),
+                label: const Text('Delete', style: TextStyle(fontSize: 13, color: Colors.red)),
+                style: OutlinedButton.styleFrom(side: const BorderSide(color: Colors.red), padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 14)),
+              ),
+            ],
+          ])),
+        ),
+      ]),
+    );
+  }
+}
+
+InputDecoration _sheetDecoration() => InputDecoration(filled: true, fillColor: const Color(0xFFF3EFEA), border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none), enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none), contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4));
+
+Widget _SheetField(String label, TextEditingController ctrl, {int maxLines = 1, String? hint}) => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+  Text(label, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500)),
+  const SizedBox(height: 6),
+  TextField(controller: ctrl, maxLines: maxLines, decoration: InputDecoration(hintText: hint, hintStyle: const TextStyle(color: AppTheme.udoTextSecondary, fontSize: 13), filled: true, fillColor: const Color(0xFFF3EFEA), border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none), enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none), focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: AppTheme.udoGreen, width: 1.5)), contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12))),
+]);
+
+// ── BUZZES TAB ─────────────────────────────────────────────────────────────────
+
+class _BuzzesTab extends ConsumerStatefulWidget {
+  final WeddingPartyState state;
+  const _BuzzesTab({required this.state});
+  @override
+  ConsumerState<_BuzzesTab> createState() => _BuzzesTabState();
+}
+
+class _BuzzesTabState extends ConsumerState<_BuzzesTab> {
+  final _ctrl = TextEditingController();
+  String _channel = 'email';
+  bool _sending = false;
+
+  static const _channels = {'email': 'Email', 'sms': 'SMS', 'whatsapp': 'WhatsApp', 'in_app': 'In-app'};
+
+  Future<void> _send() async {
+    final body = _ctrl.text.trim();
+    if (body.isEmpty || widget.state.members.isEmpty) return;
+    setState(() => _sending = true);
+    final ok = await ref.read(weddingPartyProvider.notifier).sendBuzz(body: body, channel: _channel);
+    if (!mounted) return;
+    setState(() => _sending = false);
+    if (ok) _ctrl.clear();
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(ok ? 'Buzz sent to your wedding party.' : "Couldn't send that buzz. Try again.")));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final state = widget.state;
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
@@ -700,64 +783,53 @@ class _BuzzesTabState extends State<_BuzzesTab> {
               ),
             ),
             const SizedBox(height: 12),
-            const Text('Tone', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500)),
-            const SizedBox(height: 6),
-            Wrap(spacing: 6, children: [
-              for (final t in ['gentle', 'warm', 'loving', 'excited', 'encouraging', 'formal'])
-                ChoiceChip(
-                  label: Text(t[0].toUpperCase() + t.substring(1), style: const TextStyle(fontSize: 12)),
-                  selected: _tone == t,
-                  onSelected: (_) => setState(() => _tone = t),
-                  selectedColor: AppTheme.udoGreen,
-                  labelStyle: TextStyle(color: _tone == t ? Colors.white : AppTheme.udoTextPrimary),
-                  side: BorderSide(color: _tone == t ? AppTheme.udoGreen : AppTheme.udoBorder),
-                ),
-            ]),
-            const SizedBox(height: 12),
             const Text('Channel', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500)),
             const SizedBox(height: 6),
-            Row(children: [
-              for (final ch in ['WhatsApp', 'SMS', 'Email', 'In-app'])
-                Padding(padding: const EdgeInsets.only(right: 8), child: ChoiceChip(
-                  label: Text(ch, style: const TextStyle(fontSize: 12)),
-                  selected: _channel == ch,
-                  onSelected: (_) => setState(() => _channel = ch),
+            Wrap(spacing: 8, children: [
+              for (final entry in _channels.entries)
+                ChoiceChip(
+                  label: Text(entry.value, style: const TextStyle(fontSize: 12)),
+                  selected: _channel == entry.key,
+                  onSelected: (_) => setState(() => _channel = entry.key),
                   selectedColor: AppTheme.udoGreen,
-                  labelStyle: TextStyle(color: _channel == ch ? Colors.white : AppTheme.udoTextPrimary),
-                  side: BorderSide(color: _channel == ch ? AppTheme.udoGreen : AppTheme.udoBorder),
-                )),
+                  labelStyle: TextStyle(color: _channel == entry.key ? Colors.white : AppTheme.udoTextPrimary),
+                  side: BorderSide(color: _channel == entry.key ? AppTheme.udoGreen : AppTheme.udoBorder),
+                ),
             ]),
             const SizedBox(height: 14),
+            if (state.members.isEmpty)
+              const Text('Add someone to your wedding party first.', style: TextStyle(fontSize: 12, color: AppTheme.udoTextSecondary)),
             ElevatedButton(
-              onPressed: () => _ctrl.clear(),
+              onPressed: (_sending || state.members.isEmpty) ? null : _send,
               style: ElevatedButton.styleFrom(minimumSize: const Size(double.infinity, 48), backgroundColor: AppTheme.udoGreen, foregroundColor: Colors.white),
-              child: const Text('Send to all'),
+              child: _sending ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : const Text('Send to all'),
             ),
           ]),
         ),
         const SizedBox(height: 16),
         const Text('Recent buzzes', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w500)),
         const SizedBox(height: 8),
-        for (final (msg, to, sent, status) in [
-          ('Reminder: rehearsal is at 3pm sharp tomorrow at the venue.', 'All', '2h ago', 'read'),
-          ('Don\'t forget to pick up your dresses today! 💕', 'Bridesmaids', '1d ago', 'delivered'),
-          ('Hey team — hotel check-in is from 2pm. See you all there!', 'All', '2d ago', 'read'),
-        ]) Container(
-          margin: const EdgeInsets.only(bottom: 8),
-          padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(14), border: Border.all(color: AppTheme.udoBorder)),
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(msg, style: const TextStyle(fontSize: 13, height: 1.4)),
-            const SizedBox(height: 6),
-            Row(children: [
-              Text('To: $to', style: const TextStyle(fontSize: 11, color: AppTheme.udoTextSecondary)),
-              const Spacer(),
-              Container(width: 6, height: 6, decoration: BoxDecoration(color: status == 'read' ? AppTheme.udoGreen : Colors.orange, shape: BoxShape.circle)),
-              const SizedBox(width: 4),
-              Text(sent, style: const TextStyle(fontSize: 11, color: AppTheme.udoTextSecondary)),
+        if (state.buzzesError != null)
+          _errorBox("Couldn't load recent buzzes.", state.buzzesError!)
+        else if (state.buzzes.isEmpty)
+          _emptyBox('No buzzes sent yet.', icon: Icons.campaign_outlined)
+        else
+          for (final msg in state.buzzes) Container(
+            margin: const EdgeInsets.only(bottom: 8),
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(14), border: Border.all(color: AppTheme.udoBorder)),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(msg['body'] as String? ?? '', style: const TextStyle(fontSize: 13, height: 1.4)),
+              const SizedBox(height: 6),
+              Row(children: [
+                Text('Via ${_channels[msg['channel']] ?? msg['channel']} · ${msg['recipient_count'] ?? 0} recipient${(msg['recipient_count'] ?? 0) == 1 ? '' : 's'}', style: const TextStyle(fontSize: 11, color: AppTheme.udoTextSecondary)),
+                const Spacer(),
+                Container(width: 6, height: 6, decoration: const BoxDecoration(color: Color(0xFF22C55E), shape: BoxShape.circle)),
+                const SizedBox(width: 4),
+                Text(_formatDate(msg['sent_at'] as String?), style: const TextStyle(fontSize: 11, color: AppTheme.udoTextSecondary)),
+              ]),
             ]),
-          ]),
-        ),
+          ),
       ],
     );
   }
@@ -768,77 +840,52 @@ class _BuzzesTabState extends State<_BuzzesTab> {
 
 // ── WEDDING TIMELINE TAB ───────────────────────────────────────────────────────
 
-class _WeddingTimelineTab extends StatefulWidget {
-  @override
-  State<_WeddingTimelineTab> createState() => _WeddingTimelineTabState();
-}
-
-class _WeddingTimelineTabState extends State<_WeddingTimelineTab> {
-  late List<Map<String, dynamic>> _items;
-
-  @override
-  void initState() {
-    super.initState();
-    _items = [
-      {'time': '3:30 PM', 'title': 'Guests arrive', 'owner': 'Ushers', 'status': 'completed', 'startTime': '15:30', 'endTime': '16:00', 'location': 'Venue entrance', 'transport': '', 'notes': '', 'linkedResponsibilities': []},
-      {'time': '4:00 PM', 'title': 'Ceremony begins', 'owner': 'Officiant', 'status': 'in-progress', 'startTime': '16:00', 'endTime': '16:30', 'location': 'Ceremony hall', 'transport': '', 'notes': '', 'linkedResponsibilities': []},
-      {'time': '4:30 PM', 'title': 'Ceremony ends', 'owner': 'Wedding party', 'status': 'upcoming', 'startTime': '16:30', 'endTime': '16:45', 'location': 'Ceremony hall', 'transport': '', 'notes': '', 'linkedResponsibilities': []},
-      {'time': '4:45 PM', 'title': 'Photos', 'owner': 'Photographer', 'status': 'upcoming', 'startTime': '16:45', 'endTime': '17:00', 'location': 'Garden', 'transport': '', 'notes': '', 'linkedResponsibilities': []},
-      {'time': '5:00 PM', 'title': 'Cocktail hour', 'owner': 'Catering', 'status': 'upcoming', 'startTime': '17:00', 'endTime': '18:00', 'location': 'Terrace', 'transport': '', 'notes': '', 'linkedResponsibilities': []},
-      {'time': '6:00 PM', 'title': 'Grand entrance', 'owner': 'DJ', 'status': 'upcoming', 'startTime': '18:00', 'endTime': '18:15', 'location': 'Reception hall', 'transport': '', 'notes': '', 'linkedResponsibilities': []},
-      {'time': '6:15 PM', 'title': 'First dance', 'owner': 'Couple', 'status': 'upcoming', 'startTime': '18:15', 'endTime': '18:30', 'location': 'Dance floor', 'transport': '', 'notes': '', 'linkedResponsibilities': []},
-      {'time': '6:30 PM', 'title': 'Dinner service', 'owner': 'Catering', 'status': 'upcoming', 'startTime': '18:30', 'endTime': '19:30', 'location': 'Reception hall', 'transport': '', 'notes': '', 'linkedResponsibilities': []},
-      {'time': '7:30 PM', 'title': 'Speeches', 'owner': 'Best man & MOH', 'status': 'upcoming', 'startTime': '19:30', 'endTime': '20:00', 'location': 'Reception hall', 'transport': '', 'notes': '', 'linkedResponsibilities': []},
-      {'time': '8:00 PM', 'title': 'Cake cutting', 'owner': 'Couple', 'status': 'upcoming', 'startTime': '20:00', 'endTime': '20:15', 'location': 'Reception hall', 'transport': '', 'notes': '', 'linkedResponsibilities': []},
-      {'time': '8:15 PM', 'title': 'Dance floor opens', 'owner': 'DJ', 'status': 'upcoming', 'startTime': '20:15', 'endTime': '23:30', 'location': 'Reception hall', 'transport': '', 'notes': '', 'linkedResponsibilities': []},
-    ];
-  }
-
-  void _openDetail(Map<String, dynamic> item) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
-      builder: (_) => _TimelineItemDetailSheet(
-        item: Map<String, dynamic>.from(item),
-        onSave: (updated) => setState(() {
-          final i = _items.indexWhere((t) => t['title'] == item['title'] && t['time'] == item['time']);
-          if (i >= 0) _items[i] = updated;
-        }),
-        onDelete: () => setState(() => _items.removeWhere((t) => t['title'] == item['title'] && t['time'] == item['time'])),
-      ),
-    );
-  }
+class _WeddingTimelineTab extends StatelessWidget {
+  final WeddingPartyState state;
+  const _WeddingTimelineTab({required this.state});
 
   @override
   Widget build(BuildContext context) {
+    if (state.timelineError != null) return _errorBox("Couldn't load the timeline.", state.timelineError!);
+    if (state.timelineItems.isEmpty) {
+      return ListView(padding: const EdgeInsets.all(16), children: [
+        _emptyBox('No timeline events yet.', icon: Icons.schedule_outlined),
+        const SizedBox(height: 8),
+        Center(child: TextButton(onPressed: () => context.push('/your-vision'), child: const Text('Build your day timeline'))),
+      ]);
+    }
+
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
-        const Text('Day timeline', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w500)),
+        Row(children: [
+          const Expanded(child: Text('Day timeline', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w500))),
+          TextButton(onPressed: () => context.push('/your-vision'), child: const Text('Edit in Plan', style: TextStyle(fontSize: 13))),
+        ]),
         const SizedBox(height: 12),
-        ..._items.asMap().entries.map((e) {
+        ...state.timelineItems.asMap().entries.map((e) {
           final i = e.key;
           final item = e.value;
-          final isLast = i == _items.length - 1;
+          final isLast = i == state.timelineItems.length - 1;
           return GestureDetector(
-            onTap: () => _openDetail(item),
+            onTap: () => _openDetail(context, item),
             child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Column(children: [
-                _TimelineDot(item['status'] as String),
+                Container(width: 20, height: 20, decoration: BoxDecoration(color: AppTheme.udoGreen, shape: BoxShape.circle)),
                 if (!isLast) Container(width: 2, height: 56, color: AppTheme.udoBorder),
               ]),
               const SizedBox(width: 14),
               Expanded(child: Padding(
                 padding: const EdgeInsets.only(bottom: 12),
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text(item['time'] as String, style: const TextStyle(fontSize: 11, color: AppTheme.udoGreen, fontWeight: FontWeight.w600)),
+                  Text(_formatTime(item['start_time'] as String?), style: const TextStyle(fontSize: 11, color: AppTheme.udoGreen, fontWeight: FontWeight.w600)),
                   const SizedBox(height: 2),
                   Row(children: [
-                    Expanded(child: Text(item['title'] as String, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500))),
+                    Expanded(child: Text(item['title'] as String? ?? '', style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500))),
                     const Icon(Icons.chevron_right, size: 16, color: AppTheme.udoTextSecondary),
                   ]),
-                  Text(item['owner'] as String, style: const TextStyle(fontSize: 12, color: AppTheme.udoTextSecondary)),
+                  if ((item['location'] as String?)?.isNotEmpty == true)
+                    Text(item['location'] as String, style: const TextStyle(fontSize: 12, color: AppTheme.udoTextSecondary)),
                 ]),
               )),
             ]),
@@ -847,269 +894,112 @@ class _WeddingTimelineTabState extends State<_WeddingTimelineTab> {
       ],
     );
   }
-}
 
-class _TimelineDot extends StatelessWidget {
-  final String status;
-  const _TimelineDot(this.status);
-  @override
-  Widget build(BuildContext context) {
-    if (status == 'completed') return const Icon(Icons.check_circle, color: Color(0xFF22C55E), size: 20);
-    if (status == 'in-progress') return Container(width: 20, height: 20, decoration: const BoxDecoration(color: AppTheme.udoGreen, shape: BoxShape.circle));
-    return Container(width: 20, height: 20, decoration: BoxDecoration(shape: BoxShape.circle, border: Border.all(color: AppTheme.udoBorder, width: 2)));
-  }
-}
-
-// ── TIMELINE ITEM DETAIL SHEET ─────────────────────────────────────────────────
-
-class _TimelineItemDetailSheet extends StatefulWidget {
-  final Map<String, dynamic> item;
-  final void Function(Map<String, dynamic>) onSave;
-  final VoidCallback onDelete;
-  const _TimelineItemDetailSheet({required this.item, required this.onSave, required this.onDelete});
-  @override
-  State<_TimelineItemDetailSheet> createState() => _TimelineItemDetailSheetState();
-}
-
-class _TimelineItemDetailSheetState extends State<_TimelineItemDetailSheet> {
-  late final TextEditingController _title, _location, _transport, _notes;
-  late String _startTime, _endTime, _owner, _status;
-  bool _timeChanged = false;
-
-  static const _coordinators = [
-    'Sarah Johnson - Maid of Honour', 'Michael Chen - Best Man',
-    'Emily Davis - Bridesmaid', 'James Wilson - Groomsman',
-    'Amanda White - Bridesmaid', 'Wedding Planner', 'Bride', 'Groom',
-  ];
-
-  static const _statusOptions = ['scheduled', 'confirmed', 'in-progress', 'at-risk', 'delayed', 'completed'];
-  static const _statusDisplay = {'scheduled': 'Scheduled', 'confirmed': 'Confirmed', 'in-progress': 'In Progress', 'at-risk': 'At Risk', 'delayed': 'Delayed', 'completed': 'Completed'};
-
-  @override
-  void initState() {
-    super.initState();
-    final it = widget.item;
-    _title = TextEditingController(text: it['title'] as String);
-    _location = TextEditingController(text: it['location'] as String);
-    _transport = TextEditingController(text: it['transport'] as String? ?? '');
-    _notes = TextEditingController(text: it['notes'] as String? ?? '');
-    _startTime = it['startTime'] as String;
-    _endTime = it['endTime'] as String;
-    _owner = _coordinators.first;
-    _status = _statusOptions.contains(it['status']) ? (it['status'] as String) : 'scheduled';
-  }
-
-  @override
-  void dispose() {
-    _title.dispose(); _location.dispose(); _transport.dispose(); _notes.dispose();
-    super.dispose();
-  }
-
-  void _save() {
-    widget.onSave({
-      ...widget.item,
-      'title': _title.text, 'location': _location.text,
-      'transport': _transport.text, 'notes': _notes.text,
-      'startTime': _startTime, 'endTime': _endTime,
-      'owner': _owner, 'status': _status,
-    });
-    Navigator.pop(context);
-  }
-
-  @override
-  Widget build(BuildContext context) => DraggableScrollableSheet(
-    expand: false, initialChildSize: 0.92, maxChildSize: 0.98,
-    builder: (_, ctrl) => Column(children: [
-      Container(
-        decoration: const BoxDecoration(color: Colors.white, borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
-        padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
-        child: Row(children: [
-          const Expanded(child: Text('Timeline Event Details', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600))),
-          IconButton(onPressed: () => Navigator.pop(context), icon: const Icon(Icons.close), padding: EdgeInsets.zero),
-        ]),
-      ),
-      const Divider(height: 1),
-      Expanded(child: SingleChildScrollView(controller: ctrl, padding: const EdgeInsets.fromLTRB(20, 16, 20, 0), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        _SheetField('Event title', _title),
-        const SizedBox(height: 14),
-        // Time range
-        Row(children: [
-          Expanded(child: _TimeField('Start time', _startTime, (v) => setState(() { _startTime = v; _timeChanged = v != widget.item['startTime']; }))),
-          const SizedBox(width: 12),
-          Expanded(child: _TimeField('End time', _endTime, (v) => setState(() => _endTime = v))),
-        ]),
-        // Downstream warning
-        if (_timeChanged) ...[
-          const SizedBox(height: 10),
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(color: const Color(0xFFFFFBEB), borderRadius: BorderRadius.circular(12), border: Border.all(color: const Color(0xFFFCD34D))),
-            child: const Row(children: [
-              Icon(Icons.warning_amber_outlined, color: Color(0xFFD97706), size: 18),
-              SizedBox(width: 10),
-              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text('Time Change Detected', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Color(0xFF92400E))),
-                SizedBox(height: 2),
-                Text('This will affect following events. Auto-adjustment is enabled.', style: TextStyle(fontSize: 12, color: Color(0xFFB45309))),
-              ])),
-            ]),
-          ),
-        ],
-        const SizedBox(height: 14),
-        _SheetField('Location', _location, hint: 'e.g. Bridal Suite, Ceremony Venue'),
-        const SizedBox(height: 14),
-        _SheetDropdown('Event coordinator', _owner, _coordinators, (v) => setState(() => _owner = v)),
-        const SizedBox(height: 14),
-        // Affected people
-        const Text('Affected people', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500)),
-        const SizedBox(height: 6),
-        Container(
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(color: const Color(0xFFF3EFEA), borderRadius: BorderRadius.circular(12)),
-          child: Wrap(spacing: 8, runSpacing: 8, children: [
-            for (final p in ['Sarah Johnson', 'Michael Chen', 'Emily Davis'])
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20), border: Border.all(color: AppTheme.udoBorder)),
-                child: Text(p, style: const TextStyle(fontSize: 12)),
-              ),
-            GestureDetector(
-              onTap: () {},
-              child: Container(padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6), decoration: BoxDecoration(color: AppTheme.udoGreen, borderRadius: BorderRadius.circular(20)), child: const Text('+ Add person', style: TextStyle(color: Colors.white, fontSize: 12))),
-            ),
-          ]),
-        ),
-        const SizedBox(height: 14),
-        // Linked responsibilities
-        const Text('Linked responsibilities', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500)),
-        const SizedBox(height: 6),
-        Container(
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(color: const Color(0xFFF3EFEA), borderRadius: BorderRadius.circular(12)),
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            _LinkedRow('Setup floral arrangements', 'Completed', const Color(0xFF22C55E)),
-            const SizedBox(height: 6),
-            _LinkedRow('Coordinate photographer arrival', 'In Progress', Colors.blue),
-            const SizedBox(height: 6),
-            GestureDetector(onTap: () {}, child: const Text('+ Link responsibility', style: TextStyle(fontSize: 13, color: AppTheme.udoGreen))),
-          ]),
-        ),
-        const SizedBox(height: 14),
-        _SheetField('Transport details', _transport, hint: 'e.g. Shared car from hotel at 9:30 AM', maxLines: 2),
-        const SizedBox(height: 14),
-        _SheetField('Notes', _notes, hint: 'Additional notes or instructions...', maxLines: 3),
-        const SizedBox(height: 14),
-        _SheetDropdown('Status', _status, _statusOptions, (v) => setState(() => _status = v), display: _statusDisplay),
-        const SizedBox(height: 14),
-        // Dependencies
-        const Text('Depends on', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500)),
-        const SizedBox(height: 6),
-        Container(
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(color: const Color(0xFFF3EFEA), borderRadius: BorderRadius.circular(12)),
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Row(children: [
-              const Icon(Icons.access_time, size: 14, color: AppTheme.udoTextSecondary),
-              const SizedBox(width: 6),
-              const Expanded(child: Text('Hair & Makeup (must complete 30 min before)', style: TextStyle(fontSize: 13, color: AppTheme.udoTextSecondary))),
-            ]),
-            const SizedBox(height: 6),
-            GestureDetector(onTap: () {}, child: const Text('+ Add dependency', style: TextStyle(fontSize: 13, color: AppTheme.udoGreen))),
-          ]),
-        ),
-        const SizedBox(height: 24),
-      ]))),
-      const Divider(height: 1),
-      Container(
-        color: AppTheme.udoBackground,
-        padding: const EdgeInsets.fromLTRB(16, 12, 16, 20),
-        child: SafeArea(top: false, child: Wrap(spacing: 8, runSpacing: 8, children: [
-          _FooterBtn('Save', AppTheme.udoGreen, Icons.save_outlined, _save),
-          _FooterBtn('Notify people', Colors.blue, Icons.notifications_outlined, () => Navigator.pop(context)),
-          _FooterBtn('Delete event', Colors.red, Icons.delete_outline, () {
-            Navigator.pop(context);
-            widget.onDelete();
-          }),
-        ])),
-      ),
-    ]),
-  );
-}
-
-class _TimeField extends StatelessWidget {
-  final String label, value;
-  final ValueChanged<String> onChanged;
-  const _TimeField(this.label, this.value, this.onChanged);
-
-  @override
-  Widget build(BuildContext context) {
-    final parts = value.split(':');
-    final h = int.tryParse(parts.isNotEmpty ? parts[0] : '0') ?? 0;
-    final m = int.tryParse(parts.length > 1 ? parts[1] : '0') ?? 0;
-    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Text(label, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500)),
-      const SizedBox(height: 6),
-      GestureDetector(
-        onTap: () async {
-          final picked = await showTimePicker(context: context, initialTime: TimeOfDay(hour: h, minute: m));
-          if (picked != null) onChanged('${picked.hour.toString().padLeft(2, '0')}:${picked.minute.toString().padLeft(2, '0')}');
-        },
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-          decoration: BoxDecoration(color: const Color(0xFFF3EFEA), borderRadius: BorderRadius.circular(12)),
-          child: Row(children: [
-            Expanded(child: Text(value, style: const TextStyle(fontSize: 14))),
-            const Icon(Icons.access_time, size: 16, color: AppTheme.udoTextSecondary),
-          ]),
+  void _openDetail(BuildContext context, Map<String, dynamic> item) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+      builder: (_) => DraggableScrollableSheet(
+        expand: false, initialChildSize: 0.5, maxChildSize: 0.8,
+        builder: (_, ctrl) => Padding(
+          padding: const EdgeInsets.fromLTRB(20, 20, 20, 20),
+          child: SingleChildScrollView(controller: ctrl, child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(item['title'] as String? ?? '', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
+            const SizedBox(height: 8),
+            _InfoRow('Time', '${_formatTime(item['start_time'] as String?)} – ${_formatTime(item['end_time'] as String?)}'),
+            if ((item['location'] as String?)?.isNotEmpty == true) _InfoRow('Location', item['location'] as String),
+            if ((item['description'] as String?)?.isNotEmpty == true) _InfoRow('Details', item['description'] as String),
+            const SizedBox(height: 16),
+            Text('Edit event details from Plan → Your Vision.', style: const TextStyle(fontSize: 12, color: AppTheme.udoTextSecondary)),
+          ])),
         ),
       ),
-    ]);
+    );
   }
 }
-
-Widget _LinkedRow(String title, String statusLabel, Color color) => Row(children: [
-  Expanded(child: Text(title, style: const TextStyle(fontSize: 13, color: AppTheme.udoTextPrimary))),
-  Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3), decoration: BoxDecoration(color: color.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(20)), child: Text(statusLabel, style: TextStyle(fontSize: 10, color: color, fontWeight: FontWeight.w500))),
-]);
 
 // ── TRAVEL TAB ─────────────────────────────────────────────────────────────────
 
 class _TravelTab extends StatelessWidget {
-  final List<Map<String, dynamic>> members;
-  const _TravelTab({required this.members});
+  final WeddingPartyState state;
+  const _TravelTab({required this.state});
+
+  String _travelStatus(Map<String, dynamic> m) {
+    if (m['travel_required'] != true) return 'not-required';
+    if (m['hotel_assignment_id'] != null && m['transport_assignment_id'] != null) return 'arranged';
+    if (m['arrival_date'] != null) return 'arriving';
+    return 'needs-info';
+  }
 
   @override
-  Widget build(BuildContext context) => ListView(
-    padding: const EdgeInsets.all(16),
-    children: [
-      sectionCard('Hotels', [
-        ('Grand Marriott', '4 rooms blocked', '8 party members'),
-        ('Boutique Inn', '2 rooms', '4 party members'),
-      ]),
-      const SizedBox(height: 12),
-      sectionCard('Transport', [
-        ('Shuttle — Airport to Hotel', 'Friday 4pm pickup', '6 people'),
-        ('Shuttle — Hotel to Venue', 'Saturday 3pm', 'All party'),
-      ]),
-      const SizedBox(height: 12),
-      const Text('Travel status by member', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w500)),
-      const SizedBox(height: 8),
-      for (final m in members) Container(
-        margin: const EdgeInsets.only(bottom: 8),
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(14), border: Border.all(color: AppTheme.udoBorder)),
-        child: Row(children: [
-          _Avatar(name: m['name'] as String),
-          const SizedBox(width: 12),
-          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(m['name'] as String, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500)),
-            Text(m['role'] as String, style: const TextStyle(fontSize: 12, color: AppTheme.udoTextSecondary)),
-          ])),
-          _TravelBadge(m['travelStatus'] as String),
-        ]),
-      ),
-    ],
-  );
+  Widget build(BuildContext context) {
+    if (state.travelError != null) return _errorBox("Couldn't load travel details.", state.travelError!);
+
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16), border: Border.all(color: AppTheme.udoBorder)),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            const Text('Hotels', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w500)),
+            const SizedBox(height: 10),
+            if (state.accommodations.isEmpty)
+              const Text('No accommodation options added yet.', style: TextStyle(fontSize: 12, color: AppTheme.udoTextSecondary))
+            else for (final a in state.accommodations) Container(
+              margin: const EdgeInsets.only(bottom: 6),
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(color: const Color(0xFFF3EFEA), borderRadius: BorderRadius.circular(12)),
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text(a['name'] as String? ?? '', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500)),
+                Text('${a['total_rooms_blocked'] ?? 0} rooms blocked · ${a['rooms_assigned'] ?? 0} assigned', style: const TextStyle(fontSize: 12, color: AppTheme.udoTextSecondary)),
+              ]),
+            ),
+          ]),
+        ),
+        const SizedBox(height: 12),
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16), border: Border.all(color: AppTheme.udoBorder)),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            const Text('Transport', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w500)),
+            const SizedBox(height: 10),
+            if (state.transportGroups.isEmpty)
+              const Text('No transport groups added yet.', style: TextStyle(fontSize: 12, color: AppTheme.udoTextSecondary))
+            else for (final t in state.transportGroups) Container(
+              margin: const EdgeInsets.only(bottom: 6),
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(color: const Color(0xFFF3EFEA), borderRadius: BorderRadius.circular(12)),
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text(t['name'] as String? ?? '', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500)),
+                Text('${t['pickup_location'] ?? '—'} → ${t['dropoff_location'] ?? '—'} · ${(t['assignments'] as List?)?.length ?? 0} assigned', style: const TextStyle(fontSize: 12, color: AppTheme.udoTextSecondary)),
+              ]),
+            ),
+          ]),
+        ),
+        const SizedBox(height: 12),
+        const Text('Travel status by member', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w500)),
+        const SizedBox(height: 8),
+        if (state.members.isEmpty)
+          _emptyBox('No wedding party members yet.', icon: Icons.people_outline)
+        else for (final m in state.members) Container(
+          margin: const EdgeInsets.only(bottom: 8),
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(14), border: Border.all(color: AppTheme.udoBorder)),
+          child: Row(children: [
+            _Avatar(name: _fullName(m)),
+            const SizedBox(width: 12),
+            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(_fullName(m), style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500)),
+              Text((m['wedding_party_role'] as String?) ?? 'Wedding party', style: const TextStyle(fontSize: 12, color: AppTheme.udoTextSecondary)),
+            ])),
+            _TravelBadge(_travelStatus(m)),
+          ]),
+        ),
+      ],
+    );
+  }
 }
 
 class _TravelBadge extends StatelessWidget {
@@ -1118,11 +1008,10 @@ class _TravelBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final (label, color) = switch (status) {
-      'confirmed' => ('Confirmed', const Color(0xFF22C55E)),
-      'needs-response' => ('Needs response', AppTheme.udoCrimson),
-      'travelling' => ('Travelling', Colors.blue),
-      'checked-in' => ('Checked in', AppTheme.udoGreen),
-      _ => (status, Colors.grey),
+      'arranged' => ('Arranged', const Color(0xFF22C55E)),
+      'arriving' => ('Arriving', Colors.blue),
+      'not-required' => ('Not traveling', Colors.grey),
+      _ => ('Needs info', AppTheme.udoCrimson),
     };
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
@@ -1132,76 +1021,95 @@ class _TravelBadge extends StatelessWidget {
   }
 }
 
-Widget sectionCard(String title, List<(String, String, String)> items) => Container(
-  padding: const EdgeInsets.all(16),
-  decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16), border: Border.all(color: AppTheme.udoBorder)),
-  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-    Text(title, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w500)),
-    const SizedBox(height: 10),
-    for (final (name, detail1, detail2) in items) Container(
-      margin: const EdgeInsets.only(bottom: 6),
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(color: const Color(0xFFF3EFEA), borderRadius: BorderRadius.circular(12)),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text(name, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500)),
-        Text('$detail1 · $detail2', style: const TextStyle(fontSize: 12, color: AppTheme.udoTextSecondary)),
-      ]),
-    ),
-  ]),
-);
-
 // ── REHEARSAL TAB ──────────────────────────────────────────────────────────────
 
-class _RehearsalTab extends StatelessWidget {
-  final List<Map<String, dynamic>> members;
-  const _RehearsalTab({required this.members});
+class _RehearsalTab extends ConsumerWidget {
+  final WeddingPartyState state;
+  const _RehearsalTab({required this.state});
+
+  Map<String, dynamic>? _findRehearsal(WeddingPartyState state) {
+    for (final item in state.timelineItems) {
+      final title = (item['title'] as String? ?? '').toLowerCase();
+      final type = (item['event_type'] as String? ?? '').toLowerCase();
+      if (title.contains('rehearsal') || type.contains('rehearsal')) return item;
+    }
+    return null;
+  }
 
   @override
-  Widget build(BuildContext context) => ListView(
-    padding: const EdgeInsets.all(16),
-    children: [
-      Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(gradient: LinearGradient(colors: [AppTheme.udoGreen, AppTheme.udoGreen.withValues(alpha: 0.8)], begin: Alignment.topLeft, end: Alignment.bottomRight), borderRadius: BorderRadius.circular(16)),
-        child: const Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text('Rehearsal dinner', style: TextStyle(color: Colors.white70, fontSize: 13)),
-          SizedBox(height: 4),
-          Text('Friday, September 13', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w600)),
-          SizedBox(height: 2),
-          Text('7:00 PM · Rosewood Restaurant', style: TextStyle(color: Colors.white70, fontSize: 13)),
-        ]),
-      ),
-      const SizedBox(height: 12),
-      const Text('Attendance', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w500)),
-      const SizedBox(height: 8),
-      for (final m in members) Container(
-        margin: const EdgeInsets.only(bottom: 8),
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(14), border: Border.all(color: AppTheme.udoBorder)),
-        child: Row(children: [
-          _Avatar(name: m['name'] as String),
-          const SizedBox(width: 12),
-          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(m['name'] as String, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500)),
-            Text(m['role'] as String, style: const TextStyle(fontSize: 12, color: AppTheme.udoTextSecondary)),
-          ])),
-          _RehearsalBadge(m['rehearsalStatus'] as String),
-        ]),
-      ),
-    ],
-  );
+  Widget build(BuildContext context, WidgetRef ref) {
+    final rehearsal = _findRehearsal(state);
+
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        if (rehearsal != null)
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(gradient: LinearGradient(colors: [AppTheme.udoGreen, AppTheme.udoGreen.withValues(alpha: 0.8)], begin: Alignment.topLeft, end: Alignment.bottomRight), borderRadius: BorderRadius.circular(16)),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              const Text('Rehearsal', style: TextStyle(color: Colors.white70, fontSize: 13)),
+              const SizedBox(height: 4),
+              Text(_formatDate(rehearsal['event_date'] as String?), style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w600)),
+              const SizedBox(height: 2),
+              Text('${_formatTime(rehearsal['start_time'] as String?)}${(rehearsal['location'] as String?)?.isNotEmpty == true ? ' · ${rehearsal['location']}' : ''}', style: const TextStyle(color: Colors.white70, fontSize: 13)),
+            ]),
+          )
+        else
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16), border: Border.all(color: AppTheme.udoBorder)),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              const Text('No rehearsal scheduled yet', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500)),
+              const SizedBox(height: 4),
+              const Text('Add a timeline event titled "Rehearsal" from Plan → Your Vision to see it here.', style: TextStyle(fontSize: 12, color: AppTheme.udoTextSecondary)),
+              const SizedBox(height: 10),
+              TextButton(onPressed: () => context.push('/your-vision'), child: const Text('Go to Your Vision')),
+            ]),
+          ),
+        const SizedBox(height: 12),
+        const Text('Attendance', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w500)),
+        const SizedBox(height: 8),
+        if (state.members.isEmpty)
+          _emptyBox('No wedding party members yet.', icon: Icons.people_outline)
+        else for (final m in state.members) GestureDetector(
+          onTap: () => _cycleStatus(ref, m),
+          child: Container(
+            margin: const EdgeInsets.only(bottom: 8),
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(14), border: Border.all(color: AppTheme.udoBorder)),
+            child: Row(children: [
+              _Avatar(name: _fullName(m)),
+              const SizedBox(width: 12),
+              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text(_fullName(m), style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500)),
+                Text((m['wedding_party_role'] as String?) ?? 'Wedding party', style: const TextStyle(fontSize: 12, color: AppTheme.udoTextSecondary)),
+              ])),
+              _RehearsalBadge(m['rehearsal_status'] as String?),
+            ]),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Future<void> _cycleStatus(WidgetRef ref, Map<String, dynamic> m) async {
+    const order = ['pending', 'confirmed', 'declined'];
+    final current = m['rehearsal_status'] as String? ?? 'pending';
+    final next = order[(order.indexOf(current) + 1) % order.length];
+    await ref.read(weddingPartyProvider.notifier).updateMember(m['id'] as int, {'rehearsal_status': next});
+  }
 }
 
 class _RehearsalBadge extends StatelessWidget {
-  final String status;
+  final String? status;
   const _RehearsalBadge(this.status);
   @override
   Widget build(BuildContext context) {
     final (label, color) = switch (status) {
       'confirmed' => ('Confirmed', const Color(0xFF22C55E)),
-      'pending' => ('Pending', Colors.orange),
       'declined' => ('Declined', AppTheme.udoCrimson),
-      _ => (status, Colors.grey),
+      _ => ('Pending', Colors.orange),
     };
     return Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4), decoration: BoxDecoration(color: color.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(20)), child: Text(label, style: TextStyle(fontSize: 11, color: color, fontWeight: FontWeight.w500)));
   }
@@ -1209,70 +1117,131 @@ class _RehearsalBadge extends StatelessWidget {
 
 // ── EMERGENCY TAB ──────────────────────────────────────────────────────────────
 
-class _EmergencyTab extends StatelessWidget {
-  final List<Map<String, dynamic>> members;
-  const _EmergencyTab({required this.members});
+class _EmergencyTab extends ConsumerWidget {
+  final WeddingPartyState state;
+  const _EmergencyTab({required this.state});
 
   @override
-  Widget build(BuildContext context) => ListView(
-    padding: const EdgeInsets.all(16),
-    children: [
-      Container(
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(color: AppTheme.udoCrimson.withValues(alpha: 0.05), borderRadius: BorderRadius.circular(14), border: Border.all(color: AppTheme.udoCrimson.withValues(alpha: 0.3))),
-        child: Row(children: [
-          const Icon(Icons.warning_amber_outlined, color: AppTheme.udoCrimson, size: 20),
-          const SizedBox(width: 10),
-          const Expanded(child: Text('Emergency broadcast sends an urgent message to all wedding party members simultaneously.', style: TextStyle(fontSize: 13, color: AppTheme.udoCrimson, height: 1.5))),
-        ]),
-      ),
-      const SizedBox(height: 12),
-      ElevatedButton.icon(
-        onPressed: () => _showEmergencyBroadcast(context),
-        icon: const Icon(Icons.broadcast_on_personal_outlined),
-        label: const Text('Send emergency broadcast'),
-        style: ElevatedButton.styleFrom(minimumSize: const Size(double.infinity, 52), backgroundColor: AppTheme.udoCrimson, foregroundColor: Colors.white),
-      ),
-      const SizedBox(height: 16),
-      const Text('Emergency contacts', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w500)),
-      const SizedBox(height: 8),
-      for (final m in members) Container(
-        margin: const EdgeInsets.only(bottom: 8),
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(14), border: Border.all(color: AppTheme.udoBorder)),
-        child: Row(children: [
-          _Avatar(name: m['name'] as String),
-          const SizedBox(width: 12),
-          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(m['name'] as String, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500)),
-            Text(m['role'] as String, style: const TextStyle(fontSize: 12, color: AppTheme.udoTextSecondary)),
-          ])),
-          Row(children: [
-            Icon(Icons.phone_outlined, color: AppTheme.udoGreen, size: 20),
+  Widget build(BuildContext context, WidgetRef ref) {
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(color: AppTheme.udoCrimson.withValues(alpha: 0.05), borderRadius: BorderRadius.circular(14), border: Border.all(color: AppTheme.udoCrimson.withValues(alpha: 0.3))),
+          child: Row(children: [
+            const Icon(Icons.warning_amber_outlined, color: AppTheme.udoCrimson, size: 20),
             const SizedBox(width: 10),
-            Icon(Icons.message_outlined, color: AppTheme.udoGreen, size: 20),
+            const Expanded(child: Text('Emergency broadcast emails everyone in your wedding party immediately.', style: TextStyle(fontSize: 13, color: AppTheme.udoCrimson, height: 1.5))),
           ]),
+        ),
+        const SizedBox(height: 12),
+        ElevatedButton.icon(
+          onPressed: () => _showEmergencyBroadcast(context, ref),
+          icon: const Icon(Icons.broadcast_on_personal_outlined),
+          label: const Text('Send emergency broadcast'),
+          style: ElevatedButton.styleFrom(minimumSize: const Size(double.infinity, 52), backgroundColor: AppTheme.udoCrimson, foregroundColor: Colors.white),
+        ),
+        const SizedBox(height: 16),
+        const Text('Wedding party contacts', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w500)),
+        const SizedBox(height: 8),
+        if (state.members.isEmpty)
+          _emptyBox('No wedding party members yet.', icon: Icons.people_outline)
+        else for (final m in state.members) Container(
+          margin: const EdgeInsets.only(bottom: 8),
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(14), border: Border.all(color: AppTheme.udoBorder)),
+          child: Row(children: [
+            _Avatar(name: _fullName(m)),
+            const SizedBox(width: 12),
+            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(_fullName(m), style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500)),
+              Text((m['wedding_party_role'] as String?) ?? 'Wedding party', style: const TextStyle(fontSize: 12, color: AppTheme.udoTextSecondary)),
+            ])),
+            Row(children: [
+              GestureDetector(onTap: () => _launchTel(context, m['phone'] as String?), child: Icon(Icons.phone_outlined, color: (m['phone'] as String?)?.isNotEmpty == true ? AppTheme.udoGreen : AppTheme.udoBorder, size: 20)),
+              const SizedBox(width: 14),
+              GestureDetector(onTap: () => _launchSms(context, m['phone'] as String?), child: Icon(Icons.message_outlined, color: (m['phone'] as String?)?.isNotEmpty == true ? AppTheme.udoGreen : AppTheme.udoBorder, size: 20)),
+            ]),
+          ]),
+        ),
+        const SizedBox(height: 16),
+        Row(children: [
+          const Expanded(child: Text('Additional emergency contacts', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w500))),
+          TextButton.icon(onPressed: () => _showAddContact(context, ref), icon: const Icon(Icons.add, size: 16), label: const Text('Add', style: TextStyle(fontSize: 13))),
         ]),
-      ),
-    ],
-  );
+        const SizedBox(height: 8),
+        if (state.emergencyError != null)
+          _errorBox("Couldn't load emergency contacts.", state.emergencyError!)
+        else if (state.emergencyContacts.isEmpty)
+          _emptyBox('No additional contacts yet — add parents, coordinator, or venue.', icon: Icons.contact_phone_outlined)
+        else for (final c in state.emergencyContacts) Container(
+          margin: const EdgeInsets.only(bottom: 8),
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(14), border: Border.all(color: AppTheme.udoBorder)),
+          child: Row(children: [
+            _Avatar(name: c['name'] as String? ?? '?'),
+            const SizedBox(width: 12),
+            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(c['name'] as String? ?? '', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500)),
+              Text('${c['relationship'] ?? 'Contact'} · ${c['phone'] ?? ''}', style: const TextStyle(fontSize: 12, color: AppTheme.udoTextSecondary)),
+            ])),
+            GestureDetector(onTap: () => _launchTel(context, c['phone'] as String?), child: const Icon(Icons.phone_outlined, color: AppTheme.udoGreen, size: 20)),
+            const SizedBox(width: 12),
+            GestureDetector(
+              onTap: () => ref.read(weddingPartyProvider.notifier).removeEmergencyContact(c['id'] as int),
+              child: const Icon(Icons.delete_outline, color: Colors.red, size: 20),
+            ),
+          ]),
+        ),
+      ],
+    );
+  }
 
-  void _showEmergencyBroadcast(BuildContext context) {
+  void _showEmergencyBroadcast(BuildContext context, WidgetRef ref) {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
-      builder: (_) => const _EmergencyBroadcastModal(),
+      builder: (_) => _EmergencyBroadcastModal(memberCount: state.members.length),
+    );
+  }
+
+  void _showAddContact(BuildContext context, WidgetRef ref) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+      builder: (_) => const _AddEmergencyContactModal(),
     );
   }
 }
 
-class _EmergencyBroadcastModal extends StatelessWidget {
-  const _EmergencyBroadcastModal();
+class _EmergencyBroadcastModal extends ConsumerStatefulWidget {
+  final int memberCount;
+  const _EmergencyBroadcastModal({required this.memberCount});
+  @override
+  ConsumerState<_EmergencyBroadcastModal> createState() => _EmergencyBroadcastModalState();
+}
+
+class _EmergencyBroadcastModalState extends ConsumerState<_EmergencyBroadcastModal> {
+  final _ctrl = TextEditingController();
+  bool _sending = false;
+
+  Future<void> _send() async {
+    final message = _ctrl.text.trim();
+    if (message.isEmpty) return;
+    setState(() => _sending = true);
+    final result = await ref.read(weddingPartyProvider.notifier).broadcastEmergency(message);
+    if (!mounted) return;
+    Navigator.pop(context);
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(result.ok ? 'Broadcast sent to ${result.recipients} wedding party member${result.recipients == 1 ? '' : 's'}.' : "Couldn't send the broadcast. Try again."),
+    ));
+  }
 
   @override
   Widget build(BuildContext context) {
-    final ctrl = TextEditingController();
     return Padding(
       padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
       child: SafeArea(
@@ -1286,81 +1255,163 @@ class _EmergencyBroadcastModal extends StatelessWidget {
               IconButton(onPressed: () => Navigator.pop(context), icon: const Icon(Icons.close), padding: EdgeInsets.zero),
             ]),
             const SizedBox(height: 8),
-            const Text('This will immediately alert all wedding party members.', style: TextStyle(fontSize: 13, color: AppTheme.udoTextSecondary)),
+            Text('This will immediately email all ${widget.memberCount} wedding party member${widget.memberCount == 1 ? '' : 's'}.', style: const TextStyle(fontSize: 13, color: AppTheme.udoTextSecondary)),
             const SizedBox(height: 16),
-            TextField(controller: ctrl, maxLines: 4, decoration: InputDecoration(hintText: 'Type your urgent message...', filled: true, fillColor: const Color(0xFFF3EFEA), border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide.none), enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide.none), contentPadding: const EdgeInsets.all(14))),
+            TextField(controller: _ctrl, maxLines: 4, decoration: InputDecoration(hintText: 'Type your urgent message...', filled: true, fillColor: const Color(0xFFF3EFEA), border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide.none), enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide.none), contentPadding: const EdgeInsets.all(14))),
             const SizedBox(height: 16),
             ElevatedButton(
-              onPressed: () => Navigator.pop(context),
+              onPressed: _sending ? null : _send,
               style: ElevatedButton.styleFrom(minimumSize: const Size(double.infinity, 52), backgroundColor: AppTheme.udoCrimson, foregroundColor: Colors.white),
-              child: const Text('Send to all party members now'),
+              child: _sending ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : const Text('Send to all party members now'),
             ),
           ]),
         ),
       ),
     );
   }
+
+  @override
+  void dispose() { _ctrl.dispose(); super.dispose(); }
+}
+
+class _AddEmergencyContactModal extends ConsumerStatefulWidget {
+  const _AddEmergencyContactModal();
+  @override
+  ConsumerState<_AddEmergencyContactModal> createState() => _AddEmergencyContactModalState();
+}
+
+class _AddEmergencyContactModalState extends ConsumerState<_AddEmergencyContactModal> {
+  final _name = TextEditingController();
+  final _relationship = TextEditingController();
+  final _phone = TextEditingController();
+  bool _saving = false;
+
+  Future<void> _save() async {
+    if (_name.text.trim().isEmpty || _phone.text.trim().isEmpty) return;
+    setState(() => _saving = true);
+    final ok = await ref.read(weddingPartyProvider.notifier).addEmergencyContact(
+      name: _name.text.trim(),
+      relationship: _relationship.text.trim(),
+      phone: _phone.text.trim(),
+    );
+    if (!mounted) return;
+    if (ok) {
+      Navigator.pop(context);
+    } else {
+      setState(() => _saving = false);
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Couldn't save this contact. Try again.")));
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+      child: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 24, 20, 20),
+          child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Row(children: [
+              const Expanded(child: Text('Add emergency contact', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600))),
+              IconButton(onPressed: () => Navigator.pop(context), icon: const Icon(Icons.close), padding: EdgeInsets.zero),
+            ]),
+            const SizedBox(height: 16),
+            _FieldBox('Name', _name),
+            const SizedBox(height: 12),
+            _FieldBox('Relationship', _relationship, hint: 'e.g. Venue coordinator'),
+            const SizedBox(height: 12),
+            _FieldBox('Phone', _phone, type: TextInputType.phone),
+            const SizedBox(height: 20),
+            ElevatedButton(
+              onPressed: _saving ? null : _save,
+              style: ElevatedButton.styleFrom(minimumSize: const Size(double.infinity, 52), backgroundColor: AppTheme.udoGreen, foregroundColor: Colors.white),
+              child: _saving ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : const Text('Add contact'),
+            ),
+          ]),
+        ),
+      ),
+    );
+  }
+
+  @override
+  void dispose() { _name.dispose(); _relationship.dispose(); _phone.dispose(); super.dispose(); }
 }
 
 // ── FILES & SPEECHES TAB ───────────────────────────────────────────────────────
 
-class _FilesSpeechesTab extends StatelessWidget {
-  final List<Map<String, dynamic>> members;
-  const _FilesSpeechesTab({required this.members});
+class _FilesSpeechesTab extends ConsumerStatefulWidget {
+  final WeddingPartyState state;
+  const _FilesSpeechesTab({required this.state});
+  @override
+  ConsumerState<_FilesSpeechesTab> createState() => _FilesSpeechesTabState();
+}
+
+class _FilesSpeechesTabState extends ConsumerState<_FilesSpeechesTab> {
+  bool _uploadingSpeech = false;
+  bool _uploadingFile = false;
+
+  Future<void> _upload(String category) async {
+    final result = await FilePicker.pickFiles(withData: true);
+    final picked = result?.files.single;
+    if (picked == null || picked.bytes == null) return;
+    setState(() { if (category == 'speech') _uploadingSpeech = true; else _uploadingFile = true; });
+    final ok = await ref.read(weddingPartyProvider.notifier).uploadFile(picked.bytes!, picked.name, category: category);
+    if (!mounted) return;
+    setState(() { if (category == 'speech') _uploadingSpeech = false; else _uploadingFile = false; });
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(ok ? 'Uploaded.' : "Couldn't upload that file. Try again.")));
+  }
+
+  Future<void> _download(Map<String, dynamic> file) async {
+    final url = file['url'] as String? ?? '';
+    if (url.isEmpty) return;
+    final absolute = url.startsWith('http') ? url : '${AppConstants.apiOrigin}$url';
+    final ok = await launchUrl(Uri.parse(absolute), mode: LaunchMode.externalApplication);
+    if (!ok && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Couldn't open that file.")));
+    }
+  }
+
+  IconData _iconFor(String? name) {
+    final n = (name ?? '').toLowerCase();
+    if (n.endsWith('.pdf')) return Icons.picture_as_pdf_outlined;
+    if (n.endsWith('.jpg') || n.endsWith('.jpeg') || n.endsWith('.png')) return Icons.image_outlined;
+    return Icons.description_outlined;
+  }
 
   @override
   Widget build(BuildContext context) {
-    final speechGivers = members.where((m) => m['role'] == 'Maid of honour' || m['role'] == 'Best man').toList();
+    final state = widget.state;
+    if (state.filesError != null) return _errorBox("Couldn't load files.", state.filesError!);
+
+    final speeches = state.files.where((f) => f['category'] == 'speech').toList();
+    final files = state.files.where((f) => f['category'] != 'speech').toList();
 
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
         const Text('Speeches', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w500)),
         const SizedBox(height: 8),
-        for (final m in speechGivers) Container(
-          margin: const EdgeInsets.only(bottom: 8),
-          padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(14), border: Border.all(color: AppTheme.udoBorder)),
-          child: Row(children: [
-            _Avatar(name: m['name'] as String),
-            const SizedBox(width: 12),
-            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(m['name'] as String, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500)),
-              Text(m['role'] as String, style: const TextStyle(fontSize: 12, color: AppTheme.udoTextSecondary)),
-            ])),
-            OutlinedButton(
-              onPressed: () {},
-              style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6), minimumSize: Size.zero, side: const BorderSide(color: AppTheme.udoGreen), foregroundColor: AppTheme.udoGreen),
-              child: const Text('Upload', style: TextStyle(fontSize: 12)),
-            ),
-          ]),
+        if (speeches.isEmpty)
+          _emptyBox('No speeches uploaded yet.', icon: Icons.mic_outlined)
+        else for (final f in speeches) _FileRow(file: f, icon: _iconFor(f['name'] as String?), onDownload: () => _download(f), onDelete: () => ref.read(weddingPartyProvider.notifier).deleteFile(f['id'] as int)),
+        const SizedBox(height: 8),
+        OutlinedButton.icon(
+          onPressed: _uploadingSpeech ? null : () => _upload('speech'),
+          icon: _uploadingSpeech ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2)) : const Icon(Icons.upload_outlined, size: 18),
+          label: Text(_uploadingSpeech ? 'Uploading…' : 'Upload speech'),
+          style: OutlinedButton.styleFrom(minimumSize: const Size(double.infinity, 44), side: const BorderSide(color: AppTheme.udoGreen), foregroundColor: AppTheme.udoGreen),
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: 20),
         const Text('Shared files', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w500)),
         const SizedBox(height: 8),
-        for (final (icon, name, type) in [
-          (Icons.picture_as_pdf_outlined, 'Ceremony runsheet.pdf', 'PDF'),
-          (Icons.image_outlined, 'Group photo reference.jpg', 'Image'),
-          (Icons.description_outlined, 'Seating arrangement.docx', 'Document'),
-        ]) Container(
-          margin: const EdgeInsets.only(bottom: 8),
-          padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(14), border: Border.all(color: AppTheme.udoBorder)),
-          child: Row(children: [
-            Container(width: 40, height: 40, decoration: BoxDecoration(color: AppTheme.udoGreen.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(10)), child: Icon(icon, color: AppTheme.udoGreen, size: 20)),
-            const SizedBox(width: 12),
-            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(name, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500)),
-              Text(type, style: const TextStyle(fontSize: 12, color: AppTheme.udoTextSecondary)),
-            ])),
-            const Icon(Icons.download_outlined, color: AppTheme.udoGreen, size: 20),
-          ]),
-        ),
+        if (files.isEmpty)
+          _emptyBox('No shared files yet.', icon: Icons.folder_open_outlined)
+        else for (final f in files) _FileRow(file: f, icon: _iconFor(f['name'] as String?), onDownload: () => _download(f), onDelete: () => ref.read(weddingPartyProvider.notifier).deleteFile(f['id'] as int)),
         const SizedBox(height: 12),
         OutlinedButton.icon(
-          onPressed: () {},
-          icon: const Icon(Icons.upload_outlined, size: 18),
-          label: const Text('Upload file'),
+          onPressed: _uploadingFile ? null : () => _upload('file'),
+          icon: _uploadingFile ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2)) : const Icon(Icons.upload_outlined, size: 18),
+          label: Text(_uploadingFile ? 'Uploading…' : 'Upload file'),
           style: OutlinedButton.styleFrom(minimumSize: const Size(double.infinity, 48), side: const BorderSide(color: AppTheme.udoGreen), foregroundColor: AppTheme.udoGreen),
         ),
       ],
@@ -1368,73 +1419,177 @@ class _FilesSpeechesTab extends StatelessWidget {
   }
 }
 
-// ── PERSON DETAIL SHEET ────────────────────────────────────────────────────────
-
-class _PersonDetailSheet extends StatelessWidget {
-  final Map<String, dynamic> person;
-  const _PersonDetailSheet({required this.person});
+class _FileRow extends StatelessWidget {
+  final Map<String, dynamic> file;
+  final IconData icon;
+  final VoidCallback onDownload;
+  final VoidCallback onDelete;
+  const _FileRow({required this.file, required this.icon, required this.onDownload, required this.onDelete});
 
   @override
-  Widget build(BuildContext context) => DraggableScrollableSheet(
-    expand: false,
-    initialChildSize: 0.85,
-    builder: (_, ctrl) => SafeArea(
-      child: Column(children: [
-        Container(margin: const EdgeInsets.only(top: 12, bottom: 8), width: 40, height: 4, decoration: BoxDecoration(color: AppTheme.udoBorder, borderRadius: BorderRadius.circular(2))),
-        Padding(
-          padding: const EdgeInsets.fromLTRB(20, 4, 20, 12),
-          child: Row(children: [
-            _Avatar(name: person['name'] as String, radius: 26),
-            const SizedBox(width: 14),
-            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(person['name'] as String, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
-              Text(person['role'] as String, style: const TextStyle(fontSize: 14, color: AppTheme.udoTextSecondary)),
-            ])),
-            IconButton(onPressed: () => Navigator.pop(context), icon: const Icon(Icons.close)),
-          ]),
-        ),
-        Expanded(child: SingleChildScrollView(controller: ctrl, padding: const EdgeInsets.fromLTRB(20, 0, 20, 20), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          _SectionTitle('Status'),
-          _MiniChipRow([
-            (_travelLabel(person['travelStatus'] as String), _travelColor(person['travelStatus'] as String)),
-            (_attireLabel(person['attireStatus'] as String), _attireColor(person['attireStatus'] as String)),
-            (_rehearsalLabel(person['rehearsalStatus'] as String), _rehearsalColor(person['rehearsalStatus'] as String)),
-          ]),
-          const SizedBox(height: 16),
-          _SectionTitle('Responsibilities'),
-          Container(padding: const EdgeInsets.all(14), decoration: BoxDecoration(color: const Color(0xFFF3EFEA), borderRadius: BorderRadius.circular(14)), child: const Text('No responsibilities assigned yet.', style: TextStyle(fontSize: 13, color: AppTheme.udoTextSecondary))),
-          const SizedBox(height: 16),
-          _SectionTitle('Contact'),
-          const _InfoRow('Phone', '+1 (555) 123-4567'),
-          const _InfoRow('Email', 'member@email.com'),
-          const _InfoRow('Preferred', 'WhatsApp'),
-          const SizedBox(height: 16),
-          Row(children: [
-            Expanded(child: OutlinedButton.icon(onPressed: () {}, icon: const Icon(Icons.send_outlined, size: 16), label: const Text('Send buzz'), style: OutlinedButton.styleFrom(side: const BorderSide(color: AppTheme.udoGreen), foregroundColor: AppTheme.udoGreen))),
-            const SizedBox(width: 12),
-            Expanded(child: ElevatedButton.icon(onPressed: () => Navigator.pop(context), icon: const Icon(Icons.edit_outlined, size: 16), label: const Text('Edit'), style: ElevatedButton.styleFrom(backgroundColor: AppTheme.udoGreen, foregroundColor: Colors.white))),
-          ]),
-        ]))),
-      ]),
-    ),
+  Widget build(BuildContext context) => Container(
+    margin: const EdgeInsets.only(bottom: 8),
+    padding: const EdgeInsets.all(14),
+    decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(14), border: Border.all(color: AppTheme.udoBorder)),
+    child: Row(children: [
+      Container(width: 40, height: 40, decoration: BoxDecoration(color: AppTheme.udoGreen.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(10)), child: Icon(icon, color: AppTheme.udoGreen, size: 20)),
+      const SizedBox(width: 12),
+      Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text(file['name'] as String? ?? '', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500), maxLines: 1, overflow: TextOverflow.ellipsis),
+        Text(_formatFileSize(file['file_size_bytes'] as int?), style: const TextStyle(fontSize: 12, color: AppTheme.udoTextSecondary)),
+      ])),
+      GestureDetector(onTap: onDownload, child: const Icon(Icons.download_outlined, color: AppTheme.udoGreen, size: 20)),
+      const SizedBox(width: 12),
+      GestureDetector(onTap: onDelete, child: const Icon(Icons.delete_outline, color: Colors.red, size: 20)),
+    ]),
   );
-
-  String _travelLabel(String s) => switch (s) { 'confirmed' => 'Travel ✓', 'needs-response' => 'Travel ?', _ => s };
-  Color _travelColor(String s) => s == 'confirmed' ? const Color(0xFF22C55E) : s == 'needs-response' ? AppTheme.udoCrimson : Colors.orange;
-  String _attireLabel(String s) => switch (s) { 'complete' => 'Attire ✓', 'needs-fitting' => 'Fitting needed', _ => s };
-  Color _attireColor(String s) => s == 'complete' ? const Color(0xFF22C55E) : s == 'needs-fitting' ? AppTheme.udoCrimson : Colors.orange;
-  String _rehearsalLabel(String s) => switch (s) { 'confirmed' => 'Rehearsal ✓', 'pending' => 'Rehearsal ?', _ => s };
-  Color _rehearsalColor(String s) => s == 'confirmed' ? const Color(0xFF22C55E) : Colors.orange;
 }
 
-class _MiniChipRow extends StatelessWidget {
-  final List<(String, Color)> items;
-  const _MiniChipRow(this.items);
+// ── PERSON DETAIL SHEET ────────────────────────────────────────────────────────
+
+class _PersonDetailSheet extends ConsumerStatefulWidget {
+  final Map<String, dynamic> person;
+  final List<Map<String, dynamic>> responsibilities;
+  const _PersonDetailSheet({required this.person, required this.responsibilities});
   @override
-  Widget build(BuildContext context) => Wrap(
-    spacing: 6, runSpacing: 6,
-    children: items.map((i) => _MiniChip(i.$1, i.$2)).toList(),
-  );
+  ConsumerState<_PersonDetailSheet> createState() => _PersonDetailSheetState();
+}
+
+class _PersonDetailSheetState extends ConsumerState<_PersonDetailSheet> {
+  late final TextEditingController _roleCtrl;
+  late String _attireStatus;
+  late String _rehearsalStatus;
+  bool _saving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _roleCtrl = TextEditingController(text: widget.person['wedding_party_role'] as String? ?? '');
+    _attireStatus = widget.person['attire_status'] as String? ?? 'not_started';
+    _rehearsalStatus = widget.person['rehearsal_status'] as String? ?? 'pending';
+  }
+
+  @override
+  void dispose() {
+    _roleCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _save() async {
+    setState(() => _saving = true);
+    final ok = await ref.read(weddingPartyProvider.notifier).updateMember(widget.person['id'] as int, {
+      'wedding_party_role': _roleCtrl.text.trim(),
+      'attire_status': _attireStatus,
+      'rehearsal_status': _rehearsalStatus,
+    });
+    if (!mounted) return;
+    setState(() => _saving = false);
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(ok ? 'Saved.' : "Couldn't save. Try again.")));
+  }
+
+  Future<void> _remove() async {
+    Navigator.pop(context);
+    await ref.read(weddingPartyProvider.notifier).removeMember(widget.person['id'] as int);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final person = widget.person;
+    return DraggableScrollableSheet(
+      expand: false,
+      initialChildSize: 0.85,
+      maxChildSize: 0.95,
+      builder: (_, ctrl) => SafeArea(
+        child: Column(children: [
+          Container(margin: const EdgeInsets.only(top: 12, bottom: 8), width: 40, height: 4, decoration: BoxDecoration(color: AppTheme.udoBorder, borderRadius: BorderRadius.circular(2))),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 4, 20, 12),
+            child: Row(children: [
+              _Avatar(name: _fullName(person), radius: 26),
+              const SizedBox(width: 14),
+              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text(_fullName(person), style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
+                Text((person['wedding_party_role'] as String?)?.isNotEmpty == true ? person['wedding_party_role'] as String : 'Wedding party', style: const TextStyle(fontSize: 14, color: AppTheme.udoTextSecondary)),
+              ])),
+              IconButton(onPressed: () => Navigator.pop(context), icon: const Icon(Icons.close)),
+            ]),
+          ),
+          Expanded(child: SingleChildScrollView(controller: ctrl, padding: const EdgeInsets.fromLTRB(20, 0, 20, 20), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            _SectionTitle('Role'),
+            TextField(
+              controller: _roleCtrl,
+              decoration: InputDecoration(hintText: 'e.g. Best man', filled: true, fillColor: const Color(0xFFF3EFEA), border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none), enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none), contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12)),
+            ),
+            const SizedBox(height: 16),
+            _SectionTitle('Attire status'),
+            Wrap(spacing: 6, runSpacing: 6, children: [
+              for (final s in const ['not_started', 'ordered', 'fitted', 'ready'])
+                ChoiceChip(
+                  label: Text(s.replaceAll('_', ' '), style: const TextStyle(fontSize: 12)),
+                  selected: _attireStatus == s,
+                  onSelected: (_) => setState(() => _attireStatus = s),
+                  selectedColor: AppTheme.udoGreen,
+                  labelStyle: TextStyle(color: _attireStatus == s ? Colors.white : AppTheme.udoTextPrimary),
+                  side: BorderSide(color: _attireStatus == s ? AppTheme.udoGreen : AppTheme.udoBorder),
+                ),
+            ]),
+            const SizedBox(height: 16),
+            _SectionTitle('Rehearsal status'),
+            Wrap(spacing: 6, runSpacing: 6, children: [
+              for (final s in const ['pending', 'confirmed', 'declined'])
+                ChoiceChip(
+                  label: Text(s, style: const TextStyle(fontSize: 12)),
+                  selected: _rehearsalStatus == s,
+                  onSelected: (_) => setState(() => _rehearsalStatus = s),
+                  selectedColor: AppTheme.udoGreen,
+                  labelStyle: TextStyle(color: _rehearsalStatus == s ? Colors.white : AppTheme.udoTextPrimary),
+                  side: BorderSide(color: _rehearsalStatus == s ? AppTheme.udoGreen : AppTheme.udoBorder),
+                ),
+            ]),
+            const SizedBox(height: 16),
+            _SectionTitle('Responsibilities'),
+            if (widget.responsibilities.isEmpty)
+              Container(padding: const EdgeInsets.all(14), decoration: BoxDecoration(color: const Color(0xFFF3EFEA), borderRadius: BorderRadius.circular(14)), child: const Text('No responsibilities assigned yet.', style: TextStyle(fontSize: 13, color: AppTheme.udoTextSecondary)))
+            else Container(
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(color: const Color(0xFFF3EFEA), borderRadius: BorderRadius.circular(14)),
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                for (final r in widget.responsibilities) Padding(
+                  padding: const EdgeInsets.only(bottom: 6),
+                  child: Row(children: [
+                    Expanded(child: Text(r['title'] as String? ?? '', style: const TextStyle(fontSize: 13))),
+                    _StatusBadge(r['status'] as String? ?? 'pending'),
+                  ]),
+                ),
+              ]),
+            ),
+            const SizedBox(height: 16),
+            _SectionTitle('Contact'),
+            _InfoRow('Phone', (person['phone'] as String?)?.isNotEmpty == true ? person['phone'] as String : 'Not on file'),
+            _InfoRow('Email', (person['email'] as String?)?.isNotEmpty == true ? person['email'] as String : 'Not on file'),
+            const SizedBox(height: 16),
+            Row(children: [
+              Expanded(child: OutlinedButton.icon(
+                onPressed: () => _launchTel(context, person['phone'] as String?),
+                icon: const Icon(Icons.call_outlined, size: 16),
+                label: const Text('Call'),
+                style: OutlinedButton.styleFrom(side: const BorderSide(color: AppTheme.udoGreen), foregroundColor: AppTheme.udoGreen),
+              )),
+              const SizedBox(width: 12),
+              Expanded(child: ElevatedButton.icon(
+                onPressed: _saving ? null : _save,
+                icon: _saving ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : const Icon(Icons.save_outlined, size: 16),
+                label: Text(_saving ? 'Saving…' : 'Save'),
+                style: ElevatedButton.styleFrom(backgroundColor: AppTheme.udoGreen, foregroundColor: Colors.white),
+              )),
+            ]),
+            const SizedBox(height: 10),
+            TextButton.icon(onPressed: _remove, icon: const Icon(Icons.delete_outline, size: 16, color: Colors.red), label: const Text('Remove from wedding party', style: TextStyle(color: Colors.red))),
+          ]))),
+        ]),
+      ),
+    );
+  }
 }
 
 class _SectionTitle extends StatelessWidget {
@@ -1453,7 +1608,7 @@ class _InfoRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Padding(
     padding: const EdgeInsets.only(bottom: 8),
-    child: Row(children: [
+    child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
       SizedBox(width: 90, child: Text(label, style: const TextStyle(fontSize: 13, color: AppTheme.udoTextSecondary))),
       Expanded(child: Text(value, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500))),
     ]),
@@ -1463,7 +1618,7 @@ class _InfoRow extends StatelessWidget {
 // ── ADD PERSON MODAL ───────────────────────────────────────────────────────────
 
 class _AddPersonModal extends StatefulWidget {
-  final void Function({required String firstName, required String lastName, required String role, String? email, String? phone}) onAdd;
+  final Future<void> Function({required String firstName, required String lastName, required String role, String? email, String? phone}) onAdd;
   const _AddPersonModal({required this.onAdd});
   @override
   State<_AddPersonModal> createState() => _AddPersonModalState();
@@ -1474,6 +1629,7 @@ class _AddPersonModalState extends State<_AddPersonModal> {
   final _email = TextEditingController();
   final _phone = TextEditingController();
   String _role = 'Bridesmaid';
+  bool _saving = false;
 
   @override
   Widget build(BuildContext context) => Padding(
@@ -1510,22 +1666,24 @@ class _AddPersonModalState extends State<_AddPersonModal> {
           _FieldBox('Phone', _phone, type: TextInputType.phone),
           const SizedBox(height: 20),
           ElevatedButton(
-            onPressed: () {
+            onPressed: _saving ? null : () async {
               final fullName = _name.text.trim();
+              if (fullName.isEmpty) return;
+              setState(() => _saving = true);
               final parts = fullName.split(' ');
               final firstName = parts.isNotEmpty ? parts.first : fullName;
               final lastName = parts.length > 1 ? parts.sublist(1).join(' ') : '';
-              widget.onAdd(
+              await widget.onAdd(
                 firstName: firstName,
                 lastName: lastName,
                 role: _role,
                 email: _email.text.trim(),
                 phone: _phone.text.trim(),
               );
-              Navigator.pop(context);
+              if (context.mounted) Navigator.pop(context);
             },
             style: ElevatedButton.styleFrom(minimumSize: const Size(double.infinity, 52), backgroundColor: AppTheme.udoGreen, foregroundColor: Colors.white),
-            child: const Text('Add to wedding party'),
+            child: _saving ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : const Text('Add to wedding party'),
           ),
         ]),
       ),
@@ -1542,12 +1700,13 @@ class _FieldBox extends StatelessWidget {
   final String label;
   final TextEditingController ctrl;
   final TextInputType? type;
-  const _FieldBox(this.label, this.ctrl, {this.type});
+  final String? hint;
+  const _FieldBox(this.label, this.ctrl, {this.type, this.hint});
   @override
   Widget build(BuildContext context) => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
     Text(label, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500)),
     const SizedBox(height: 6),
-    TextField(controller: ctrl, keyboardType: type, decoration: InputDecoration(hintText: label, hintStyle: const TextStyle(color: AppTheme.udoTextSecondary, fontSize: 14), filled: true, fillColor: const Color(0xFFF3EFEA), border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide.none), enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide.none), focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: const BorderSide(color: AppTheme.udoGreen, width: 1.5)), contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14))),
+    TextField(controller: ctrl, keyboardType: type, decoration: InputDecoration(hintText: hint ?? label, hintStyle: const TextStyle(color: AppTheme.udoTextSecondary, fontSize: 14), filled: true, fillColor: const Color(0xFFF3EFEA), border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide.none), enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide.none), focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: const BorderSide(color: AppTheme.udoGreen, width: 1.5)), contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14))),
   ]);
 }
 

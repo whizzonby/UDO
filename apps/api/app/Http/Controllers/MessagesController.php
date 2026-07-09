@@ -41,7 +41,7 @@ class MessagesController extends Controller
 
         $message = $wedding->messages()->create([
             ...$data,
-            'status' => $data['scheduled_at'] ? 'scheduled' : 'draft',
+            'status' => ($data['scheduled_at'] ?? null) ? 'scheduled' : 'draft',
             'created_by' => $request->user()->id,
         ]);
 
@@ -84,6 +84,9 @@ class MessagesController extends Controller
         $query = $wedding->guests();
         if (!empty($filter['attending_status'])) {
             $query->where('attending_status', $filter['attending_status']);
+        }
+        if (!empty($filter['guest_group'])) {
+            $query->where('guest_group', $filter['guest_group']);
         }
         $guests = $query->get();
 

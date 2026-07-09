@@ -48,4 +48,7 @@ class Wedding extends Model
     public function galleryAssets(): HasMany { return $this->hasMany(GalleryAsset::class)->latest(); }
     public function registryItems(): HasMany { return $this->hasMany(RegistryItem::class)->orderBy('sort_order'); }
     public function experienceConfig(): HasOne { return $this->hasOne(GuestExperienceConfig::class); }
+    public function weddingPartyResponsibilities(): HasMany { return $this->hasMany(WeddingPartyResponsibility::class)->orderBy('sort_order'); }
+    public function weddingPartyEmergencyContacts(): HasMany { return $this->hasMany(WeddingPartyEmergencyContact::class)->orderBy('sort_order'); }
+    public function weddingPartyFiles(): HasMany { return $this->hasMany(WeddingPartyFile::class)->latest(); }
 }
