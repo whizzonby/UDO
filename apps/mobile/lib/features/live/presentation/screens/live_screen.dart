@@ -1,7 +1,66 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter_map/flutter_map.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:latlong2/latlong.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../providers/live_provider.dart';
+
+String _formatTime(String? t) {
+  if (t == null || t.isEmpty) return '';
+  final parts = t.split(':');
+  if (parts.length < 2) return t;
+  final h = int.tryParse(parts[0]) ?? 0;
+  final m = int.tryParse(parts[1]) ?? 0;
+  final suffix = h >= 12 ? 'PM' : 'AM';
+  final hour = h > 12 ? h - 12 : (h == 0 ? 12 : h);
+  return '$hour:${m.toString().padLeft(2, '0')} $suffix';
+}
+
+String _timeAgo(String? iso) {
+  if (iso == null) return '';
+  final d = DateTime.tryParse(iso);
+  if (d == null) return '';
+  final diff = DateTime.now().difference(d);
+  if (diff.inSeconds < 60) return 'Just now';
+  if (diff.inMinutes < 60) return '${diff.inMinutes} min ago';
+  if (diff.inHours < 24) return '${diff.inHours} hr ago';
+  return '${diff.inDays} d ago';
+}
+
+String _countdownTo(Map<String, dynamic> item) {
+  final dateStr = item['event_date'] as String?;
+  final startTime = item['start_time'] as String?;
+  if (dateStr == null || startTime == null) return '';
+  final date = DateTime.tryParse(dateStr);
+  if (date == null) return '';
+  final parts = startTime.split(':');
+  final target = DateTime(date.year, date.month, date.day, int.tryParse(parts[0]) ?? 0, int.tryParse(parts.length > 1 ? parts[1] : '0') ?? 0);
+  final diff = target.difference(DateTime.now());
+  if (diff.isNegative) return 'now';
+  if (diff.inDays >= 1) return 'in ${diff.inDays} day${diff.inDays == 1 ? '' : 's'}';
+  if (diff.inMinutes < 60) return 'in ${diff.inMinutes} min';
+  final hours = diff.inHours;
+  final mins = diff.inMinutes % 60;
+  return mins > 0 ? 'in $hours hr $mins min' : 'in $hours hr';
+}
+
+Future<void> _launchTel(BuildContext context, String? phone) async {
+  if (phone == null || phone.isEmpty) {
+    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('No phone number on file.')));
+    return;
+  }
+  await launchUrl(Uri.parse('tel:$phone'));
+}
+
+Future<void> _launchSms(BuildContext context, String? phone) async {
+  if (phone == null || phone.isEmpty) {
+    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('No phone number on file.')));
+    return;
+  }
+  await launchUrl(Uri.parse('sms:$phone'));
+}
 
 class LiveScreen extends ConsumerStatefulWidget {
   const LiveScreen({super.key});
@@ -11,8 +70,7 @@ class LiveScreen extends ConsumerStatefulWidget {
 
 class _LiveScreenState extends ConsumerState<LiveScreen> with SingleTickerProviderStateMixin {
   late final TabController _tabs;
-  int _guestsArrived = 89;
-  bool _contactsExpanded = false;
+  Timer? _autoRefresh;
 
   static const _tabLabels = ['Today', 'Timeline', 'Map', 'Weather', 'Updates'];
 
@@ -20,44 +78,43 @@ class _LiveScreenState extends ConsumerState<LiveScreen> with SingleTickerProvid
   void initState() {
     super.initState();
     _tabs = TabController(length: 5, vsync: this);
+    _autoRefresh = Timer.periodic(const Duration(seconds: 20), (_) {
+      if (mounted) ref.read(liveProvider.notifier).refresh();
+    });
   }
 
   @override
   void dispose() {
+    _autoRefresh?.cancel();
     _tabs.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
+    final state = ref.watch(liveProvider);
+    final notifier = ref.read(liveProvider.notifier);
+
     return Scaffold(
-      body: Column(
-        children: [
-          _Header(
-            tabs: _tabs,
-            tabLabels: _tabLabels,
-            guestsArrived: _guestsArrived,
-          ),
-          Expanded(
-            child: TabBarView(
-              controller: _tabs,
+      body: state.isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : Column(
               children: [
-                _TodayTab(
-                  guestsArrived: _guestsArrived,
-                  contactsExpanded: _contactsExpanded,
-                  onContactsToggle: () => setState(() => _contactsExpanded = !_contactsExpanded),
-                  onStatusTap: () {},
-                  onUpdatesTap: () => _tabs.animateTo(4),
+                _Header(tabs: _tabs, tabLabels: _tabLabels),
+                Expanded(
+                  child: TabBarView(
+                    controller: _tabs,
+                    children: [
+                      RefreshIndicator(onRefresh: notifier.refresh, child: _TodayTab(state: state, onUpdatesTap: () => _tabs.animateTo(4))),
+                      RefreshIndicator(onRefresh: notifier.refresh, child: _TimelineTab(state: state)),
+                      RefreshIndicator(onRefresh: notifier.refresh, child: _MapTab(state: state)),
+                      RefreshIndicator(onRefresh: notifier.refresh, child: _WeatherTab(state: state)),
+                      RefreshIndicator(onRefresh: notifier.refresh, child: _UpdatesTab(state: state)),
+                    ],
+                  ),
                 ),
-                const _TimelineTab(),
-                const _MapTab(),
-                const _WeatherTab(),
-                _UpdatesTab(provider: ref),
               ],
             ),
-          ),
-        ],
-      ),
     );
   }
 }
@@ -65,8 +122,7 @@ class _LiveScreenState extends ConsumerState<LiveScreen> with SingleTickerProvid
 class _Header extends StatelessWidget {
   final TabController tabs;
   final List<String> tabLabels;
-  final int guestsArrived;
-  const _Header({required this.tabs, required this.tabLabels, required this.guestsArrived});
+  const _Header({required this.tabs, required this.tabLabels});
 
   @override
   Widget build(BuildContext context) {
@@ -90,17 +146,9 @@ class _Header extends StatelessWidget {
                   const SizedBox(height: 4),
                   const Text('Your day, gently guided', style: TextStyle(color: Colors.white60, fontSize: 12)),
                   const SizedBox(height: 12),
-                  Text(
-                    guestsArrived >= 110
-                        ? 'Your loved ones are here, and everything is perfect.'
-                        : 'Everything is flowing beautifully today.',
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontFamily: 'Playfair',
-                      fontSize: 22,
-                      fontWeight: FontWeight.w400,
-                      height: 1.35,
-                    ),
+                  const Text(
+                    'Everything is flowing beautifully today.',
+                    style: TextStyle(color: Colors.white, fontFamily: 'Playfair', fontSize: 22, fontWeight: FontWeight.w400, height: 1.35),
                   ),
                   const SizedBox(height: 16),
                 ],
@@ -131,30 +179,37 @@ class _Header extends StatelessWidget {
 // ── TODAY TAB ──────────────────────────────────────────────────────────────────
 
 class _TodayTab extends StatelessWidget {
-  final int guestsArrived;
-  final bool contactsExpanded;
-  final VoidCallback onContactsToggle;
-  final VoidCallback onStatusTap;
+  final LiveState state;
   final VoidCallback onUpdatesTap;
 
-  const _TodayTab({
-    required this.guestsArrived,
-    required this.contactsExpanded,
-    required this.onContactsToggle,
-    required this.onStatusTap,
-    required this.onUpdatesTap,
-  });
+  const _TodayTab({required this.state, required this.onUpdatesTap});
 
   @override
   Widget build(BuildContext context) {
     final now = TimeOfDay.now();
     final timeStr = now.format(context);
+    final today = state.today;
+    final guests = today?['guests'] as Map<String, dynamic>?;
+    final vendors = today?['vendors'] as Map<String, dynamic>?;
+    final gallery = today?['gallery'] as Map<String, dynamic>?;
+    final timelineData = today?['timeline'] as Map<String, dynamic>?;
+    final current = timelineData?['current'] as Map<String, dynamic>?;
+    final next = timelineData?['next'] as Map<String, dynamic>?;
+    final recentUpdates = (today?['recent_updates'] as List?)?.cast<Map<String, dynamic>>() ?? [];
+    final contacts = (today?['emergency_contacts'] as List?)?.cast<Map<String, dynamic>>() ?? [];
+
+    if (state.todayError != null) {
+      return ListView(padding: const EdgeInsets.all(16), children: [
+        const SizedBox(height: 60),
+        _errorBox("Couldn't load today's overview.", state.todayError!),
+      ]);
+    }
+
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
-        // Status card
         GestureDetector(
-          onTap: onStatusTap,
+          onTap: onUpdatesTap,
           child: _Card(child: Row(children: [
             Container(
               width: 40, height: 40,
@@ -165,25 +220,23 @@ class _TodayTab extends StatelessWidget {
             const Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text('No action needed right now', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w500)),
               SizedBox(height: 2),
-              Text('Your planner and vendors are handling everything.', style: TextStyle(fontSize: 13, color: AppTheme.udoTextSecondary, height: 1.4)),
+              Text('Tap to see the latest updates.', style: TextStyle(fontSize: 13, color: AppTheme.udoTextSecondary, height: 1.4)),
             ])),
           ])),
         ),
         const SizedBox(height: 12),
 
-        // Right now
         _Card(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           const Text('Right now', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w500)),
           const SizedBox(height: 12),
           _InfoRow('Current time', timeStr),
           const Divider(height: 20),
-          _InfoRow('Current moment', 'Guests arriving'),
+          _InfoRow('Current moment', current != null ? current['title'] as String? ?? '' : (next != null ? 'Next: ${next['title']}' : 'No events scheduled')),
           const Divider(height: 20),
-          _InfoRow('Guests present', '$guestsArrived of 120', valueColor: AppTheme.udoGreen),
+          _InfoRow('Guests confirmed', '${guests?['confirmed'] ?? 0} of ${guests?['invited'] ?? 0}', valueColor: AppTheme.udoGreen),
         ])),
         const SizedBox(height: 12),
 
-        // Happening now
         _Card(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Row(children: [
             const Expanded(child: Text('Happening now', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w500))),
@@ -192,76 +245,66 @@ class _TodayTab extends StatelessWidget {
             const Text('Live', style: TextStyle(fontSize: 11, color: AppTheme.udoTextSecondary)),
           ]),
           const SizedBox(height: 12),
-          ...[
-            (Icons.people_outline, 'Sarah and Michael just arrived', 'Just now', const Color(0xFF22C55E)),
-            (Icons.camera_alt_outlined, 'Photographer capturing ceremony details', '2 min ago', AppTheme.udoGreen),
-            (Icons.favorite_outline, 'Your parents are greeting guests at entrance', '5 min ago', AppTheme.udoCrimson),
-            (Icons.auto_awesome_outlined, 'Final touches on floral arrangements complete', '8 min ago', Colors.orange),
-          ].map((item) => Padding(
-            padding: const EdgeInsets.only(bottom: 8),
-            child: Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(color: const Color(0xFFF3EFEA), borderRadius: BorderRadius.circular(16)),
-              child: Row(children: [
-                Container(
-                  width: 32, height: 32,
-                  decoration: BoxDecoration(color: Colors.white, shape: BoxShape.circle, border: Border.all(color: AppTheme.udoBorder)),
-                  child: Icon(item.$1, color: item.$4, size: 16),
-                ),
-                const SizedBox(width: 10),
-                Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text(item.$2, style: const TextStyle(fontSize: 13, height: 1.4)),
-                  Text(item.$3, style: const TextStyle(fontSize: 11, color: AppTheme.udoTextSecondary)),
-                ])),
-              ]),
-            ),
-          )),
+          if (recentUpdates.isEmpty)
+            const Text('No updates shared yet.', style: TextStyle(fontSize: 13, color: AppTheme.udoTextSecondary))
+          else
+            ...recentUpdates.map((u) => Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(color: const Color(0xFFF3EFEA), borderRadius: BorderRadius.circular(16)),
+                child: Row(children: [
+                  Container(
+                    width: 32, height: 32,
+                    decoration: BoxDecoration(color: Colors.white, shape: BoxShape.circle, border: Border.all(color: AppTheme.udoBorder)),
+                    child: const Icon(Icons.campaign_outlined, color: AppTheme.udoGreen, size: 16),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Text(u['title'] as String? ?? '', style: const TextStyle(fontSize: 13, height: 1.4)),
+                    Text(_timeAgo(u['created_at'] as String?), style: const TextStyle(fontSize: 11, color: AppTheme.udoTextSecondary)),
+                  ])),
+                ]),
+              ),
+            )),
         ])),
         const SizedBox(height: 12),
 
-        // Coming up next
         _Card(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           const Text('Coming up next', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w500)),
           const SizedBox(height: 12),
-          ...[('Ceremony begins', '4:30 PM', 'in 18 minutes'), ('Cocktail hour', '5:15 PM', 'in 1 hr 3 min')].map((i) =>
+          if (next == null)
+            const Text('Nothing else scheduled today.', style: TextStyle(fontSize: 13, color: AppTheme.udoTextSecondary))
+          else
             Container(
-              margin: const EdgeInsets.only(bottom: 8),
               padding: const EdgeInsets.all(14),
               decoration: BoxDecoration(color: const Color(0xFFF3EFEA), borderRadius: BorderRadius.circular(16)),
               child: Row(children: [
                 Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text(i.$1, style: const TextStyle(fontWeight: FontWeight.w500, fontSize: 14)),
-                  Text(i.$2, style: const TextStyle(fontSize: 13, color: AppTheme.udoTextSecondary)),
+                  Text(next['title'] as String? ?? '', style: const TextStyle(fontWeight: FontWeight.w500, fontSize: 14)),
+                  Text(_formatTime(next['start_time'] as String?), style: const TextStyle(fontSize: 13, color: AppTheme.udoTextSecondary)),
                 ])),
-                Text(i.$3, style: const TextStyle(color: AppTheme.udoGreen, fontWeight: FontWeight.w500, fontSize: 13)),
+                Text(_countdownTo(next), style: const TextStyle(color: AppTheme.udoGreen, fontWeight: FontWeight.w500, fontSize: 13)),
               ]),
             ),
-          ),
         ])),
         const SizedBox(height: 12),
 
-        // Everything in place
         _Card(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          const Text('Everything in place', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w500)),
+          const Text('Vendor readiness', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w500)),
           const SizedBox(height: 12),
-          ...[
-            'Florist setup complete', 'Musicians soundcheck done',
-            'Catering team ready', 'Photographer capturing pre-ceremony',
-          ].map((label) => Container(
-            margin: const EdgeInsets.only(bottom: 8),
+          Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
             decoration: BoxDecoration(color: const Color(0xFFF3EFEA), borderRadius: BorderRadius.circular(14)),
             child: Row(children: [
               const Icon(Icons.check_circle, color: Color(0xFF22C55E), size: 18),
               const SizedBox(width: 10),
-              Expanded(child: Text(label, style: const TextStyle(fontSize: 13))),
-              const Text('Ready', style: TextStyle(fontSize: 11, color: AppTheme.udoTextSecondary)),
+              Expanded(child: Text('${vendors?['confirmed'] ?? 0} of ${vendors?['total'] ?? 0} vendors confirmed', style: const TextStyle(fontSize: 13))),
             ]),
-          )),
+          ),
         ])),
         const SizedBox(height: 12),
 
-        // Your day so far
         Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
@@ -276,66 +319,53 @@ class _TodayTab extends StatelessWidget {
               const Text('Your day so far', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w500)),
             ]),
             const SizedBox(height: 12),
-            _DayStat(Icons.camera_alt_outlined, 'Photos captured', '127', AppTheme.udoGreen),
+            _DayStat(Icons.camera_alt_outlined, 'Photos captured', '${gallery?['photos'] ?? 0}', AppTheme.udoGreen),
             const SizedBox(height: 8),
-            _DayStat(Icons.favorite_outline, 'Well-wishes received', '34', AppTheme.udoCrimson),
+            _DayStat(Icons.campaign_outlined, 'Updates shared', '${state.updates.length}', AppTheme.udoCrimson),
             const SizedBox(height: 8),
-            _DayStat(Icons.people_outline, 'Loved ones present', '$guestsArrived', const Color(0xFF22C55E)),
+            _DayStat(Icons.people_outline, 'Guests confirmed', '${guests?['confirmed'] ?? 0}', const Color(0xFF22C55E)),
           ]),
         ),
         const SizedBox(height: 12),
 
-        // Weather mini
         _Card(child: Row(children: [
-          const Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text('78°', style: TextStyle(fontSize: 36, fontWeight: FontWeight.w500, height: 1)),
-            SizedBox(height: 4),
-            Text('Partly cloudy', style: TextStyle(fontSize: 13, color: AppTheme.udoTextSecondary)),
-            SizedBox(height: 8),
-            Text('Perfect conditions for your ceremony', style: TextStyle(fontSize: 12, color: AppTheme.udoTextSecondary, height: 1.4)),
+          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(state.weather != null ? '${state.weather!['temp']}°' : '—', style: const TextStyle(fontSize: 36, fontWeight: FontWeight.w500, height: 1)),
+            const SizedBox(height: 4),
+            Text(state.weather?['condition'] as String? ?? (state.weatherMessage ?? 'Weather unavailable'), style: const TextStyle(fontSize: 13, color: AppTheme.udoTextSecondary)),
           ])),
-          const Icon(Icons.wb_sunny_outlined, size: 56, color: Colors.orange),
+          Icon(_weatherIcon(state.weather?['condition'] as String?), size: 56, color: Colors.orange),
         ])),
         const SizedBox(height: 12),
 
-        // Support team
-        _Card(child: Column(children: [
-          GestureDetector(
-            onTap: onContactsToggle,
-            child: Row(children: [
-              const Expanded(child: Text('Your support team', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w500))),
-              Icon(contactsExpanded ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down, color: AppTheme.udoTextSecondary),
-            ]),
-          ),
-          if (contactsExpanded) ...[
-            const SizedBox(height: 12),
-            ...[
-              ('Maria Chen', 'Wedding Planner', '+1 (555) 123-4567'),
-              ('John Anderson', 'Venue Manager', '+1 (555) 987-6543'),
-              ('Sarah Williams', 'Day-of Coordinator', '+1 (555) 456-7890'),
-            ].map((c) => Container(
+        _Card(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          const Text('Your support team', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w500)),
+          const SizedBox(height: 12),
+          if (contacts.isEmpty)
+            const Text('No emergency contacts added yet. Add them from Wedding Party → Emergency.', style: TextStyle(fontSize: 13, color: AppTheme.udoTextSecondary))
+          else
+            ...contacts.map((c) => Container(
               margin: const EdgeInsets.only(bottom: 8),
               padding: const EdgeInsets.all(14),
               decoration: BoxDecoration(color: const Color(0xFFF3EFEA), borderRadius: BorderRadius.circular(16)),
               child: Row(children: [
                 Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text(c.$1, style: const TextStyle(fontWeight: FontWeight.w500, fontSize: 14)),
-                  Text(c.$2, style: const TextStyle(fontSize: 12, color: AppTheme.udoTextSecondary)),
-                  Text(c.$3, style: const TextStyle(fontSize: 12, color: AppTheme.udoTextSecondary)),
+                  Text(c['name'] as String? ?? '', style: const TextStyle(fontWeight: FontWeight.w500, fontSize: 14)),
+                  Text(c['relationship'] as String? ?? '', style: const TextStyle(fontSize: 12, color: AppTheme.udoTextSecondary)),
+                  Text(c['phone'] as String? ?? '', style: const TextStyle(fontSize: 12, color: AppTheme.udoTextSecondary)),
                 ])),
                 Row(children: [
-                  Icon(Icons.phone_outlined, color: AppTheme.udoGreen, size: 18),
+                  GestureDetector(onTap: () => _launchTel(context, c['phone'] as String?), child: const Icon(Icons.phone_outlined, color: AppTheme.udoGreen, size: 18)),
                   const SizedBox(width: 10),
-                  Icon(Icons.message_outlined, color: AppTheme.udoGreen, size: 18),
+                  GestureDetector(onTap: () => _launchSms(context, c['phone'] as String?), child: const Icon(Icons.message_outlined, color: AppTheme.udoGreen, size: 18)),
                 ]),
               ]),
             )),
-          ],
         ])),
         const SizedBox(height: 24),
-        Center(child: Text(
-          guestsArrived >= 115 ? 'Everyone who matters is here.' : 'Today is yours.',
-          style: const TextStyle(fontFamily: 'Playfair', fontSize: 16, fontStyle: FontStyle.italic, height: 1.5),
+        const Center(child: Text(
+          'Today is yours.',
+          style: TextStyle(fontFamily: 'Playfair', fontSize: 16, fontStyle: FontStyle.italic, height: 1.5),
           textAlign: TextAlign.center,
         )),
         const SizedBox(height: 6),
@@ -344,50 +374,66 @@ class _TodayTab extends StatelessWidget {
       ],
     );
   }
+
+  IconData _weatherIcon(String? condition) {
+    switch ((condition ?? '').toLowerCase()) {
+      case 'rain': case 'drizzle': case 'thunderstorm': return Icons.umbrella_outlined;
+      case 'clouds': return Icons.cloud_outlined;
+      case 'snow': return Icons.ac_unit_outlined;
+      default: return Icons.wb_sunny_outlined;
+    }
+  }
 }
 
 // ── TIMELINE TAB ───────────────────────────────────────────────────────────────
 
-class _TimelineTab extends ConsumerWidget {
-  const _TimelineTab();
+class _TimelineTab extends StatelessWidget {
+  final LiveState state;
+  const _TimelineTab({required this.state});
 
-  String _statusFor(String? startTime) {
+  String _statusFor(Map<String, dynamic> item) {
+    final dateStr = item['event_date'] as String?;
+    final startTime = item['start_time'] as String?;
+    final date = dateStr != null ? DateTime.tryParse(dateStr) : null;
+    if (date == null) return 'upcoming';
+
+    final today = DateTime.now();
+    final itemDate = DateTime(date.year, date.month, date.day);
+    final now = DateTime(today.year, today.month, today.day);
+    if (itemDate.isBefore(now)) return 'completed';
+    if (itemDate.isAfter(now)) return 'upcoming';
+
     if (startTime == null) return 'upcoming';
     final parts = startTime.split(':');
-    if (parts.length < 2) return 'upcoming';
     final hour = int.tryParse(parts[0]) ?? 0;
-    final minute = int.tryParse(parts[1]) ?? 0;
-    final now = TimeOfDay.now();
-    if (hour < now.hour || (hour == now.hour && minute <= now.minute)) return 'completed';
-    if (hour == now.hour) return 'in-progress';
+    final minute = int.tryParse(parts.length > 1 ? parts[1] : '0') ?? 0;
+    final nowTod = TimeOfDay.now();
+    if (hour < nowTod.hour || (hour == nowTod.hour && minute <= nowTod.minute)) return 'completed';
+    if (hour == nowTod.hour) return 'in-progress';
     return 'upcoming';
   }
 
-  String _formatTime(String? t) {
-    if (t == null) return '';
-    final parts = t.split(':');
-    if (parts.length < 2) return t;
-    final h = int.tryParse(parts[0]) ?? 0;
-    final m = int.tryParse(parts[1]) ?? 0;
-    final suffix = h >= 12 ? 'PM' : 'AM';
-    final hour = h > 12 ? h - 12 : (h == 0 ? 12 : h);
-    return '$hour:${m.toString().padLeft(2, '0')} $suffix';
-  }
-
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final timeline = ref.watch(liveProvider).timeline;
+  Widget build(BuildContext context) {
+    final timeline = state.timeline;
+
+    if (state.timelineError != null) {
+      return ListView(padding: const EdgeInsets.all(16), children: [const SizedBox(height: 60), _errorBox("Couldn't load your timeline.", state.timelineError!)]);
+    }
 
     if (timeline.isEmpty) {
-      return const Center(
-        child: Column(mainAxisSize: MainAxisSize.min, children: [
-          Icon(Icons.calendar_today_outlined, size: 48, color: AppTheme.udoTextSecondary),
-          SizedBox(height: 12),
-          Text('No schedule yet', style: TextStyle(color: AppTheme.udoTextSecondary, fontSize: 15)),
-          SizedBox(height: 4),
-          Text('Add events in the Plan section', style: TextStyle(color: AppTheme.udoTextSecondary, fontSize: 13)),
-        ]),
-      );
+      return ListView(children: const [
+        SizedBox(height: 120),
+        Center(
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            Icon(Icons.calendar_today_outlined, size: 48, color: AppTheme.udoTextSecondary),
+            SizedBox(height: 12),
+            Text('No schedule yet', style: TextStyle(color: AppTheme.udoTextSecondary, fontSize: 15)),
+            SizedBox(height: 4),
+            Text('Add events in the Plan section', style: TextStyle(color: AppTheme.udoTextSecondary, fontSize: 13)),
+          ]),
+        ),
+      ]);
     }
 
     return ListView(
@@ -400,7 +446,7 @@ class _TimelineTab extends ConsumerWidget {
             final i = entry.key;
             final item = entry.value;
             final isLast = i == timeline.length - 1;
-            final status = _statusFor(item['start_time'] as String?);
+            final status = _statusFor(item);
             final timeLabel = _formatTime(item['start_time'] as String?);
             final title = item['title'] as String? ?? '';
             return Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -447,28 +493,71 @@ class _TimelineDot extends StatelessWidget {
 // ── MAP TAB ────────────────────────────────────────────────────────────────────
 
 class _MapTab extends StatelessWidget {
-  const _MapTab();
+  final LiveState state;
+  const _MapTab({required this.state});
 
   @override
   Widget build(BuildContext context) {
+    final venue = state.venue;
+    final lat = venue?['lat'] as num?;
+    final lng = venue?['lng'] as num?;
+    final resolved = lat != null && lng != null;
+
+    final areas = state.timeline
+        .map((t) => t['location'] as String?)
+        .where((l) => l != null && l.isNotEmpty)
+        .cast<String>()
+        .toSet()
+        .toList();
+
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
         _Card(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          const Text('Venue layout', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w500)),
+          const Text('Venue location', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w500)),
           const SizedBox(height: 12),
-          Container(
-            height: 200,
-            decoration: BoxDecoration(color: const Color(0xFFF3EFEA), borderRadius: BorderRadius.circular(16)),
-            child: const Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-              Icon(Icons.map_outlined, size: 56, color: AppTheme.udoGreen),
-              SizedBox(height: 8),
-              Text('Interactive venue map', style: TextStyle(color: AppTheme.udoTextSecondary, fontSize: 13)),
-            ])),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(16),
+            child: SizedBox(
+              height: 220,
+              child: resolved
+                  ? FlutterMap(
+                      options: MapOptions(initialCenter: LatLng(lat.toDouble(), lng.toDouble()), initialZoom: 15),
+                      children: [
+                        TileLayer(
+                          urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                          userAgentPackageName: 'com.udowedding.app',
+                        ),
+                        MarkerLayer(markers: [
+                          Marker(
+                            point: LatLng(lat.toDouble(), lng.toDouble()),
+                            width: 40, height: 40,
+                            child: const Icon(Icons.location_on, color: AppTheme.udoCrimson, size: 40),
+                          ),
+                        ]),
+                      ],
+                    )
+                  : Container(
+                      color: const Color(0xFFF3EFEA),
+                      child: const Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+                        Icon(Icons.map_outlined, size: 48, color: AppTheme.udoGreen),
+                        SizedBox(height: 8),
+                        Text('Add a venue address in Wedding settings\nto see it on the map.', textAlign: TextAlign.center, style: TextStyle(color: AppTheme.udoTextSecondary, fontSize: 13)),
+                      ])),
+                    ),
+            ),
           ),
+          if (resolved && (venue?['venue_name'] as String?)?.isNotEmpty == true) ...[
+            const SizedBox(height: 10),
+            Text(venue!['venue_name'] as String, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500)),
+          ],
+          if (resolved && (venue?['venue_address'] as String?)?.isNotEmpty == true)
+            Text(venue!['venue_address'] as String, style: const TextStyle(fontSize: 12, color: AppTheme.udoTextSecondary)),
           const SizedBox(height: 12),
-          ...['Ceremony garden', 'Reception hall', 'Cocktail terrace', 'Restrooms', 'Photo area'].map((area) =>
-            Container(
+          if (areas.isEmpty)
+            const Text('Add locations to your timeline events to see them listed here.', style: TextStyle(fontSize: 13, color: AppTheme.udoTextSecondary))
+          else
+            ...areas.map((area) => Container(
               margin: const EdgeInsets.only(bottom: 8),
               padding: const EdgeInsets.all(14),
               decoration: BoxDecoration(color: const Color(0xFFF3EFEA), borderRadius: BorderRadius.circular(14)),
@@ -476,8 +565,7 @@ class _MapTab extends StatelessWidget {
                 Expanded(child: Text(area, style: const TextStyle(fontSize: 14))),
                 const Icon(Icons.place_outlined, color: AppTheme.udoGreen, size: 18),
               ]),
-            ),
-          ),
+            )),
         ])),
       ],
     );
@@ -487,53 +575,86 @@ class _MapTab extends StatelessWidget {
 // ── WEATHER TAB ────────────────────────────────────────────────────────────────
 
 class _WeatherTab extends StatelessWidget {
-  const _WeatherTab();
+  final LiveState state;
+  const _WeatherTab({required this.state});
+
+  String _advisory(Map<String, dynamic> w) {
+    final rain = w['rain_chance_pct'] as num? ?? 0;
+    final temp = w['temp'] as num? ?? 70;
+    if (rain >= 50) return 'Rain is likely — consider a backup plan or tent for outdoor moments.';
+    if (temp >= 90) return 'It\'ll be hot — keep guests hydrated and consider shade for outdoor seating.';
+    if (temp <= 50) return 'It\'ll be cool — guests may appreciate blankets or heaters for outdoor areas.';
+    if (rain <= 15 && temp >= 65 && temp <= 85) return 'Great conditions for your outdoor plans today.';
+    return 'Conditions look manageable — check back closer to the day for updates.';
+  }
+
+  IconData _icon(String? condition) {
+    switch ((condition ?? '').toLowerCase()) {
+      case 'rain': case 'drizzle': case 'thunderstorm': return Icons.umbrella_outlined;
+      case 'clouds': return Icons.cloud_outlined;
+      case 'snow': return Icons.ac_unit_outlined;
+      default: return Icons.wb_sunny_outlined;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
+    final w = state.weather;
+
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
         _Card(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           const Text('Weather forecast', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w500)),
           const SizedBox(height: 16),
-          Container(
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(color: const Color(0xFFF3EFEA), borderRadius: BorderRadius.circular(16)),
-            child: Column(children: [
-              Row(children: [
-                const Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text('78°', style: TextStyle(fontSize: 48, fontWeight: FontWeight.w500, height: 1)),
-                  SizedBox(height: 4),
-                  Text('Feels like 76°', style: TextStyle(fontSize: 13, color: AppTheme.udoTextSecondary)),
+          if (w == null)
+            Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(color: const Color(0xFFF3EFEA), borderRadius: BorderRadius.circular(16)),
+              child: Column(children: [
+                const Icon(Icons.cloud_off_outlined, size: 40, color: AppTheme.udoTextSecondary),
+                const SizedBox(height: 10),
+                Text(state.weatherMessage ?? 'Weather is currently unavailable.', style: const TextStyle(fontSize: 13, color: AppTheme.udoTextSecondary), textAlign: TextAlign.center),
+              ]),
+            )
+          else ...[
+            Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(color: const Color(0xFFF3EFEA), borderRadius: BorderRadius.circular(16)),
+              child: Column(children: [
+                Row(children: [
+                  Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Text('${w['temp']}°', style: const TextStyle(fontSize: 48, fontWeight: FontWeight.w500, height: 1)),
+                    const SizedBox(height: 4),
+                    Text('Feels like ${w['feels_like']}°', style: const TextStyle(fontSize: 13, color: AppTheme.udoTextSecondary)),
+                  ]),
+                  const Spacer(),
+                  Icon(_icon(w['condition'] as String?), size: 72, color: Colors.orange),
                 ]),
-                const Spacer(),
-                const Icon(Icons.wb_sunny_outlined, size: 72, color: Colors.orange),
+                const SizedBox(height: 16),
+                Row(children: [
+                  _WeatherStat(Icons.umbrella_outlined, 'Rain', '${w['rain_chance_pct']}%'),
+                  _WeatherStat(Icons.air_outlined, 'Wind', '${w['wind_mph']} mph'),
+                  _WeatherStat(Icons.cloud_outlined, 'Clouds', '${w['clouds_pct']}%'),
+                ]),
               ]),
-              const SizedBox(height: 16),
-              Row(children: [
-                _WeatherStat(Icons.umbrella_outlined, 'Rain', '10%'),
-                _WeatherStat(Icons.air_outlined, 'Wind', '8 mph'),
-                _WeatherStat(Icons.cloud_outlined, 'Clouds', '30%'),
-              ]),
-            ]),
-          ),
-          const SizedBox(height: 16),
-          const Text('Hourly forecast', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500)),
-          const SizedBox(height: 8),
-          ...['4:00 PM — 78° Sunny', '5:00 PM — 76° Partly cloudy', '6:00 PM — 74° Partly cloudy', '7:00 PM — 72° Clear', '8:00 PM — 70° Clear']
-            .map((h) => Container(
+            ),
+            const SizedBox(height: 16),
+            const Text('Hourly forecast', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500)),
+            const SizedBox(height: 8),
+            ...((w['hourly'] as List?)?.cast<Map<String, dynamic>>() ?? []).map((h) => Container(
               margin: const EdgeInsets.only(bottom: 6),
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(color: const Color(0xFFF3EFEA), borderRadius: BorderRadius.circular(12)),
-              child: Text(h, style: const TextStyle(fontSize: 13)),
+              child: Text('${h['time']} — ${h['temp']}° ${h['condition']}', style: const TextStyle(fontSize: 13)),
             )),
-          const SizedBox(height: 12),
-          Container(
-            padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(color: AppTheme.udoPastelCrimson.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(14), border: Border.all(color: AppTheme.udoPastelCrimson.withValues(alpha: 0.4))),
-            child: const Text('Perfect conditions for your outdoor ceremony. Light breeze will keep guests comfortable.', style: TextStyle(fontSize: 13, height: 1.5)),
-          ),
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(color: AppTheme.udoPastelCrimson.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(14), border: Border.all(color: AppTheme.udoPastelCrimson.withValues(alpha: 0.4))),
+              child: Text(_advisory(w), style: const TextStyle(fontSize: 13, height: 1.5)),
+            ),
+          ],
         ])),
       ],
     );
@@ -556,20 +677,31 @@ class _WeatherStat extends StatelessWidget {
 
 // ── UPDATES TAB ────────────────────────────────────────────────────────────────
 
-class _UpdatesTab extends StatefulWidget {
-  final WidgetRef provider;
-  const _UpdatesTab({required this.provider});
+class _UpdatesTab extends ConsumerStatefulWidget {
+  final LiveState state;
+  const _UpdatesTab({required this.state});
 
   @override
-  State<_UpdatesTab> createState() => _UpdatesTabState();
+  ConsumerState<_UpdatesTab> createState() => _UpdatesTabState();
 }
 
-class _UpdatesTabState extends State<_UpdatesTab> {
+class _UpdatesTabState extends ConsumerState<_UpdatesTab> {
   final _ctrl = TextEditingController();
+  bool _sending = false;
+
+  Future<void> _send() async {
+    if (_ctrl.text.trim().isEmpty) return;
+    setState(() => _sending = true);
+    final ok = await ref.read(liveProvider.notifier).post(title: _ctrl.text.trim());
+    if (!mounted) return;
+    setState(() => _sending = false);
+    if (ok) _ctrl.clear();
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(ok ? 'Sent to all guests.' : "Couldn't send that update. Try again.")));
+  }
 
   @override
   Widget build(BuildContext context) {
-    final state = widget.provider.watch(liveProvider);
+    final state = widget.state;
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
@@ -589,21 +721,18 @@ class _UpdatesTabState extends State<_UpdatesTab> {
           ),
           const SizedBox(height: 10),
           ElevatedButton(
-            onPressed: () {
-              if (_ctrl.text.isNotEmpty) {
-                widget.provider.read(liveProvider.notifier).post(title: _ctrl.text);
-                _ctrl.clear();
-              }
-            },
+            onPressed: _sending ? null : _send,
             style: ElevatedButton.styleFrom(minimumSize: const Size(double.infinity, 48), backgroundColor: AppTheme.udoGreen, foregroundColor: Colors.white),
-            child: const Text('Send to all guests'),
+            child: _sending ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : const Text('Send to all guests'),
           ),
         ])),
         const SizedBox(height: 12),
         _Card(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           const Text('Recent updates', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w500)),
           const SizedBox(height: 12),
-          if (state.updates.isEmpty)
+          if (state.updatesError != null)
+            Text(state.updatesError!, style: const TextStyle(color: AppTheme.udoCrimson, fontSize: 12))
+          else if (state.updates.isEmpty)
             const Text('No updates yet.', style: TextStyle(color: AppTheme.udoTextSecondary, fontSize: 13))
           else
             ...state.updates.take(10).map((u) => Container(
@@ -613,15 +742,33 @@ class _UpdatesTabState extends State<_UpdatesTab> {
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Text(u['title'] as String? ?? '', style: const TextStyle(fontWeight: FontWeight.w500, fontSize: 14)),
                 if (u['body'] != null) ...[const SizedBox(height: 4), Text(u['body'] as String, style: const TextStyle(fontSize: 13, color: AppTheme.udoTextSecondary))],
+                const SizedBox(height: 4),
+                Text(_timeAgo(u['created_at'] as String?), style: const TextStyle(fontSize: 11, color: AppTheme.udoTextSecondary)),
               ]),
             )),
         ])),
       ],
     );
   }
+
+  @override
+  void dispose() { _ctrl.dispose(); super.dispose(); }
 }
 
 // ── SHARED WIDGETS ─────────────────────────────────────────────────────────────
+
+Widget _errorBox(String title, String message) => Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          const Icon(Icons.error_outline, size: 40, color: AppTheme.udoCrimson),
+          const SizedBox(height: 12),
+          Text(title, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: AppTheme.udoCrimson)),
+          const SizedBox(height: 6),
+          Text(message, style: const TextStyle(fontSize: 12, color: AppTheme.udoTextSecondary), textAlign: TextAlign.center),
+        ]),
+      ),
+    );
 
 class _Card extends StatelessWidget {
   final Widget child;

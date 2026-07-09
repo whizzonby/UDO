@@ -50,4 +50,8 @@ return [
         'key_id'        => env('APPLE_KEY_ID'),
     ],
 
+    'openweather' => [
+        'key' => env('OPENWEATHER_API_KEY'),
+    ],
+
 ];

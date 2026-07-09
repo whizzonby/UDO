@@ -13,13 +13,15 @@ class Wedding extends Model
     protected $fillable = [
         'slug', 'title', 'couple_name_primary', 'couple_name_secondary',
         'event_date', 'timezone', 'city', 'country', 'primary_venue_name',
-        'primary_venue_address', 'rsvp_deadline', 'status', 'owner_user_id', 'settings',
+        'primary_venue_address', 'venue_lat', 'venue_lng', 'rsvp_deadline', 'status', 'owner_user_id', 'settings',
     ];
 
     protected $casts = [
         'event_date' => 'date',
         'rsvp_deadline' => 'date',
         'settings' => 'array',
+        'venue_lat' => 'decimal:7',
+        'venue_lng' => 'decimal:7',
     ];
 
     protected static function booted(): void

@@ -17,6 +17,8 @@ use App\Http\Controllers\MessagesController;
 use App\Http\Controllers\OnboardingController;
 use App\Http\Controllers\RegistryController;
 use App\Http\Controllers\SeatingController;
+use App\Http\Controllers\VenueController;
+use App\Http\Controllers\WeatherController;
 use App\Http\Controllers\WeddingController;
 use App\Http\Controllers\Plan\BudgetController;
 use App\Http\Controllers\Plan\TaskController;
@@ -107,10 +109,15 @@ Route::middleware('auth:sanctum')->group(function () {
     });
 
     // Live feed
+    Route::get('live/today', [LiveController::class, 'today']);
     Route::get('live', [LiveController::class, 'index']);
     Route::post('live', [LiveController::class, 'store']);
     Route::patch('live/{liveUpdate}', [LiveController::class, 'update']);
     Route::delete('live/{liveUpdate}', [LiveController::class, 'destroy']);
+
+    // Venue & weather
+    Route::get('venue/location', [VenueController::class, 'location']);
+    Route::get('weather', [WeatherController::class, 'show']);
 
     // Gallery
     Route::get('gallery', [GalleryController::class, 'index']);
