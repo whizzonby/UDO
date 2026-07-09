@@ -6,33 +6,30 @@ import '../../../../core/network/api_client.dart';
 class ExperienceState {
   final bool isLoading;
   final bool isSaving;
-  /// Module name → enabled flag, e.g. {'Our Story': true, 'Photo Upload': false}
-  final Map<String, bool> modules;
-  /// Raw portal data returned by the API (slug, url, etc.)
-  final Map<String, dynamic> portal;
+  /// Raw GuestExperienceConfig row as returned by the API — flat boolean/
+  /// string columns (show_schedule, welcome_message, etc.), not a fake
+  /// "modules" map. The UI maps these directly to the real field names.
+  final Map<String, dynamic> config;
   final String? error;
 
   const ExperienceState({
     this.isLoading = false,
     this.isSaving = false,
-    this.modules = const {},
-    this.portal = const {},
+    this.config = const {},
     this.error,
   });
 
   ExperienceState copyWith({
     bool? isLoading,
     bool? isSaving,
-    Map<String, bool>? modules,
-    Map<String, dynamic>? portal,
+    Map<String, dynamic>? config,
     String? error,
   }) =>
       ExperienceState(
         isLoading: isLoading ?? this.isLoading,
         isSaving: isSaving ?? this.isSaving,
-        modules: modules ?? this.modules,
-        portal: portal ?? this.portal,
-        error: error ?? this.error,
+        config: config ?? this.config,
+        error: error,
       );
 }
 
@@ -46,34 +43,44 @@ class ExperienceNotifier extends StateNotifier<ExperienceState> {
   }
 
   Future<void> _load() async {
+    state = state.copyWith(isLoading: true, error: null);
     try {
       final res = await _api.get('/experience') as Map<String, dynamic>;
-      final data = res['data'] as Map<String, dynamic>? ?? {};
-      final rawModules = data['modules'] as Map<String, dynamic>? ?? {};
-      final portal = data['portal'] as Map<String, dynamic>? ?? {};
-
-      // Convert dynamic values to bool
-      final modules = rawModules.map(
-        (k, v) => MapEntry(k, v == true || v == 1 || v == 'true'),
-      );
-
-      state = state.copyWith(isLoading: false, modules: modules, portal: portal);
+      final config = res['data'] as Map<String, dynamic>? ?? {};
+      state = state.copyWith(isLoading: false, config: config);
     } catch (e) {
       state = state.copyWith(isLoading: false, error: e.toString());
     }
   }
 
-  /// Toggles a single module and immediately PATCHes the API.
-  Future<void> toggleModule(String key, bool value) async {
-    final updated = Map<String, bool>.from(state.modules)..[key] = value;
-    state = state.copyWith(modules: updated, isSaving: true);
+  /// Toggles a single real boolean field (e.g. 'show_schedule') and
+  /// immediately PATCHes it. Reverts optimistically on failure.
+  Future<void> toggleField(String field, bool value) async {
+    final previous = state.config[field];
+    final updated = Map<String, dynamic>.from(state.config)..[field] = value;
+    state = state.copyWith(config: updated, isSaving: true);
     try {
-      await _api.patch('/experience', data: {'modules': updated});
+      await _api.patch('/experience', data: {field: value});
       state = state.copyWith(isSaving: false);
     } catch (e) {
-      // Revert on failure
-      final reverted = Map<String, bool>.from(state.modules)..[key] = !value;
-      state = state.copyWith(isSaving: false, modules: reverted, error: e.toString());
+      final reverted = Map<String, dynamic>.from(state.config)..[field] = previous;
+      state = state.copyWith(isSaving: false, config: reverted, error: e.toString());
+    }
+  }
+
+  Future<bool> saveText({String? welcomeMessage, String? dressCode, String? dressCodeDetails}) async {
+    state = state.copyWith(isSaving: true, error: null);
+    try {
+      final res = await _api.patch('/experience', data: {
+        if (welcomeMessage != null) 'welcome_message': welcomeMessage,
+        if (dressCode != null) 'dress_code': dressCode,
+        if (dressCodeDetails != null) 'dress_code_details': dressCodeDetails,
+      }) as Map<String, dynamic>;
+      state = state.copyWith(isSaving: false, config: res['data'] as Map<String, dynamic>? ?? state.config);
+      return true;
+    } catch (e) {
+      state = state.copyWith(isSaving: false, error: e.toString());
+      return false;
     }
   }
 

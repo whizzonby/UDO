@@ -26,7 +26,7 @@ class LogisticsState {
         isLoading: isLoading ?? this.isLoading,
         accommodations: accommodations ?? this.accommodations,
         transports: transports ?? this.transports,
-        error: error ?? this.error,
+        error: error,
       );
 }
 
@@ -40,6 +40,7 @@ class LogisticsNotifier extends StateNotifier<LogisticsState> {
   }
 
   Future<void> _load() async {
+    state = state.copyWith(isLoading: true, error: null);
     try {
       final results = await Future.wait([
         _api.get('/logistics/accommodation'),
@@ -57,23 +58,27 @@ class LogisticsNotifier extends StateNotifier<LogisticsState> {
     }
   }
 
-  Future<void> addAccommodation(Map<String, dynamic> data) async {
+  Future<bool> addAccommodation(Map<String, dynamic> data) async {
     try {
       final res = await _api.post('/logistics/accommodation', data: data) as Map<String, dynamic>;
       final created = res['data'] as Map<String, dynamic>;
-      state = state.copyWith(accommodations: [...state.accommodations, created]);
+      state = state.copyWith(accommodations: [...state.accommodations, created], error: null);
+      return true;
     } catch (e) {
       state = state.copyWith(error: e.toString());
+      return false;
     }
   }
 
-  Future<void> addTransport(Map<String, dynamic> data) async {
+  Future<bool> addTransport(Map<String, dynamic> data) async {
     try {
       final res = await _api.post('/logistics/transport', data: data) as Map<String, dynamic>;
       final created = res['data'] as Map<String, dynamic>;
-      state = state.copyWith(transports: [...state.transports, created]);
+      state = state.copyWith(transports: [...state.transports, created], error: null);
+      return true;
     } catch (e) {
       state = state.copyWith(error: e.toString());
+      return false;
     }
   }
 

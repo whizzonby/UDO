@@ -36,13 +36,12 @@ class GuestExperienceController extends Controller
             'show_registry'          => 'nullable|boolean',
             'show_gallery'           => 'nullable|boolean',
             'show_live_feed'         => 'nullable|boolean',
-            'show_seat_info'         => 'nullable|boolean',
-            'show_meal_selection'    => 'nullable|boolean',
+            'allow_photo_uploads'    => 'nullable|boolean',
+            'allow_messages'         => 'nullable|boolean',
             'rsvp_enabled'           => 'nullable|boolean',
-            'rsvp_deadline'          => 'nullable|date',
             'meal_selection_enabled' => 'nullable|boolean',
             'plus_one_enabled'       => 'nullable|boolean',
-            'custom_css'             => 'nullable|string',
+            'dress_code_details'     => 'nullable|string',
             'cover_image_url'        => 'nullable|url',
             'theme_color'            => 'nullable|string|max:20',
         ]);
@@ -62,11 +61,11 @@ class GuestExperienceController extends Controller
 
         return response()->json([
             'wedding' => [
-                'couple_names' => $wedding->couple_names,
-                'event_date'   => $wedding->event_date,
-                'venue_name'   => $wedding->venue_name,
-                'venue_city'   => $wedding->venue_city,
-                'venue_country' => $wedding->venue_country,
+                'couple_names'  => trim(implode(' & ', array_filter([$wedding->couple_name_primary, $wedding->couple_name_secondary]))),
+                'event_date'    => $wedding->event_date,
+                'venue_name'    => $wedding->primary_venue_name,
+                'venue_city'    => $wedding->city,
+                'venue_country' => $wedding->country,
             ],
             'config' => $config,
         ]);

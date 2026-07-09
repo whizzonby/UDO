@@ -20,7 +20,7 @@ class InvitationController extends Controller
         $wedding    = $this->wedding($request);
         $invitation = $wedding->invitation;
 
-        return response()->json($invitation);
+        return response()->json(['data' => $invitation]);
     }
 
     public function store(Request $request): JsonResponse
@@ -41,7 +41,7 @@ class InvitationController extends Controller
 
         $invitation = $wedding->invitation()->updateOrCreate(['wedding_id' => $wedding->id], $data);
 
-        return response()->json($invitation, 201);
+        return response()->json(['data' => $invitation], 201);
     }
 
     public function update(Request $request): JsonResponse
@@ -63,18 +63,16 @@ class InvitationController extends Controller
 
         $invitation->update($data);
 
-        return response()->json($invitation->fresh());
+        return response()->json(['data' => $invitation->fresh()]);
     }
 
     public function publish(Request $request): JsonResponse
     {
         $wedding    = $this->wedding($request);
-        $invitation = $wedding->invitation;
-
-        abort_unless($invitation, 404, 'No invitation found.');
+        $invitation = $wedding->invitation ?? Invitation::create(['wedding_id' => $wedding->id]);
 
         $invitation->update(['published_at' => now()]);
 
-        return response()->json(['message' => 'Invitation published.', 'published_at' => $invitation->published_at]);
+        return response()->json(['data' => $invitation, 'message' => 'Invitation published.']);
     }
 }

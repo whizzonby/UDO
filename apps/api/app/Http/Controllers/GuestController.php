@@ -2,10 +2,12 @@
 
 namespace App\Http\Controllers;
 
+use App\Mail\TemplatedMail;
 use App\Models\Guest;
 use App\Models\GuestToken;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Mail;
 
 class GuestController extends Controller
 {
@@ -32,7 +34,7 @@ class GuestController extends Controller
             ->orderBy('first_name')
             ->get();
 
-        return response()->json($guests);
+        return response()->json(['data' => $guests]);
     }
 
     public function store(Request $request): JsonResponse
@@ -57,14 +59,14 @@ class GuestController extends Controller
 
         $guest = $wedding->guests()->create($data);
 
-        return response()->json($guest, 201);
+        return response()->json(['data' => $guest], 201);
     }
 
     public function show(Request $request, Guest $guest): JsonResponse
     {
         $this->authorizeGuest($request, $guest);
 
-        return response()->json($guest->load('token'));
+        return response()->json(['data' => $guest->load('token')]);
     }
 
     public function update(Request $request, Guest $guest): JsonResponse
@@ -98,7 +100,7 @@ class GuestController extends Controller
 
         $guest->update($data);
 
-        return response()->json($guest->fresh());
+        return response()->json(['data' => $guest->fresh()]);
     }
 
     public function destroy(Request $request, Guest $guest): JsonResponse
@@ -131,8 +133,8 @@ class GuestController extends Controller
     public function sendInvite(Request $request, Guest $guest): JsonResponse
     {
         $this->authorizeGuest($request, $guest);
+        $wedding = $this->wedding($request);
 
-        // Ensure token exists
         if (! $guest->token) {
             GuestToken::create([
                 'wedding_id' => $guest->wedding_id,
@@ -142,10 +144,27 @@ class GuestController extends Controller
             $guest->load('token');
         }
 
-        // TODO: dispatch SendGuestInviteJob with email/SMS
+        if ($guest->email) {
+            $coupleNames = trim(implode(' & ', array_filter([
+                $wedding->couple_name_primary, $wedding->couple_name_secondary,
+            ]))) ?: 'We';
+            $venueLine = $wedding->primary_venue_name
+                ? " at {$wedding->primary_venue_name}"
+                : ($wedding->city ? " in {$wedding->city}" : '');
+            $frontendUrl = rtrim(env('FRONTEND_URL', 'http://localhost:3000'), '/');
+
+            Mail::to($guest->email)->send(new TemplatedMail('guest_invite', [
+                'first_name'   => $guest->first_name,
+                'couple_names' => $coupleNames,
+                'event_date'   => $wedding->event_date?->format('F j, Y') ?? 'a date to be confirmed',
+                'venue_line'   => $venueLine,
+                'rsvp_url'     => "{$frontendUrl}/rsvp/{$guest->token->token}",
+            ]));
+        }
+
         $guest->update(['invite_status' => 'sent']);
 
-        return response()->json(['message' => 'Invite queued.']);
+        return response()->json(['data' => $guest->fresh('token'), 'message' => $guest->email ? 'Invite sent.' : 'No email on file — invite marked sent without emailing.']);
     }
 
     public function bulkImport(Request $request): JsonResponse
@@ -161,7 +180,7 @@ class GuestController extends Controller
 
         $created = collect($request->guests)->map(fn($g) => $wedding->guests()->create($g));
 
-        return response()->json(['imported' => $created->count()]);
+        return response()->json(['data' => $created->values(), 'imported' => $created->count()]);
     }
 
     private function authorizeGuest(Request $request, Guest $guest): void

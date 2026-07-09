@@ -122,7 +122,7 @@ class LogisticsController extends Controller
 
         $data = $request->validate([
             'name'           => 'required|string|max:255',
-            'vehicle_type'   => 'nullable|string|max:100',
+            'type'           => 'nullable|string|max:100',
             'capacity'       => 'nullable|integer|min:1',
             'departure_time' => 'nullable|date',
             'pickup_location' => 'nullable|string|max:255',
@@ -142,7 +142,7 @@ class LogisticsController extends Controller
 
         $data = $request->validate([
             'name'           => 'sometimes|string|max:255',
-            'vehicle_type'   => 'nullable|string|max:100',
+            'type'           => 'nullable|string|max:100',
             'capacity'       => 'nullable|integer|min:1',
             'departure_time' => 'nullable|date',
             'pickup_location' => 'nullable|string|max:255',

@@ -88,6 +88,9 @@ class MessagesController extends Controller
         if (!empty($filter['guest_group'])) {
             $query->where('guest_group', $filter['guest_group']);
         }
+        if (!empty($filter['vip_flag'])) {
+            $query->where('vip_flag', true);
+        }
         $guests = $query->get();
 
         foreach ($guests as $guest) {

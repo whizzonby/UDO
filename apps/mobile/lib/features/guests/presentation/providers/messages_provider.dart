@@ -30,7 +30,7 @@ class MessagesState {
         isSending: isSending ?? this.isSending,
         history: history ?? this.history,
         error: error ?? this.error,
-        sendError: sendError ?? this.sendError,
+        sendError: sendError,
       );
 }
 
@@ -47,40 +47,47 @@ class MessagesNotifier extends StateNotifier<MessagesState> {
     try {
       final res = await _api.get('/messages') as Map<String, dynamic>;
       final history = (res['data'] as List? ?? []).cast<Map<String, dynamic>>();
+      history.sort((a, b) => (b['created_at'] ?? '').toString().compareTo((a['created_at'] ?? '').toString()));
       state = state.copyWith(isLoading: false, history: history);
     } catch (e) {
       state = state.copyWith(isLoading: false, error: e.toString());
     }
   }
 
-  /// Sends a broadcast message to the specified audience.
-  /// [subject] – short title; [body] – message body; [audience] – audience key
-  /// (e.g. 'all', 'confirmed', 'pending', 'vip').
+  /// Maps a preset audience key to the real `audience_filter` shape the
+  /// backend understands ({} means "everyone", no key filters).
+  Map<String, dynamic> _filterFor(String audience) {
+    switch (audience) {
+      case 'confirmed': return {'attending_status': 'yes'};
+      case 'pending': return {'attending_status': 'pending'};
+      case 'vip': return {'vip_flag': true};
+      case 'wedding_party': return {'guest_group': 'wedding_party'};
+      default: return {};
+    }
+  }
+
+  /// Creates the message, then immediately sends it — a draft alone never
+  /// reaches anyone, delivery only happens via the /send endpoint.
   Future<bool> sendMessage({
     required String subject,
     required String body,
     required String audience,
+    required String channel,
   }) async {
     state = state.copyWith(isSending: true, sendError: null);
     try {
-      final res = await _api.post('/messages', data: {
+      final createRes = await _api.post('/messages', data: {
         'subject': subject,
         'body': body,
-        'audience': audience,
+        'channel': channel,
+        'audience_filter': _filterFor(audience),
       }) as Map<String, dynamic>;
+      final created = createRes['data'] as Map<String, dynamic>;
 
-      // Prepend the new message to history if the API returns it
-      final created = res['data'];
-      if (created is Map<String, dynamic>) {
-        state = state.copyWith(
-          isSending: false,
-          history: [created, ...state.history],
-        );
-      } else {
-        state = state.copyWith(isSending: false);
-        // Refresh history so the sent item appears
-        _load();
-      }
+      final sendRes = await _api.post('/messages/${created['id']}/send') as Map<String, dynamic>;
+      final sent = sendRes['data'] as Map<String, dynamic>;
+
+      state = state.copyWith(isSending: false, history: [sent, ...state.history]);
       return true;
     } catch (e) {
       state = state.copyWith(isSending: false, sendError: e.toString());
