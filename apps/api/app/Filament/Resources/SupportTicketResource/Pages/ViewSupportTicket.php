@@ -12,6 +12,10 @@ class ViewSupportTicket extends ViewRecord
 
     protected function getHeaderActions(): array
     {
-        return [Actions\EditAction::make()];
+        return [
+            SupportTicketResource::assignToMeAction(),
+            SupportTicketResource::resolveAction(),
+            Actions\EditAction::make(),
+        ];
     }
 }

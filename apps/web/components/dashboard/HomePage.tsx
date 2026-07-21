@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Heart, ChevronRight, Sparkles, Check, Clock, DollarSign, Users, Calendar, MapPin, Sun, Plus, X, Info, TrendingUp, AlertCircle, Edit, UserPlus, Send, Briefcase, LayoutGrid, MessageSquare, Mail, Link as LinkIcon } from 'lucide-react';
+import { Heart, ChevronRight, Sparkles, Check, Clock, DollarSign, Users, Calendar, MapPin, Sun, Plus, X, Info, TrendingUp, AlertCircle, Edit, UserPlus, Send, Briefcase, LayoutGrid, MessageSquare, Mail, Link as LinkIcon, Shield } from 'lucide-react';
 import { useWedding } from '@/contexts/WeddingContext';
 
 type ModalType = 'progress' | 'priorities' | 'budget' | 'guests' | 'task-detail' | 'quick-action' | 'today-focus' | 'wedding-feeling' | 'add-vendor' | 'invite-guest' | 'set-milestone' | 'message-guests' | null;
@@ -9,7 +9,7 @@ type ModalType = 'progress' | 'priorities' | 'budget' | 'guests' | 'task-detail'
 type MoodType = 'calm' | 'excited' | 'overwhelmed' | 'balanced' | null;
 
 export default function HomePage() {
-  const { wedding, stats } = useWedding();
+  const { wedding, stats, commandCenter, upcomingTasks } = useWedding();
   const [activeModal, setActiveModal] = useState<ModalType>(null);
   const [selectedTask, setSelectedTask] = useState<any>(null);
   const [selectedAction, setSelectedAction] = useState('');
@@ -65,7 +65,7 @@ export default function HomePage() {
     balanced: "You've found your rhythm.",
   };
 
-  const tasks = [
+  const fallbackTasks = [
     {
       id: 1,
       title: 'Finalize your venue shortlist',
@@ -94,6 +94,29 @@ export default function HomePage() {
       steps: ['Set ceremony time', 'Plan cocktail hour', 'Schedule reception', 'Add photo time']
     }
   ];
+  const priorityTasks = commandCenter?.upcoming_actions?.length
+    ? commandCenter.upcoming_actions.map((action, index) => ({
+        id: index + 1,
+        title: action.title,
+        reason: action.reason,
+        urgency: action.priority,
+        metadata: action.target,
+        details: action.reason,
+        steps: ['Open the related section', 'Review the issue', 'Make the update', 'Refresh the dashboard'],
+      }))
+    : upcomingTasks.length
+      ? upcomingTasks.slice(0, 3).map((task) => ({
+          id: task.id,
+          title: task.title,
+          reason: task.due_date ? `Due ${new Date(task.due_date).toLocaleDateString()}` : 'Upcoming planning task',
+          urgency: task.priority,
+          metadata: 'Planning task',
+          details: 'This task is pulled from your real wedding plan.',
+          steps: ['Open Plan', 'Review the task', 'Mark it complete when finished'],
+        }))
+      : fallbackTasks;
+  const smartAlerts = commandCenter?.smart_alerts?.alerts ?? [];
+  const platformHealth = commandCenter?.platform_health;
 
   const quickActions = [
     { icon: Edit, label: 'Add vendor', action: 'add-vendor', helper: 'Track venues, catering, florals & more' },
@@ -139,14 +162,14 @@ export default function HomePage() {
                 <span className="text-[11px] text-gray-500 uppercase tracking-wide font-medium">Today's Focus</span>
               </div>
               <h2 className="text-[22px] text-gray-900" style={{ fontFamily: 'Playfair Display, serif', fontWeight: 600 }}>
-                Three things to move forward
+                {commandCenter ? 'Command center priorities' : 'Three things to move forward'}
               </h2>
             </div>
             <ChevronRight className="text-gray-400 flex-shrink-0" size={20} />
           </div>
 
           <div className="space-y-3">
-            {tasks.map((task) => (
+            {priorityTasks.map((task) => (
               <div
                 key={task.id}
                 onClick={(e) => {
@@ -169,6 +192,96 @@ export default function HomePage() {
             ))}
           </div>
         </div>
+
+        {commandCenter && (
+          <div
+            className="bg-white rounded-[20px] p-6"
+            style={{ boxShadow: '0 6px 20px rgba(0,0,0,0.04)' }}
+          >
+            <div className="flex items-center gap-2 mb-5">
+              <LayoutGrid size={16} className="text-[#3A8B95]" />
+              <span className="text-[11px] text-gray-500 uppercase tracking-wide font-medium">Command Center</span>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <CommandCard label="Planning health" value={`${commandCenter.planning_health.score}%`} detail={commandCenter.planning_health.label} tone={commandCenter.planning_health.score >= 65 ? 'good' : 'risk'} />
+              <CommandCard label="RSVP health" value={`${commandCenter.rsvp_health.completion}%`} detail={`${commandCenter.rsvp_health.pending} pending`} tone={commandCenter.rsvp_health.pending === 0 ? 'good' : 'warn'} />
+              <CommandCard label="Budget used" value={`${commandCenter.budget_status.usage}%`} detail={`$${commandCenter.budget_status.remaining.toLocaleString()} remaining`} tone={commandCenter.budget_status.usage >= 90 ? 'risk' : 'good'} />
+              <CommandCard label="Live readiness" value={`${commandCenter.live_readiness.score}%`} detail={`${commandCenter.live_readiness.open_incidents} open issues`} tone={commandCenter.live_readiness.open_incidents === 0 ? 'good' : 'risk'} />
+            </div>
+            <div className="mt-4 rounded-[16px] bg-[#FAFAFA] p-4">
+              <div className="text-[13px] font-medium text-gray-900 mb-2">Guest issues</div>
+              <div className="grid grid-cols-2 gap-2 text-[12px] text-gray-600">
+                <div>Meals missing: {commandCenter.guest_issues.missing_meals ?? 0}</div>
+                <div>Seating open: {commandCenter.guest_issues.unassigned_seating ?? 0}</div>
+                <div>Arrival gaps: {commandCenter.guest_issues.missing_arrival_info ?? 0}</div>
+                <div>VIP attention: {commandCenter.guest_issues.vip_needs_attention ?? 0}</div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {platformHealth && (
+          <div
+            className="bg-white rounded-[20px] p-6"
+            style={{ boxShadow: '0 6px 20px rgba(0,0,0,0.04)' }}
+          >
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <Shield size={16} className="text-[#3A8B95]" />
+                <span className="text-[11px] text-gray-500 uppercase tracking-wide font-medium">Platform Health</span>
+              </div>
+              <span className={`text-[11px] px-2.5 py-1 rounded-full ${
+                platformHealth.status === 'healthy' ? 'bg-[#F0F9FA] text-[#285301]' :
+                platformHealth.status === 'watch' ? 'bg-[#FFF8E7] text-[#9A6B00]' :
+                'bg-[#FFF5F8] text-[#d45d78]'
+              }`}>
+                {platformHealth.status}
+              </span>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <CommandCard label="Health score" value={`${platformHealth.score}%`} detail={`Queue: ${platformHealth.queue.connection}`} tone={platformHealth.score >= 90 ? 'good' : platformHealth.score >= 70 ? 'warn' : 'risk'} />
+              <CommandCard label="Deliveries" value={`${platformHealth.queue.pending_deliveries}`} detail={`${platformHealth.queue.failed_deliveries} failed`} tone={platformHealth.queue.failed_deliveries === 0 ? 'good' : 'risk'} />
+              <CommandCard label="Queue failures" value={`${platformHealth.queue.failed_jobs}`} detail={`${platformHealth.queue.stale_sending_messages} stale sends`} tone={platformHealth.queue.failed_jobs === 0 && platformHealth.queue.stale_sending_messages === 0 ? 'good' : 'risk'} />
+              <CommandCard label="Guest links" value={`${platformHealth.tokens.expiring_soon}`} detail={`${platformHealth.tokens.expired_active} expired active`} tone={platformHealth.tokens.expired_active === 0 ? 'good' : 'warn'} />
+            </div>
+          </div>
+        )}
+
+        {smartAlerts.length > 0 && (
+          <div
+            className="bg-white rounded-[20px] p-6"
+            style={{ boxShadow: '0 6px 20px rgba(0,0,0,0.04)' }}
+          >
+            <div className="flex items-center justify-between mb-5">
+              <div className="flex items-center gap-2">
+                <AlertCircle size={16} className="text-[#FF3E9B]" />
+                <span className="text-[11px] text-gray-500 uppercase tracking-wide font-medium">Smart Alerts</span>
+              </div>
+              <span className="text-[11px] text-gray-500">{commandCenter?.smart_alerts?.total_active ?? smartAlerts.length} active</span>
+            </div>
+            <div className="space-y-3">
+              {smartAlerts.slice(0, 4).map((alert) => (
+                <div key={alert.id} className="rounded-[16px] bg-[#FAFAFA] p-4 border border-gray-100">
+                  <div className="flex items-start gap-3">
+                    <div className={`mt-1 h-2.5 w-2.5 rounded-full ${
+                      alert.severity === 'critical' ? 'bg-[#FF3E9B]' :
+                      alert.severity === 'high' ? 'bg-[#F59E0B]' :
+                      'bg-[#3A8B95]'
+                    }`} />
+                    <div className="flex-1 min-w-0">
+                      <div className="text-[14px] font-medium text-gray-900">{alert.title}</div>
+                      {alert.body && <div className="text-[12px] text-gray-500 mt-1 leading-relaxed">{alert.body}</div>}
+                      <div className="flex items-center justify-between mt-3">
+                        <span className="text-[11px] text-gray-500 capitalize">{alert.alert_type.replace('_', ' ')}</span>
+                        <span className="text-[12px] text-[#3A8B95] font-medium">{alert.action_label ?? 'Review'}</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Quick Actions */}
         <div
@@ -1325,7 +1438,7 @@ export default function HomePage() {
                 </div>
 
                 <div className="space-y-3">
-                  {tasks.map((task) => (
+                  {priorityTasks.map((task) => (
                     <div
                       key={task.id}
                       className="p-4 bg-[#FAFAFA] rounded-[16px] border border-gray-200"
@@ -1682,6 +1795,22 @@ export default function HomePage() {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+function CommandCard({ label, value, detail, tone }: { label: string; value: string; detail: string; tone: 'good' | 'warn' | 'risk' }) {
+  const colors = {
+    good: 'text-[#3A8B95] bg-[#F0F9FA]',
+    warn: 'text-[#B7791F] bg-[#FFF8E8]',
+    risk: 'text-[#C2415B] bg-[#FFF1F4]',
+  };
+
+  return (
+    <div className={`rounded-[16px] p-4 ${colors[tone]}`}>
+      <div className="text-[11px] uppercase tracking-wide opacity-75 mb-1">{label}</div>
+      <div className="text-[24px] font-semibold">{value}</div>
+      <div className="text-[12px] opacity-80 mt-1">{detail}</div>
     </div>
   );
 }

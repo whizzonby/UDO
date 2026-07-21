@@ -2,6 +2,8 @@
 
 namespace App\Filament\Resources;
 
+use App\Filament\Concerns\HasDomainPermission;
+
 use App\Filament\Resources\MessageResource\Pages;
 use App\Models\Message;
 use Filament\Forms;
@@ -13,10 +15,14 @@ use Filament\Tables\Table;
 
 class MessageResource extends Resource
 {
+    use HasDomainPermission;
+
+    protected static string $requiredPermission = 'admin.operations';
+
     protected static ?string $model = Message::class;
     protected static string|\BackedEnum|null $navigationIcon = 'heroicon-o-chat-bubble-left-right';
     protected static string|\UnitEnum|null $navigationGroup = 'Operations';
-    protected static ?int $navigationSort = 1;
+    protected static ?int $navigationSort = 3;
     protected static ?string $recordTitleAttribute = 'subject';
 
     public static function form(Schema $schema): Schema
@@ -72,6 +78,9 @@ class MessageResource extends Resource
                     ->options(['email' => 'Email', 'sms' => 'SMS', 'whatsapp' => 'WhatsApp']),
                 Tables\Filters\SelectFilter::make('message_type')->label('Type')
                     ->options(['announcement' => 'Announcement', 'reminder' => 'Reminder', 'rsvp_nudge' => 'RSVP Nudge', 'thank_you' => 'Thank You']),
+                Tables\Filters\Filter::make('stale')
+                    ->label('Stale sending (15+ min)')
+                    ->query(fn ($query) => $query->where('status', 'sending')->where('updated_at', '<', now()->subMinutes(15))),
             ])
             ->actions([Actions\EditAction::make(), Actions\DeleteAction::make()])
             ->bulkActions([Actions\BulkActionGroup::make([Actions\DeleteBulkAction::make()])]);

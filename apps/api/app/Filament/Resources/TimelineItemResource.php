@@ -2,6 +2,8 @@
 
 namespace App\Filament\Resources;
 
+use App\Filament\Concerns\HasDomainPermission;
+
 use App\Filament\Resources\TimelineItemResource\Pages;
 use App\Models\TimelineItem;
 use Filament\Forms;
@@ -13,10 +15,14 @@ use Filament\Tables\Table;
 
 class TimelineItemResource extends Resource
 {
+    use HasDomainPermission;
+
+    protected static string $requiredPermission = 'admin.operations';
+
     protected static ?string $model = TimelineItem::class;
     protected static string|\BackedEnum|null $navigationIcon = 'heroicon-o-clock';
     protected static string|\UnitEnum|null $navigationGroup = 'Operations';
-    protected static ?int $navigationSort = 7;
+    protected static ?int $navigationSort = 14;
     protected static ?string $recordTitleAttribute = 'title';
 
     public static function form(Schema $schema): Schema

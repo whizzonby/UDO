@@ -2,19 +2,28 @@
 
 namespace App\Filament\Resources;
 
+use App\Filament\Concerns\HasDomainPermission;
+
 use App\Filament\Resources\GuestResource\Pages;
 use App\Models\Guest;
+use App\Services\AdminBulkOpsService;
 use Filament\Forms;
+use Filament\Notifications\Notification;
 use Filament\Schemas\Schema;
 use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Actions;
 use Filament\Tables\Table;
+use Illuminate\Database\Eloquent\Collection;
 use BackedEnum;
 use UnitEnum;
 
 class GuestResource extends Resource
 {
+    use HasDomainPermission;
+
+    protected static string $requiredPermission = 'admin.weddings';
+
     protected static ?string $model = Guest::class;
     protected static string|\BackedEnum|null $navigationIcon = 'heroicon-o-user-group';
     protected static string|\UnitEnum|null $navigationGroup = 'Platform';
@@ -91,7 +100,12 @@ class GuestResource extends Resource
                     ->label('Wedding'),
             ])
             ->actions([Actions\EditAction::make(), Actions\DeleteAction::make()])
-            ->bulkActions([Actions\BulkActionGroup::make([Actions\DeleteBulkAction::make()])]);
+            ->bulkActions([
+                Actions\BulkActionGroup::make([
+                    static::bulkUpdateAction(),
+                    Actions\DeleteBulkAction::make(),
+                ]),
+            ]);
     }
 
     public static function getRelations(): array
@@ -106,5 +120,45 @@ class GuestResource extends Resource
             'create' => Pages\CreateGuest::route('/create'),
             'edit'   => Pages\EditGuest::route('/{record}/edit'),
         ];
+    }
+
+    public static function bulkUpdateAction(): Actions\BulkAction
+    {
+        return Actions\BulkAction::make('bulkUpdate')
+            ->label('Bulk update')
+            ->icon('heroicon-o-pencil-square')
+            ->color('warning')
+            ->requiresConfirmation()
+            ->modalDescription('Applies to every selected guest. All selected guests must belong to the same wedding.')
+            ->schema([
+                Forms\Components\Select::make('vip_flag')
+                    ->label('VIP')
+                    ->options(['1' => 'Mark as VIP', '0' => 'Remove VIP'])
+                    ->placeholder('No change'),
+                Forms\Components\TextInput::make('guest_group')
+                    ->label('Guest group')
+                    ->maxLength(100)
+                    ->placeholder('No change'),
+            ])
+            ->action(function (Collection $records, array $data, AdminBulkOpsService $bulkOps): void {
+                $updates = array_filter([
+                    'vip_flag' => isset($data['vip_flag']) ? (bool) $data['vip_flag'] : null,
+                    'guest_group' => filled($data['guest_group'] ?? null) ? $data['guest_group'] : null,
+                ], fn ($value) => $value !== null);
+
+                if (empty($updates)) {
+                    Notification::make()->title('Nothing to update')->body('Choose at least one field to change.')->warning()->send();
+                    return;
+                }
+
+                try {
+                    $count = $bulkOps->applyUpdate('admin.guests_bulk_updated', $records, $updates, auth()->user());
+                } catch (\RuntimeException $e) {
+                    Notification::make()->title('Bulk update blocked')->body($e->getMessage())->danger()->send();
+                    return;
+                }
+
+                Notification::make()->title("Updated {$count} guest(s)")->success()->send();
+            });
     }
 }

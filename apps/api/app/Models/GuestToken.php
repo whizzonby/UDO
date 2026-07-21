@@ -28,6 +28,9 @@ class GuestToken extends Model
             if (empty($guestToken->token)) {
                 $guestToken->token = Str::random(48);
             }
+            if (empty($guestToken->expires_at)) {
+                $guestToken->expires_at = now()->addDays((int) config('services.guest_tokens.default_expiry_days', 365));
+            }
         });
     }
 

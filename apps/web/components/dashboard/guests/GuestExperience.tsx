@@ -50,6 +50,7 @@ type GuestPersona = 'attending' | 'travelling' | 'wedding-party' | 'pending' | '
 
 interface Module {
   id: string;
+  field?: string;
   icon: string;
   title: string;
   description: string;
@@ -84,11 +85,42 @@ export default function GuestExperience({
   const toggleModule = async (moduleId: string, newStatus: 'live' | 'hidden') => {
     const t = getToken();
     if (!t) return;
+    const nextValue = newStatus === 'live';
+    const previous = experience;
+    setExperience({ ...(experience ?? {}), [moduleId]: nextValue });
     setSaving(true);
     try {
-      await api.patch('/experience', { [moduleId]: newStatus === 'live' }, t);
-    } catch {}
+      const res = await api.patch<{ data: any }>('/experience', { [moduleId]: nextValue }, t);
+      setExperience(res.data);
+    } catch {
+      setExperience(previous);
+    }
     finally { setSaving(false); }
+  };
+
+  const updateDraftConfig = (patch: Record<string, unknown>) => {
+    setExperience({ ...(experience ?? {}), ...patch });
+  };
+
+  const saveBuilderSettings = async () => {
+    const t = getToken();
+    if (!t || !experience) return;
+    setSaving(true);
+    try {
+      const res = await api.patch<{ data: any }>('/experience', {
+        publish_state: experience.publish_state ?? 'published',
+        theme_color: experience.theme_color ?? '#285301',
+        cover_image_url: experience.cover_image_url ?? null,
+        welcome_message: experience.welcome_message ?? null,
+        dress_code: experience.dress_code ?? null,
+        dress_code_details: experience.dress_code_details ?? null,
+        layout_order: activeModules.map((module) => module.id),
+        access_rules: experience.access_rules ?? {},
+      }, t);
+      setExperience(res.data);
+    } finally {
+      setSaving(false);
+    }
   };
 
   const [viewMode, setViewMode] = useState<ViewMode>('planning');
@@ -108,6 +140,24 @@ export default function GuestExperience({
     { id: 'registry', icon: '🎁', title: 'Gift Registry', description: 'Share your registry choices', status: 'live', visibleTo: ['All Guests'], previewType: 'text' },
     { id: 'messages', icon: '💬', title: 'Guest Messages', description: 'Enable a message board', status: 'hidden', visibleTo: [], previewType: 'text' },
   ];
+
+  const config = experience ?? {};
+  const activeModules: Module[] = experience ? [
+    { id: 'show_schedule', field: 'show_schedule', icon: 'Schedule', title: 'Wedding Schedule', description: 'Show ceremony, reception, and guest-visible timeline items', status: config.show_schedule === true ? 'live' : 'hidden', visibleTo: config.show_schedule === true ? ['All Guests'] : [], previewType: 'text' },
+    { id: 'show_venue_map', field: 'show_venue_map', icon: 'Venue', title: 'Venue Guide', description: 'Show venue name, city, country, and address details', status: config.show_venue_map === true ? 'live' : 'hidden', visibleTo: config.show_venue_map === true ? ['All Guests'] : [], previewType: 'map' },
+    { id: 'show_accommodation', field: 'show_accommodation', icon: 'Stay', title: 'Accommodation', description: 'Show hotel and stay guidance for travelling guests', status: config.show_accommodation === true ? 'live' : 'hidden', visibleTo: config.show_accommodation === true ? ['Travelling Guests'] : [], previewType: 'weather' },
+    { id: 'show_transport', field: 'show_transport', icon: 'Transport', title: 'Transport', description: 'Show shuttle, pickup, and movement details', status: config.show_transport === true ? 'live' : 'hidden', visibleTo: config.show_transport === true ? ['Travelling Guests'] : [], previewType: 'map' },
+    { id: 'show_seating', field: 'show_seating', icon: 'Seating', title: 'Seating Assignment', description: 'Show each guest their assigned table and seat', status: config.show_seating === true ? 'live' : 'hidden', visibleTo: config.show_seating === true ? ['Assigned Guests'] : [], previewType: 'text' },
+    { id: 'show_dress_code', field: 'show_dress_code', icon: 'Dress', title: 'Dress Code', description: 'Share attire guidance and important notes', status: config.show_dress_code === true ? 'live' : 'hidden', visibleTo: config.show_dress_code === true ? ['All Guests'] : [], previewType: 'text' },
+    { id: 'rsvp_enabled', field: 'rsvp_enabled', icon: 'RSVP', title: 'RSVP Collection', description: 'Let guests accept, decline, and update details', status: config.rsvp_enabled === true ? 'live' : 'hidden', visibleTo: config.rsvp_enabled === true ? ['All Guests'] : [], previewType: 'text' },
+    { id: 'meal_selection_enabled', field: 'meal_selection_enabled', icon: 'Meals', title: 'Meal Selection', description: 'Let attending guests submit meal preferences', status: config.meal_selection_enabled === true ? 'live' : 'hidden', visibleTo: config.meal_selection_enabled === true ? ['Attending Guests'] : [], previewType: 'text' },
+    { id: 'plus_one_enabled', field: 'plus_one_enabled', icon: 'Plus one', title: 'Plus-One Option', description: 'Let eligible guests confirm plus-one counts', status: config.plus_one_enabled === true ? 'live' : 'hidden', visibleTo: config.plus_one_enabled === true ? ['Eligible Guests'] : [], previewType: 'text' },
+    { id: 'show_registry', field: 'show_registry', icon: 'Gifts', title: 'Registry', description: 'Share visible registry and contribution options', status: config.show_registry === true ? 'live' : 'hidden', visibleTo: config.show_registry === true ? ['All Guests'] : [], previewType: 'text' },
+    { id: 'show_gallery', field: 'show_gallery', icon: 'Photos', title: 'Gallery', description: 'Show approved wedding gallery moments', status: config.show_gallery === true ? 'live' : 'hidden', visibleTo: config.show_gallery === true ? ['All Guests'] : [], previewType: 'photos' },
+    { id: 'show_live_feed', field: 'show_live_feed', icon: 'Live', title: 'Live Updates', description: 'Show day-of announcements and pinned updates', status: config.show_live_feed === true ? 'live' : 'hidden', visibleTo: config.show_live_feed === true ? ['All Guests'] : [], previewType: 'text' },
+    { id: 'allow_photo_uploads', field: 'allow_photo_uploads', icon: 'Upload', title: 'Guest Uploads', description: 'Let guests submit photos for review', status: config.allow_photo_uploads === true ? 'live' : 'hidden', visibleTo: config.allow_photo_uploads === true ? ['All Guests'] : [], previewType: 'photos' },
+    { id: 'allow_messages', field: 'allow_messages', icon: 'Messages', title: 'Guest Messages', description: 'Enable guest message collection when available', status: config.allow_messages === true ? 'live' : 'hidden', visibleTo: config.allow_messages === true ? ['All Guests'] : [], previewType: 'text' },
+  ] : modules;
 
   const personas = [
     { id: 'attending' as GuestPersona, label: 'Regular Guest', icon: '👤', color: '#3A8B95' },
@@ -218,6 +268,87 @@ export default function GuestExperience({
           </p>
         </div>
 
+        <div className="bg-white rounded-[24px] shadow-sm border border-gray-100 p-6">
+          <div className="flex items-start justify-between gap-4 mb-5">
+            <div>
+              <h3 className="text-[18px] text-gray-900 mb-1" style={{ fontFamily: 'Playfair Display, serif', fontWeight: 600 }}>
+                Publishing and guest copy
+              </h3>
+              <p className="text-[13px] text-gray-500">These settings control what guests see when they open their personal portal link.</p>
+            </div>
+            {saving && <span className="text-[12px] text-gray-400">Saving...</span>}
+          </div>
+          <div className="grid md:grid-cols-3 gap-4">
+            <label className="text-[12px] text-gray-600">
+              Publish state
+              <select
+                className="mt-1 w-full rounded-xl border border-gray-200 px-3 py-2 text-[13px] text-gray-800"
+                value={config.publish_state ?? 'published'}
+                onChange={(event) => updateDraftConfig({ publish_state: event.target.value })}
+              >
+                <option value="published">Published</option>
+                <option value="draft">Draft</option>
+                <option value="paused">Paused</option>
+              </select>
+            </label>
+            <label className="text-[12px] text-gray-600">
+              Theme color
+              <input
+                className="mt-1 w-full rounded-xl border border-gray-200 px-3 py-2 text-[13px] text-gray-800"
+                value={config.theme_color ?? '#285301'}
+                onChange={(event) => updateDraftConfig({ theme_color: event.target.value })}
+              />
+            </label>
+            <label className="text-[12px] text-gray-600">
+              Cover image URL
+              <input
+                className="mt-1 w-full rounded-xl border border-gray-200 px-3 py-2 text-[13px] text-gray-800"
+                value={config.cover_image_url ?? ''}
+                onChange={(event) => updateDraftConfig({ cover_image_url: event.target.value })}
+                placeholder="https://..."
+              />
+            </label>
+          </div>
+          <div className="grid md:grid-cols-2 gap-4 mt-4">
+            <label className="text-[12px] text-gray-600">
+              Welcome message
+              <textarea
+                className="mt-1 w-full min-h-[92px] rounded-xl border border-gray-200 px-3 py-2 text-[13px] text-gray-800"
+                value={config.welcome_message ?? ''}
+                onChange={(event) => updateDraftConfig({ welcome_message: event.target.value })}
+                placeholder="A warm note guests see first..."
+              />
+            </label>
+            <div className="space-y-3">
+              <label className="block text-[12px] text-gray-600">
+                Dress code
+                <input
+                  className="mt-1 w-full rounded-xl border border-gray-200 px-3 py-2 text-[13px] text-gray-800"
+                  value={config.dress_code ?? ''}
+                  onChange={(event) => updateDraftConfig({ dress_code: event.target.value })}
+                  placeholder="Garden formal"
+                />
+              </label>
+              <label className="block text-[12px] text-gray-600">
+                Dress code details
+                <input
+                  className="mt-1 w-full rounded-xl border border-gray-200 px-3 py-2 text-[13px] text-gray-800"
+                  value={config.dress_code_details ?? ''}
+                  onChange={(event) => updateDraftConfig({ dress_code_details: event.target.value })}
+                  placeholder="Comfortable shoes recommended"
+                />
+              </label>
+            </div>
+          </div>
+          <button
+            onClick={saveBuilderSettings}
+            disabled={saving}
+            className="mt-4 px-5 py-2.5 bg-[#3A8B95] text-white rounded-full text-[13px] font-medium disabled:opacity-60"
+          >
+            Save guest experience
+          </button>
+        </div>
+
         {/* Experience Modules - FULLY EDITABLE */}
         <div className="bg-white rounded-[32px] shadow-sm border border-gray-100 p-8">
           <div className="flex items-center justify-between mb-6">
@@ -234,7 +365,7 @@ export default function GuestExperience({
           </div>
 
           <div className="grid md:grid-cols-2 gap-4">
-            {modules.map((module) => {
+            {activeModules.map((module) => {
               const statusBadge = getStatusBadge(module.status);
               return (
                 <button
@@ -383,7 +514,7 @@ export default function GuestExperience({
             <div className="bg-white rounded-[32px] max-w-2xl w-full max-h-[90vh] overflow-y-auto p-8">
               <div className="flex items-center justify-between mb-6">
                 <h3 className="text-[24px] text-gray-900" style={{ fontFamily: 'Playfair Display, serif', fontWeight: 600 }}>
-                  {modules.find(m => m.id === editingModule)?.title} Settings
+                  {activeModules.find(m => m.id === editingModule)?.title} Settings
                 </h3>
                 <button
                   onClick={() => setEditingModule(null)}
@@ -452,7 +583,7 @@ export default function GuestExperience({
                 <div>
                   <label className="block text-[13px] font-medium text-gray-700 mb-2">Guest Preview</label>
                   <div className="p-6 bg-gradient-to-br from-[#FAFAFA] to-white rounded-[20px] border border-gray-100">
-                    {renderModulePreview(modules.find(m => m.id === editingModule)!)}
+                    {renderModulePreview(activeModules.find(m => m.id === editingModule)!)}
                   </div>
                 </div>
 

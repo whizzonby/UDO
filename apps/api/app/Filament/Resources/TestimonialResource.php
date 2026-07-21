@@ -2,6 +2,8 @@
 
 namespace App\Filament\Resources;
 
+use App\Filament\Concerns\HasDomainPermission;
+
 use App\Filament\Resources\TestimonialResource\Pages;
 use App\Models\Testimonial;
 use Filament\Forms;
@@ -15,6 +17,10 @@ use UnitEnum;
 
 class TestimonialResource extends Resource
 {
+    use HasDomainPermission;
+
+    protected static string $requiredPermission = 'admin.content';
+
     protected static ?string $model = Testimonial::class;
     protected static string|\BackedEnum|null $navigationIcon = 'heroicon-o-chat-bubble-left-right';
     protected static string|\UnitEnum|null $navigationGroup = 'Content';

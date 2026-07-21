@@ -11,6 +11,12 @@ type AuthContextType = {
   login: (email: string, password: string) => Promise<void>;
   logout: () => void;
   refresh: () => Promise<void>;
+  switchWedding: (weddingId: number) => Promise<void>;
+  updateProfile: (profile: { first_name: string; last_name?: string; email: string; avatar_url?: string | null }) => Promise<void>;
+  updatePreferences: (preferences: {
+    notification_preferences?: AuthUser['notification_preferences'];
+    support_preferences?: AuthUser['support_preferences'];
+  }) => Promise<void>;
 };
 
 const AuthContext = createContext<AuthContextType | null>(null);
@@ -45,14 +51,40 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const refresh = async () => {
     if (!token) return;
-    const res = await api.get<{ user: AuthUser }>('/auth/me', token);
-    setUser(res.user);
+    const res = await api.get<AuthUser | { user: AuthUser }>('/auth/me', token);
+    const nextUser = 'user' in res ? res.user : res;
+    setUser(nextUser);
     const stored = getToken();
-    if (stored) setAuth(stored, res.user);
+    if (stored) setAuth(stored, nextUser);
+  };
+
+  const switchWedding = async (weddingId: number) => {
+    if (!token) return;
+    await api.post('/weddings/switch', { wedding_id: weddingId }, token);
+    await refresh();
+  };
+
+  const updateProfile = async (profile: { first_name: string; last_name?: string; email: string; avatar_url?: string | null }) => {
+    if (!token) return;
+    const nextUser = await api.patch<AuthUser>('/auth/me', profile, token);
+    setUser(nextUser);
+    const stored = getToken();
+    if (stored) setAuth(stored, nextUser);
+  };
+
+  const updatePreferences = async (preferences: {
+    notification_preferences?: AuthUser['notification_preferences'];
+    support_preferences?: AuthUser['support_preferences'];
+  }) => {
+    if (!token) return;
+    const nextUser = await api.patch<AuthUser>('/auth/preferences', preferences, token);
+    setUser(nextUser);
+    const stored = getToken();
+    if (stored) setAuth(stored, nextUser);
   };
 
   return (
-    <AuthContext.Provider value={{ user, token, isLoading, login, logout, refresh }}>
+    <AuthContext.Provider value={{ user, token, isLoading, login, logout, refresh, switchWedding, updateProfile, updatePreferences }}>
       {children}
     </AuthContext.Provider>
   );

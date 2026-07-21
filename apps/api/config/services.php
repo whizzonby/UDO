@@ -54,4 +54,37 @@ return [
         'key' => env('OPENWEATHER_API_KEY'),
     ],
 
+    'twilio' => [
+        'account_sid' => env('TWILIO_ACCOUNT_SID'),
+        'auth_token' => env('TWILIO_AUTH_TOKEN'),
+        'sms_from' => env('TWILIO_SMS_FROM'),
+        'whatsapp_from' => env('TWILIO_WHATSAPP_FROM'),
+        'validate_webhooks' => env('TWILIO_VALIDATE_WEBHOOKS', true),
+    ],
+
+    'guest_tokens' => [
+        'default_expiry_days' => env('GUEST_TOKEN_DEFAULT_EXPIRY_DAYS', 365),
+    ],
+
+    'billing' => [
+        'stripe_prices' => [
+            'free' => [
+                'monthly' => env('STRIPE_PRICE_FREE_MONTHLY'),
+                'annual' => env('STRIPE_PRICE_FREE_ANNUAL'),
+            ],
+            'starter' => [
+                'monthly' => env('STRIPE_PRICE_STARTER_MONTHLY'),
+                'annual' => env('STRIPE_PRICE_STARTER_ANNUAL'),
+            ],
+            'pro' => [
+                'monthly' => env('STRIPE_PRICE_PRO_MONTHLY'),
+                'annual' => env('STRIPE_PRICE_PRO_ANNUAL'),
+            ],
+            'elite' => [
+                'monthly' => env('STRIPE_PRICE_ELITE_MONTHLY'),
+                'annual' => env('STRIPE_PRICE_ELITE_ANNUAL'),
+            ],
+        ],
+    ],
+
 ];

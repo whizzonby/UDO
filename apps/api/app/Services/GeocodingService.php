@@ -41,7 +41,10 @@ class GeocodingService
                 'lng' => (float) $results[0]['lon'],
             ];
         } catch (\Throwable $e) {
-            Log::warning('Geocoding failed', ['address' => $address, 'error' => $e->getMessage()]);
+            Log::warning('Geocoding failed', [
+                'address_hash' => hash('sha256', strtolower(trim($address))),
+                'error' => $e->getMessage(),
+            ]);
             return null;
         }
     }

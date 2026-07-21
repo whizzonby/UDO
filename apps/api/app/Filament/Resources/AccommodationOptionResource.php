@@ -2,9 +2,14 @@
 
 namespace App\Filament\Resources;
 
+use App\Filament\Concerns\HasDomainPermission;
+
 use App\Filament\Resources\AccommodationOptionResource\Pages;
+use App\Models\Guest;
 use App\Models\AccommodationOption;
+use App\Services\AdminLogisticsOpsService;
 use Filament\Forms;
+use Filament\Notifications\Notification;
 use Filament\Schemas\Schema;
 use Filament\Resources\Resource;
 use Filament\Tables;
@@ -13,6 +18,10 @@ use Filament\Tables\Table;
 
 class AccommodationOptionResource extends Resource
 {
+    use HasDomainPermission;
+
+    protected static string $requiredPermission = 'admin.operations';
+
     protected static ?string $model = AccommodationOption::class;
     protected static string|\BackedEnum|null $navigationIcon = 'heroicon-o-home-modern';
     protected static string|\UnitEnum|null $navigationGroup = 'Logistics';
@@ -69,7 +78,7 @@ class AccommodationOptionResource extends Resource
                 Tables\Filters\SelectFilter::make('type')
                     ->options(['hotel' => 'Hotel', 'bnb' => 'B&B', 'villa' => 'Villa', 'guesthouse' => 'Guesthouse', 'airbnb' => 'Airbnb']),
             ])
-            ->actions([Actions\EditAction::make(), Actions\DeleteAction::make()])
+            ->actions([static::assignGuestAction(), Actions\EditAction::make(), Actions\DeleteAction::make()])
             ->bulkActions([Actions\BulkActionGroup::make([Actions\DeleteBulkAction::make()])]);
     }
 
@@ -83,4 +92,22 @@ class AccommodationOptionResource extends Resource
     }
 
     public static function getNavigationLabel(): string { return 'Accommodation'; }
+
+    public static function assignGuestAction(): Actions\Action
+    {
+        return Actions\Action::make('assignGuest')
+            ->label('Assign guest')
+            ->icon('heroicon-o-user-plus')
+            ->form([
+                Forms\Components\Select::make('guest_id')
+                    ->label('Guest')
+                    ->options(fn (AccommodationOption $record) => Guest::where('wedding_id', $record->wedding_id)->orderBy('first_name')->get()->mapWithKeys(fn (Guest $guest) => [$guest->id => $guest->full_name])->all())
+                    ->searchable()
+                    ->required(),
+            ])
+            ->action(function (AccommodationOption $record, array $data, AdminLogisticsOpsService $logisticsOps): void {
+                $logisticsOps->assignAccommodation($record, Guest::findOrFail($data['guest_id']), auth()->user());
+                Notification::make()->title('Guest assigned')->success()->send();
+            });
+    }
 }

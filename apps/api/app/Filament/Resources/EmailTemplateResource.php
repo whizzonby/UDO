@@ -2,6 +2,8 @@
 
 namespace App\Filament\Resources;
 
+use App\Filament\Concerns\HasDomainPermission;
+
 use App\Filament\Resources\EmailTemplateResource\Pages;
 use App\Mail\TemplatedMail;
 use App\Models\EmailTemplate;
@@ -10,12 +12,17 @@ use Filament\Forms;
 use Filament\Notifications\Notification;
 use Filament\Resources\Resource;
 use Filament\Schemas\Schema;
+use Filament\Support\Enums\Width;
 use Filament\Tables;
 use Filament\Tables\Table;
 use Illuminate\Support\Facades\Mail;
 
 class EmailTemplateResource extends Resource
 {
+    use HasDomainPermission;
+
+    protected static string $requiredPermission = 'admin.content';
+
     protected static ?string $model = EmailTemplate::class;
     protected static string|\BackedEnum|null $navigationIcon = 'heroicon-o-envelope';
     protected static string|\UnitEnum|null $navigationGroup = 'Content';
@@ -75,7 +82,7 @@ class EmailTemplateResource extends Resource
                 Tables\Columns\TextColumn::make('subject')->limit(50)->searchable(),
                 Tables\Columns\TextColumn::make('updated_at')->dateTime()->sortable(),
             ])
-            ->actions([Actions\EditAction::make(), Actions\DeleteAction::make()])
+            ->actions([static::previewAction(), static::sendTestEmailAction(), Actions\EditAction::make(), Actions\DeleteAction::make()])
             ->bulkActions([Actions\BulkActionGroup::make([Actions\DeleteBulkAction::make()])]);
     }
 
@@ -91,6 +98,26 @@ class EmailTemplateResource extends Resource
             'create' => Pages\CreateEmailTemplate::route('/create'),
             'edit'   => Pages\EditEmailTemplate::route('/{record}/edit'),
         ];
+    }
+
+    public static function previewAction(): Actions\Action
+    {
+        return Actions\Action::make('preview')
+            ->label('Preview')
+            ->icon('heroicon-o-eye')
+            ->color('gray')
+            ->modalHeading(fn (EmailTemplate $record) => "Preview: {$record->name}")
+            ->modalWidth(Width::TwoExtraLarge)
+            ->modalSubmitAction(false)
+            ->modalCancelActionLabel('Close')
+            ->modalContent(function (EmailTemplate $record) {
+                $rendered = EmailTemplate::render($record->key, self::sampleData($record));
+
+                return view('filament.email-templates.preview', [
+                    'subject' => $rendered['subject'],
+                    'html' => view('emails.layout', ['bodyHtml' => $rendered['body']])->render(),
+                ]);
+            });
     }
 
     public static function sendTestEmailAction(): Actions\Action

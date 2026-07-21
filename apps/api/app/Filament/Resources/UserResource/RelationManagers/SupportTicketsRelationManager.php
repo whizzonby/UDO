@@ -17,6 +17,7 @@ class SupportTicketsRelationManager extends RelationManager
         return $table
             ->columns([
                 Tables\Columns\TextColumn::make('reference')->copyable()->searchable(),
+                Tables\Columns\TextColumn::make('wedding.couple_name_primary')->label('Wedding')->default('—'),
                 Tables\Columns\TextColumn::make('subject')->limit(40)->searchable(),
                 Tables\Columns\TextColumn::make('status')
                     ->badge()

@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Plan;
 
 use App\Http\Controllers\Controller;
 use App\Models\TimelineItem;
+use App\Services\WeddingAccessService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -13,7 +14,13 @@ class TimelineController extends Controller
     {
         $wedding = $request->user()->activeWedding;
         abort_unless($wedding, 403, 'No active wedding.');
+        abort_unless(app(WeddingAccessService::class)->canAccessWedding($request->user(), $wedding), 403);
         return $wedding;
+    }
+
+    private function ensureCanManagePlan(Request $request): void
+    {
+        abort_unless(app(WeddingAccessService::class)->can($request->user(), $this->wedding($request), 'manage_plan'), 403);
     }
 
     public function index(Request $request): JsonResponse
@@ -30,6 +37,7 @@ class TimelineController extends Controller
     public function store(Request $request): JsonResponse
     {
         $wedding = $this->wedding($request);
+        $this->ensureCanManagePlan($request);
 
         $data = $request->validate([
             'title'             => 'required|string|max:255',
@@ -61,6 +69,7 @@ class TimelineController extends Controller
     public function update(Request $request, TimelineItem $timelineItem): JsonResponse
     {
         $this->authorize($request, $timelineItem);
+        $this->ensureCanManagePlan($request);
 
         $data = $request->validate([
             'title'             => 'sometimes|string|max:255',
@@ -86,6 +95,7 @@ class TimelineController extends Controller
     public function destroy(Request $request, TimelineItem $timelineItem): JsonResponse
     {
         $this->authorize($request, $timelineItem);
+        $this->ensureCanManagePlan($request);
         $timelineItem->delete();
         return response()->json(null, 204);
     }

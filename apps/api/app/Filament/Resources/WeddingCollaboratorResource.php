@@ -2,6 +2,8 @@
 
 namespace App\Filament\Resources;
 
+use App\Filament\Concerns\HasDomainPermission;
+
 use App\Filament\Resources\WeddingCollaboratorResource\Pages;
 use App\Models\WeddingCollaborator;
 use Filament\Forms;
@@ -13,6 +15,10 @@ use Filament\Tables\Table;
 
 class WeddingCollaboratorResource extends Resource
 {
+    use HasDomainPermission;
+
+    protected static string $requiredPermission = 'admin.users';
+
     protected static ?string $model = WeddingCollaborator::class;
     protected static string|\BackedEnum|null $navigationIcon = 'heroicon-o-user-plus';
     protected static string|\UnitEnum|null $navigationGroup = 'Platform';

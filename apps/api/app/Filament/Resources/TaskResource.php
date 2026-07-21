@@ -2,21 +2,30 @@
 
 namespace App\Filament\Resources;
 
+use App\Filament\Concerns\HasDomainPermission;
+
 use App\Filament\Resources\TaskResource\Pages;
 use App\Models\Task;
+use App\Services\AdminBulkOpsService;
 use Filament\Forms;
+use Filament\Notifications\Notification;
 use Filament\Schemas\Schema;
 use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Actions;
 use Filament\Tables\Table;
+use Illuminate\Database\Eloquent\Collection;
 
 class TaskResource extends Resource
 {
+    use HasDomainPermission;
+
+    protected static string $requiredPermission = 'admin.operations';
+
     protected static ?string $model = Task::class;
     protected static string|\BackedEnum|null $navigationIcon = 'heroicon-o-clipboard-document-check';
     protected static string|\UnitEnum|null $navigationGroup = 'Operations';
-    protected static ?int $navigationSort = 3;
+    protected static ?int $navigationSort = 8;
     protected static ?string $recordTitleAttribute = 'title';
 
     public static function form(Schema $schema): Schema
@@ -66,7 +75,12 @@ class TaskResource extends Resource
                     ->options(['venue' => 'Venue', 'catering' => 'Catering', 'florals' => 'Florals', 'attire' => 'Attire', 'photography' => 'Photography']),
             ])
             ->actions([Actions\EditAction::make(), Actions\DeleteAction::make()])
-            ->bulkActions([Actions\BulkActionGroup::make([Actions\DeleteBulkAction::make()])]);
+            ->bulkActions([
+                Actions\BulkActionGroup::make([
+                    static::bulkUpdateAction(),
+                    Actions\DeleteBulkAction::make(),
+                ]),
+            ]);
     }
 
     public static function getPages(): array
@@ -84,4 +98,43 @@ class TaskResource extends Resource
     }
 
     public static function getNavigationBadgeColor(): ?string { return 'warning'; }
+
+    public static function bulkUpdateAction(): Actions\BulkAction
+    {
+        return Actions\BulkAction::make('bulkUpdate')
+            ->label('Bulk update')
+            ->icon('heroicon-o-pencil-square')
+            ->color('warning')
+            ->requiresConfirmation()
+            ->modalDescription('Applies to every selected task. All selected tasks must belong to the same wedding.')
+            ->schema([
+                Forms\Components\Select::make('completed')
+                    ->label('Completion')
+                    ->options(['1' => 'Mark completed', '0' => 'Mark not completed'])
+                    ->placeholder('No change'),
+                Forms\Components\Select::make('priority')
+                    ->options(['low' => 'Low', 'medium' => 'Medium', 'high' => 'High', 'urgent' => 'Urgent'])
+                    ->placeholder('No change'),
+            ])
+            ->action(function (Collection $records, array $data, AdminBulkOpsService $bulkOps): void {
+                $updates = array_filter([
+                    'completed' => isset($data['completed']) ? (bool) $data['completed'] : null,
+                    'priority' => filled($data['priority'] ?? null) ? $data['priority'] : null,
+                ], fn ($value) => $value !== null);
+
+                if (empty($updates)) {
+                    Notification::make()->title('Nothing to update')->body('Choose at least one field to change.')->warning()->send();
+                    return;
+                }
+
+                try {
+                    $count = $bulkOps->applyUpdate('admin.tasks_bulk_updated', $records, $updates, auth()->user());
+                } catch (\RuntimeException $e) {
+                    Notification::make()->title('Bulk update blocked')->body($e->getMessage())->danger()->send();
+                    return;
+                }
+
+                Notification::make()->title("Updated {$count} task(s)")->success()->send();
+            });
+    }
 }

@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { api } from '@/lib/api';
 import { getToken } from '@/lib/auth';
-import { Calendar, DollarSign, Utensils, Briefcase, Users, MapPin, Clock, Image, Bell, Heart, Plane, Shield, ChevronRight, Info, X, Plus, Edit, GripVertical, Trash2, Check, Upload, Share2, Link, MessageSquare, Mail, Send, Sparkles } from 'lucide-react';
+import { Calendar, DollarSign, Utensils, Briefcase, Users, MapPin, Clock, Image, Bell, Heart, Plane, Shield, ChevronRight, Info, X, Plus, Edit, GripVertical, Trash2, Check, Upload, Share2, Link, MessageSquare, Mail, Send, Sparkles, Download } from 'lucide-react';
 import WeddingPartyPage from './WeddingPartyPage';
 import PlanOverviewModals from './plan/PlanOverviewModals';
 import YourVisionPage from './YourVisionPage';
@@ -21,11 +21,50 @@ interface Event {
 }
 
 interface Vendor {
+  id: number;
   category: string;
   status: 'Booked' | 'Shortlisted' | 'Needed';
   name?: string;
   dateBooked?: string;
   shortlistedCount?: number;
+  contactPerson?: string;
+  email?: string;
+  phone?: string;
+  quotedPrice?: number;
+  depositPaid?: number;
+  balanceDue?: number;
+  contractSigned?: boolean;
+  contactLogsCount?: number;
+  tasksCount?: number;
+  openTasks?: { id: number; title: string; due_date?: string; priority?: string }[];
+  recentLogs?: { id: number; subject: string; contact_type: string; contact_at?: string }[];
+}
+
+interface VendorSummary {
+  vendor_count: number;
+  confirmed_count: number;
+  researching_count: number;
+  negotiating_count: number;
+  missing_contracts: number;
+  unpaid_balance: number;
+  deposits_due_soon: { id: number; name: string; category: string; due_date?: string }[];
+  balances_due_soon: { id: number; name: string; category: string; due_date?: string; amount_due?: number }[];
+  day_of_contact_sheet: { id: number; name: string; category: string; contact_person?: string; email?: string; phone?: string; open_task_count: number; balance_due: number; contract_signed: boolean; next_task?: { title: string; due_date?: string } }[];
+  recent_contact_logs: { id: number; vendor_name: string; subject: string; contact_type: string; contact_at?: string }[];
+}
+
+interface BudgetSummary {
+  total_budget: number;
+  total_estimated: number;
+  total_actual: number;
+  total_paid: number;
+  balance_due: number;
+  remaining_budget: number;
+  due_within_30_days: number;
+  overdue_amount: number;
+  categories: { category: string; estimated: number; actual: number; paid: number; balance_due: number; item_count: number }[];
+  next_payments: { id: number; label: string; amount: number; due_date?: string; vendor_name?: string; item_name?: string; status: string }[];
+  overdue_payments: { id: number; label: string; amount: number; due_date?: string; vendor_name?: string; item_name?: string; status: string }[];
 }
 
 interface WeddingPartyMember {
@@ -44,6 +83,8 @@ export default function PlanPage() {
   const [expandedTaskId, setExpandedTaskId] = useState<number | null>(null);
   const [showAddTaskTemplate, setShowAddTaskTemplate] = useState(false);
   const [taskFilter, setTaskFilter] = useState<string>('All');
+  const [taskSearch, setTaskSearch] = useState('');
+  const [selectedTaskIds, setSelectedTaskIds] = useState<number[]>([]);
   const [completedTasks, setCompletedTasks] = useState<number[]>([]);
   const [hoveredTaskId, setHoveredTaskId] = useState<number | null>(null);
   const [showCompletionToast, setShowCompletionToast] = useState(false);
@@ -61,10 +102,14 @@ export default function PlanPage() {
   const [expandedExpenseId, setExpandedExpenseId] = useState<number | null>(null);
   const [showAddExpenseFlow, setShowAddExpenseFlow] = useState(false);
   const [budgetInsightsOpen, setBudgetInsightsOpen] = useState(true);
+  const [budgetForm, setBudgetForm] = useState({ name: '', category: 'Food & drink', amount: '', dueDate: '' });
   const [expandedVendorId, setExpandedVendorId] = useState<string | null>(null);
   const [vendorFilter, setVendorFilter] = useState<string>('All');
+  const [vendorSearch, setVendorSearch] = useState('');
+  const [selectedVendorIds, setSelectedVendorIds] = useState<number[]>([]);
   const [showVendorComparison, setShowVendorComparison] = useState(false);
   const [selectedCompareVendors, setSelectedCompareVendors] = useState<string[]>([]);
+  const [vendorForm, setVendorForm] = useState({ name: '', category: 'Photographer', email: '', phone: '' });
   const [events, setEvents] = useState<Event[]>([]);
   const [dietaryNeeds, setDietaryNeeds] = useState({ vegetarian: 0, vegan: 0, glutenFree: 0, allergies: 0 });
   const [enhancements, setEnhancements] = useState({
@@ -81,6 +126,9 @@ export default function PlanPage() {
   const [draggedGuest, setDraggedGuest] = useState<string | null>(null);
   const [seatingTables, setSeatingTables] = useState<{[key: string]: string[]}>({});
   const [unassignedGuests, setUnassignedGuests] = useState<string[]>([]);
+  const [seatingPlanTables, setSeatingPlanTables] = useState<any[]>([]);
+  const [seatingSummary, setSeatingSummary] = useState<any | null>(null);
+  const [seatingSaving, setSeatingSaving] = useState(false);
   const [viewingImage, setViewingImage] = useState<number | null>(null);
   const [selectedTaskPriority, setSelectedTaskPriority] = useState<string>('Urgent');
   const [selectedVendorStatus, setSelectedVendorStatus] = useState<string>('Booked');
@@ -89,41 +137,143 @@ export default function PlanPage() {
   const [draggedEvent, setDraggedEvent] = useState<number | null>(null);
   const [timelineMoments, setTimelineMoments] = useState<{time:string;moment:string;owner:string;type:string}[]>([]);
 
+  const loadSeatingPlan = async () => {
+    const t = getToken();
+    if (!t) return;
+    try {
+      const [tablesRes, summaryRes] = await Promise.all([
+        api.get<{ data: any[] }>('/seating', t),
+        api.get<{ data: any }>('/seating/summary', t),
+      ]);
+      setSeatingPlanTables(tablesRes.data ?? []);
+      setSeatingSummary(summaryRes.data ?? null);
+    } catch {}
+  };
+
+  useEffect(() => {
+    loadSeatingPlan();
+  }, []);
+
+  const createSeatingTable = async () => {
+    const t = getToken();
+    if (!t || seatingSaving) return;
+    setSeatingSaving(true);
+    try {
+      await api.post('/seating/tables', {
+        name: `Table ${seatingPlanTables.length + 1}`,
+        shape: 'round',
+        capacity: 8,
+        sort_order: seatingPlanTables.length + 1,
+      }, t);
+      await loadSeatingPlan();
+    } finally {
+      setSeatingSaving(false);
+    }
+  };
+
+  const assignGuestToSeat = async (tableId: number, seatNumber: number, guestId: number | null) => {
+    const t = getToken();
+    if (!t || seatingSaving) return;
+    setSeatingSaving(true);
+    try {
+      await api.post(`/seating/tables/${tableId}/assign`, { seat_number: seatNumber, guest_id: guestId }, t);
+      await loadSeatingPlan();
+    } finally {
+      setSeatingSaving(false);
+    }
+  };
+
   // API state — tasks
   const [apiTasks, setApiTasks] = useState<{id:number;title:string;description?:string;category?:string;due_date?:string;priority?:string;completed:boolean;sort_order?:number}[]>([]);
   const [tasksLoading, setTasksLoading] = useState(false);
 
-  useEffect(() => {
+  const taskQueryString = () => {
+    const params = new URLSearchParams();
+    if (taskSearch.trim()) params.set('search', taskSearch.trim());
+    if (taskFilter === 'Completed') params.set('status', 'completed');
+    if (taskFilter === 'Needs attention') params.set('priority', 'urgent');
+    if (taskFilter === 'This week') params.set('due_this_week', '1');
+    return params.toString();
+  };
+
+  const loadTasks = () => {
     const t = getToken();
     if (!t) return;
+    const query = taskQueryString();
     setTasksLoading(true);
-    api.get<{ data: any[] }>('/plan/tasks', t)
+    api.get<{ data: typeof apiTasks }>(`/plan/tasks${query ? `?${query}` : ''}`, t)
       .then(res => setApiTasks(res.data ?? []))
       .catch(() => {})
       .finally(() => setTasksLoading(false));
-  }, []);
+  };
 
-  // API state — budget
-  const [budgetItems, setBudgetItems] = useState<{id:number;name:string;category:string;estimated_amount:number;actual_amount:number;paid_amount:number;payment_status:string;is_essential:boolean;due_date?:string}[]>([]);
-
-  useEffect(() => {
+  const exportTasks = async () => {
     const t = getToken();
     if (!t) return;
-    api.get<{ data: any[] }>('/plan/budget', t)
-      .then(res => setBudgetItems(res.data ?? []))
+    const query = taskQueryString();
+    await api.download(`/plan/tasks/export${query ? `?${query}` : ''}`, 'tasks.csv', t);
+  };
+
+  useEffect(() => {
+    loadTasks();
+  }, [taskSearch, taskFilter]);
+
+  // API state — budget
+  const [budgetItems, setBudgetItems] = useState<{id:number;name:string;category:string;estimated_amount:number;actual_amount:number;paid_amount:number;payment_status:string;is_essential:boolean;due_date?:string;payment_schedules?: { id: number; label: string; amount: number; due_date?: string; status: string }[]}[]>([]);
+  const [budgetSummary, setBudgetSummary] = useState<BudgetSummary | null>(null);
+
+  const loadBudget = () => {
+    const t = getToken();
+    if (!t) return;
+    api.get<{ data: typeof budgetItems; summary: BudgetSummary }>('/plan/budget', t)
+      .then(res => {
+        setBudgetItems(res.data ?? []);
+        setBudgetSummary(res.summary ?? null);
+      })
       .catch(() => {});
+  };
+
+  useEffect(() => {
+    loadBudget();
   }, []);
 
   // API state — vendors
-  const [apiVendors, setApiVendors] = useState<{id:number;name:string;category:string;booking_status:string;contract_signed:boolean;contact_name?:string;contact_email?:string;contact_phone?:string;estimated_cost?:number}[]>([]);
+  const [apiVendors, setApiVendors] = useState<{id:number;name:string;category:string;booking_status:string;contract_signed:boolean;contact_person?:string;email?:string;phone?:string;quoted_price?:number;deposit_paid?:number;balance_due?:number;contact_logs_count?:number;tasks_count?:number;tasks?: { id: number; title: string; due_date?: string; priority?: string }[];contact_logs?: { id: number; subject: string; contact_type: string; contact_at?: string }[]}[]>([]);
+  const [vendorSummary, setVendorSummary] = useState<VendorSummary | null>(null);
 
-  useEffect(() => {
+  const vendorQueryString = () => {
+    const params = new URLSearchParams();
+    const statusMap: Record<string, string> = { Booked: 'confirmed', Shortlisted: 'negotiating', Needed: 'researching' };
+    if (vendorSearch.trim()) params.set('search', vendorSearch.trim());
+    if (statusMap[vendorFilter]) params.set('status', statusMap[vendorFilter]);
+    return params.toString();
+  };
+
+  const loadVendors = () => {
     const t = getToken();
     if (!t) return;
-    api.get<{ data: any[] }>('/plan/vendors', t)
-      .then(res => setApiVendors(res.data ?? []))
+    const query = vendorQueryString();
+    Promise.all([
+      api.get<{ data: typeof apiVendors }>(`/plan/vendors${query ? `?${query}` : ''}`, t),
+      api.get<{ data: VendorSummary }>('/plan/vendors/summary', t),
+    ])
+      .then(([vendorsRes, summaryRes]) => {
+        setApiVendors(vendorsRes.data ?? []);
+        setVendorSummary(summaryRes.data ?? null);
+      })
       .catch(() => {});
-  }, []);
+  };
+
+  const exportVendors = async () => {
+    const t = getToken();
+    if (!t) return;
+    const query = vendorQueryString();
+    await api.download(`/plan/vendors/export${query ? `?${query}` : ''}`, 'vendors.csv', t);
+  };
+
+  useEffect(() => {
+    loadVendors();
+  }, [vendorSearch, vendorFilter]);
 
   // API state — timeline (feeds both events calendar and timeline moments views)
   useEffect(() => {
@@ -186,8 +336,9 @@ export default function PlanPage() {
   }, []);
 
   // Derived budget totals
-  const totalBudget = budgetItems.reduce((sum, item) => sum + (Number(item.estimated_amount) || 0), 0);
-  const totalSpent = budgetItems.reduce((sum, item) => sum + (Number(item.actual_amount) || 0), 0);
+  const totalBudget = budgetSummary?.total_budget || budgetItems.reduce((sum, item) => sum + (Number(item.estimated_amount) || 0), 0);
+  const totalSpent = budgetSummary?.total_actual || budgetItems.reduce((sum, item) => sum + (Number(item.actual_amount) || 0), 0);
+  const totalPaid = budgetSummary?.total_paid || budgetItems.reduce((sum, item) => sum + (Number(item.paid_amount) || 0), 0);
 
   // Toggle task completion via API
   const toggleTask = async (taskId: number, completed: boolean) => {
@@ -389,12 +540,98 @@ export default function PlanPage() {
   ];
 
   const vendors: Vendor[] = apiVendors.map(v => ({
+    id: v.id,
     category: v.category,
-    status: (v.booking_status === 'confirmed' ? 'Booked' : v.booking_status === 'shortlisted' ? 'Shortlisted' : 'Needed') as 'Booked' | 'Shortlisted' | 'Needed',
+    status: (['booked', 'confirmed', 'paid'].includes(v.booking_status) ? 'Booked' : v.booking_status === 'negotiating' ? 'Shortlisted' : 'Needed') as 'Booked' | 'Shortlisted' | 'Needed',
     name: v.name || undefined,
     dateBooked: v.contract_signed ? 'Confirmed' : undefined,
     shortlistedCount: undefined,
+    contactPerson: v.contact_person,
+    email: v.email,
+    phone: v.phone,
+    quotedPrice: Number(v.quoted_price) || 0,
+    depositPaid: Number(v.deposit_paid) || 0,
+    balanceDue: Number(v.balance_due) || 0,
+    contractSigned: v.contract_signed,
+    contactLogsCount: v.contact_logs_count ?? v.contact_logs?.length ?? 0,
+    tasksCount: v.tasks_count ?? v.tasks?.length ?? 0,
+    openTasks: v.tasks ?? [],
+    recentLogs: v.contact_logs ?? [],
   }));
+
+  const saveVendor = async () => {
+    const t = getToken();
+    if (!t || !vendorForm.name.trim()) return;
+    const statusMap: Record<string, string> = { Booked: 'booked', Shortlisted: 'negotiating', Needed: 'researching' };
+    await api.post('/plan/vendors', {
+      name: vendorForm.name.trim(),
+      category: vendorForm.category,
+      email: vendorForm.email || undefined,
+      phone: vendorForm.phone || undefined,
+      booking_status: statusMap[selectedVendorStatus] ?? 'researching',
+      contract_signed: selectedVendorStatus === 'Booked',
+    }, t);
+    setVendorForm({ name: '', category: 'Photographer', email: '', phone: '' });
+    setActiveFormModal(null);
+    loadVendors();
+  };
+
+  const saveExpense = async () => {
+    const t = getToken();
+    const amount = Number(budgetForm.amount);
+    if (!t || !budgetForm.name.trim() || Number.isNaN(amount)) return;
+    const paymentStatusMap: Record<string, string> = { Paid: 'paid', Pending: 'pending', Scheduled: 'partial' };
+    await api.post('/plan/budget', {
+      name: budgetForm.name.trim(),
+      category: budgetForm.category,
+      estimated_amount: amount,
+      actual_amount: amount,
+      paid_amount: selectedPaymentStatus === 'Paid' ? amount : 0,
+      payment_status: paymentStatusMap[selectedPaymentStatus] ?? 'pending',
+      due_date: budgetForm.dueDate || undefined,
+      payment_schedule: selectedPaymentStatus === 'Paid' ? [] : [{
+        label: `${budgetForm.name.trim()} payment`,
+        amount,
+        due_date: budgetForm.dueDate || undefined,
+        status: selectedPaymentStatus === 'Scheduled' ? 'scheduled' : 'pending',
+      }],
+    }, t);
+    setBudgetForm({ name: '', category: 'Food & drink', amount: '', dueDate: '' });
+    setActiveFormModal(null);
+    loadBudget();
+  };
+
+  const bulkCompleteTasks = async () => {
+    const t = getToken();
+    if (!t || selectedTaskIds.length === 0) return;
+    await api.post('/plan/tasks/bulk-update', {
+      ids: selectedTaskIds,
+      updates: { completed: true },
+      confirm: true,
+    }, t);
+    setSelectedTaskIds([]);
+    loadTasks();
+  };
+
+  const bulkConfirmVendors = async () => {
+    const t = getToken();
+    if (!t || selectedVendorIds.length === 0) return;
+    await api.post('/plan/vendors/bulk-update', {
+      ids: selectedVendorIds,
+      updates: { booking_status: 'confirmed', contract_signed: true },
+      confirm: true,
+    }, t);
+    setSelectedVendorIds([]);
+    loadVendors();
+  };
+
+  const toggleTaskSelected = (id: number) => {
+    setSelectedTaskIds(prev => prev.includes(id) ? prev.filter(taskId => taskId !== id) : [...prev, id]);
+  };
+
+  const toggleVendorSelected = (id: number) => {
+    setSelectedVendorIds(prev => prev.includes(id) ? prev.filter(vendorId => vendorId !== id) : [...prev, id]);
+  };
 
   // weddingParty is loaded from API — see useState above
 
@@ -648,17 +885,44 @@ export default function PlanPage() {
             {/* Summary Row */}
             <div className="grid grid-cols-3 gap-3 mb-6">
               <div className="bg-gradient-to-br from-[#d45d78]/10 to-[#f194b2]/20 rounded-[20px] p-4 text-center border border-[#d45d78]/20">
-                <div className="text-[24px] text-[#d45d78] mb-1" style={{ fontWeight: 500 }}>3</div>
+                <div className="text-[24px] text-[#d45d78] mb-1" style={{ fontWeight: 500 }}>{apiTasks.filter(t => !t.completed && ['urgent', 'high'].includes(t.priority ?? '')).length}</div>
                 <div className="text-[11px] text-gray-600" style={{ fontWeight: 400 }}>Needs attention</div>
               </div>
               <div className="bg-gradient-to-br from-[#f194b2]/10 to-[#FAFAFA]/40 rounded-[20px] p-4 text-center border border-[#f194b2]/20">
-                <div className="text-[24px] text-[#d45d78] mb-1" style={{ fontWeight: 500 }}>12</div>
+                <div className="text-[24px] text-[#d45d78] mb-1" style={{ fontWeight: 500 }}>{apiTasks.filter(t => !t.completed && t.due_date && new Date(t.due_date) <= new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)).length}</div>
                 <div className="text-[11px] text-gray-600" style={{ fontWeight: 400 }}>This week</div>
               </div>
               <div className="bg-gradient-to-br from-[#285301]/10 to-[#FAFAFA]/20 rounded-[20px] p-4 text-center border border-[#285301]/20">
-                <div className="text-[24px] text-[#285301] mb-1" style={{ fontWeight: 500 }}>47</div>
+                <div className="text-[24px] text-[#285301] mb-1" style={{ fontWeight: 500 }}>{apiTasks.filter(t => t.completed).length}</div>
                 <div className="text-[11px] text-gray-600" style={{ fontWeight: 400 }}>Completed</div>
               </div>
+            </div>
+
+            <div className="mb-4 space-y-3">
+              <div className="flex gap-2">
+                <input
+                  value={taskSearch}
+                  onChange={(e) => setTaskSearch(e.target.value)}
+                  className="flex-1 px-4 py-3 rounded-[18px] border border-gray-200 text-[13px] bg-white"
+                  placeholder="Search tasks, notes, modules..."
+                />
+                <button
+                  onClick={exportTasks}
+                  className="px-4 py-3 rounded-[18px] border border-gray-200 bg-white text-gray-700 text-[13px] flex items-center gap-2 hover:bg-gray-50"
+                  style={{ fontWeight: 500 }}
+                >
+                  <Download size={16} />
+                  Export
+                </button>
+              </div>
+              {selectedTaskIds.length > 0 && (
+                <div className="flex items-center justify-between bg-white border border-[#285301]/20 rounded-[16px] p-3">
+                  <span className="text-[13px] text-gray-800" style={{ fontWeight: 500 }}>{selectedTaskIds.length} selected</span>
+                  <button onClick={bulkCompleteTasks} className="px-3 py-1.5 rounded-full bg-[#285301] text-white text-[12px]" style={{ fontWeight: 500 }}>
+                    Mark complete
+                  </button>
+                </div>
+              )}
             </div>
 
             {/* Filter Chips - Interactive */}
@@ -806,6 +1070,16 @@ export default function PlanPage() {
                       className="w-full p-4 text-left"
                     >
                       <div className="flex items-start justify-between mb-2">
+                        <input
+                          type="checkbox"
+                          checked={selectedTaskIds.includes(task.id)}
+                          onChange={(e) => {
+                            e.stopPropagation();
+                            toggleTaskSelected(task.id);
+                          }}
+                          onClick={(e) => e.stopPropagation()}
+                          className="mt-1 mr-3 w-4 h-4 rounded border-gray-300 text-[#285301]"
+                        />
                         <div className="flex-1 pr-3">
                           <h4 className="text-[15px] text-gray-800 mb-1" style={{ fontWeight: 500 }}>
                             {task.title}
@@ -1368,20 +1642,20 @@ export default function PlanPage() {
               <div className="bg-gradient-to-br from-white to-[#FAFAFA] rounded-[24px] p-5 border border-gray-100">
                 <div className="text-[11px] text-gray-500 mb-1" style={{ fontWeight: 400 }}>Total wedding budget</div>
                 <div className="text-[32px] text-gray-800 mb-1" style={{ fontWeight: 500 }}>
-                  {budgetItems.length > 0 ? `$${totalBudget.toLocaleString()}` : '$45,000'}
+                  ${totalBudget.toLocaleString()}
                 </div>
-                <div className="text-[11px] text-gray-500">Set January 2026</div>
+                <div className="text-[11px] text-gray-500">{budgetItems.length} tracked item{budgetItems.length === 1 ? '' : 's'}</div>
               </div>
               <div className="bg-gradient-to-br from-[#1F4D2B] to-[#285301] text-white rounded-[24px] p-5 relative overflow-hidden">
                 <div className="absolute inset-0 bg-gradient-to-br from-white/10 to-transparent" />
                 <div className="relative">
                   <div className="text-[11px] opacity-90 mb-1" style={{ fontWeight: 400 }}>Remaining available</div>
-                  <div className="text-[32px] mb-1" style={{ fontWeight: 500 }}>$13,500</div>
+                  <div className="text-[32px] mb-1" style={{ fontWeight: 500 }}>${(budgetSummary?.remaining_budget ?? Math.max(0, totalBudget - totalSpent)).toLocaleString()}</div>
                   <div className="flex items-center gap-1.5">
                     <div className="px-2 py-0.5 bg-white/20 rounded-full text-[10px]" style={{ fontWeight: 500 }}>
-                      Healthy pace
+                      {budgetSummary?.overdue_amount ? 'Needs attention' : 'Healthy pace'}
                     </div>
-                    <span className="text-[11px] opacity-80">30% buffer</span>
+                    <span className="text-[11px] opacity-80">${(budgetSummary?.balance_due ?? 0).toLocaleString()} due</span>
                   </div>
                 </div>
               </div>
@@ -1391,21 +1665,43 @@ export default function PlanPage() {
             <div className="grid grid-cols-2 gap-2.5 mb-6">
               <div className="bg-white rounded-[18px] p-4 border border-gray-100">
                 <div className="text-[11px] text-gray-500 mb-1">Committed</div>
-                <div className="text-[20px] text-gray-800" style={{ fontWeight: 500 }}>$42,500</div>
+                <div className="text-[20px] text-gray-800" style={{ fontWeight: 500 }}>${totalSpent.toLocaleString()}</div>
               </div>
               <div className="bg-white rounded-[18px] p-4 border border-gray-100">
                 <div className="text-[11px] text-gray-500 mb-1">Already paid</div>
-                <div className="text-[20px] text-[#285301]" style={{ fontWeight: 500 }}>$31,500</div>
+                <div className="text-[20px] text-[#285301]" style={{ fontWeight: 500 }}>${totalPaid.toLocaleString()}</div>
               </div>
               <div className="bg-white rounded-[18px] p-4 border border-gray-100">
                 <div className="text-[11px] text-gray-500 mb-1">Due within 30 days</div>
-                <div className="text-[20px] text-[#f194b2]" style={{ fontWeight: 500 }}>$4,200</div>
+                <div className="text-[20px] text-[#f194b2]" style={{ fontWeight: 500 }}>${(budgetSummary?.due_within_30_days ?? 0).toLocaleString()}</div>
               </div>
               <div className="bg-white rounded-[18px] p-4 border border-gray-100">
                 <div className="text-[11px] text-gray-500 mb-1">Estimated final</div>
-                <div className="text-[20px] text-gray-800" style={{ fontWeight: 500 }}>$44,100</div>
+                <div className="text-[20px] text-gray-800" style={{ fontWeight: 500 }}>${(budgetSummary?.total_estimated ?? totalBudget).toLocaleString()}</div>
               </div>
             </div>
+
+            {((budgetSummary?.overdue_payments.length ?? 0) > 0 || (budgetSummary?.next_payments.length ?? 0) > 0) && (
+              <div className="mb-6">
+                <h3 className="text-[18px] text-[#1F4D2B] mb-4" style={{ fontFamily: 'Playfair Display, serif', fontWeight: 500 }}>
+                  Payment schedule
+                </h3>
+                <div className="space-y-2">
+                  {[...(budgetSummary?.overdue_payments ?? []), ...(budgetSummary?.next_payments ?? [])].slice(0, 5).map((payment) => (
+                    <div key={payment.id} className="bg-white rounded-[18px] p-4 border border-gray-100 flex items-center justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="text-[13px] text-gray-800" style={{ fontWeight: 500 }}>{payment.label}</div>
+                        <div className="text-[11px] text-gray-500">{payment.vendor_name || payment.item_name || 'Budget payment'}{payment.due_date ? ` due ${payment.due_date}` : ''}</div>
+                      </div>
+                      <div className="text-right">
+                        <div className="text-[14px] text-gray-800" style={{ fontWeight: 500 }}>${Number(payment.amount || 0).toLocaleString()}</div>
+                        <div className={`text-[10px] ${payment.status === 'overdue' ? 'text-[#d45d78]' : 'text-[#285301]'}`}>{payment.status}</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {/* Intelligent Insights */}
             <button
@@ -1859,24 +2155,24 @@ export default function PlanPage() {
             {/* Intelligent Planning Insight Cards */}
             <div className="grid grid-cols-2 gap-3 mb-4">
               <div className="bg-gradient-to-br from-[#E8F3EC] to-white rounded-[20px] p-4 border border-[#1F4D2B]/10">
-                <div className="text-[24px] text-[#1F4D2B] mb-1" style={{ fontWeight: 500 }}>8</div>
+                <div className="text-[24px] text-[#1F4D2B] mb-1" style={{ fontWeight: 500 }}>{vendorSummary?.confirmed_count ?? vendors.filter(v => v.status === 'Booked').length}</div>
                 <div className="text-[11px] text-gray-600 mb-2" style={{ fontWeight: 400 }}>Fully secured</div>
-                <div className="text-[10px] text-[#1F4D2B]" style={{ fontWeight: 500 }}>All contracts signed</div>
+                <div className="text-[10px] text-[#1F4D2B]" style={{ fontWeight: 500 }}>{vendorSummary?.missing_contracts ? `${vendorSummary.missing_contracts} contract${vendorSummary.missing_contracts === 1 ? '' : 's'} missing` : 'Contracts clear'}</div>
               </div>
               <div className="bg-gradient-to-br from-[#FFF5F8] to-white rounded-[20px] p-4 border border-[#f194b2]/20">
-                <div className="text-[24px] text-[#f194b2] mb-1" style={{ fontWeight: 500 }}>2</div>
+                <div className="text-[24px] text-[#f194b2] mb-1" style={{ fontWeight: 500 }}>{vendorSummary?.negotiating_count ?? vendors.filter(v => v.status === 'Shortlisted').length}</div>
                 <div className="text-[11px] text-gray-600 mb-2" style={{ fontWeight: 400 }}>Awaiting response</div>
-                <div className="text-[10px] text-[#f194b2]" style={{ fontWeight: 500 }}>Quotes pending</div>
+                <div className="text-[10px] text-[#f194b2]" style={{ fontWeight: 500 }}>Negotiation pipeline</div>
               </div>
               <div className="bg-gradient-to-br from-[#F0F9FA] to-white rounded-[20px] p-4 border border-[#285301]/10">
-                <div className="text-[24px] text-[#285301] mb-1" style={{ fontWeight: 500 }}>1</div>
+                <div className="text-[24px] text-[#285301] mb-1" style={{ fontWeight: 500 }}>{(vendorSummary?.deposits_due_soon.length ?? 0) + (vendorSummary?.balances_due_soon.length ?? 0)}</div>
                 <div className="text-[11px] text-gray-600 mb-2" style={{ fontWeight: 400 }}>Deposit due</div>
-                <div className="text-[10px] text-[#285301]" style={{ fontWeight: 500 }}>Florist • 3 days</div>
+                <div className="text-[10px] text-[#285301]" style={{ fontWeight: 500 }}>{vendorSummary?.balances_due_soon[0]?.name ?? vendorSummary?.deposits_due_soon[0]?.name ?? 'No urgent payments'}</div>
               </div>
               <div className="bg-gradient-to-br from-[#FFF5EB] to-white rounded-[20px] p-4 border border-[#FFA726]/20">
-                <div className="text-[24px] text-[#FFA726] mb-1" style={{ fontWeight: 500 }}>3</div>
+                <div className="text-[24px] text-[#FFA726] mb-1" style={{ fontWeight: 500 }}>{vendorSummary?.researching_count ?? vendors.filter(v => v.status === 'Needed').length}</div>
                 <div className="text-[11px] text-gray-600 mb-2" style={{ fontWeight: 400 }}>Still needed</div>
-                <div className="text-[10px] text-[#FFA726]" style={{ fontWeight: 500 }}>Key categories</div>
+                <div className="text-[10px] text-[#FFA726]" style={{ fontWeight: 500 }}>{vendorSummary?.vendor_count ?? vendors.length} total vendors</div>
               </div>
             </div>
 
@@ -1889,13 +2185,40 @@ export default function PlanPage() {
                 <div className="flex-1">
                   <div className="text-[13px] text-gray-800 mb-1" style={{ fontWeight: 500 }}>Vendor insights</div>
                   <p className="text-[12px] text-gray-600 mb-2" style={{ lineHeight: 1.5 }}>
-                    Photographers in your area are booking quickly for June weddings.
+                    {vendorSummary?.missing_contracts ? `${vendorSummary.missing_contracts} booked vendor${vendorSummary.missing_contracts === 1 ? ' needs' : 's need'} contract confirmation.` : 'Your confirmed vendor contracts are currently clear.'}
                   </p>
                   <p className="text-[11px] text-[#285301]" style={{ fontWeight: 500 }}>
-                    Your venue timeline may require additional lighting vendors →
+                    ${(vendorSummary?.unpaid_balance ?? 0).toLocaleString()} vendor balance remaining
                   </p>
                 </div>
               </div>
+            </div>
+
+            <div className="mb-4 space-y-3">
+              <div className="flex gap-2">
+                <input
+                  value={vendorSearch}
+                  onChange={(e) => setVendorSearch(e.target.value)}
+                  className="flex-1 px-4 py-3 rounded-[18px] border border-gray-200 text-[13px] bg-white"
+                  placeholder="Search vendors, categories, contacts..."
+                />
+                <button
+                  onClick={exportVendors}
+                  className="px-4 py-3 rounded-[18px] border border-gray-200 bg-white text-gray-700 text-[13px] flex items-center gap-2 hover:bg-gray-50"
+                  style={{ fontWeight: 500 }}
+                >
+                  <Download size={16} />
+                  Export
+                </button>
+              </div>
+              {selectedVendorIds.length > 0 && (
+                <div className="flex items-center justify-between bg-white border border-[#285301]/20 rounded-[16px] p-3">
+                  <span className="text-[13px] text-gray-800" style={{ fontWeight: 500 }}>{selectedVendorIds.length} selected</span>
+                  <button onClick={bulkConfirmVendors} className="px-3 py-1.5 rounded-full bg-[#285301] text-white text-[12px]" style={{ fontWeight: 500 }}>
+                    Confirm + sign
+                  </button>
+                </div>
+              )}
             </div>
 
             {/* Category Filter */}
@@ -1923,8 +2246,8 @@ export default function PlanPage() {
                   Your wedding team
                 </h3>
                 <div className="space-y-3">
-                  {vendors.filter(v => v.status === 'Booked').map((vendor, idx) => {
-                    const vendorId = `${vendor.category}-${idx}`;
+                  {vendors.filter(v => v.status === 'Booked').map((vendor) => {
+                    const vendorId = `${vendor.id}`;
                     const isExpanded = expandedVendorId === vendorId;
 
                     return (
@@ -1939,6 +2262,16 @@ export default function PlanPage() {
                           className="w-full p-4 text-left"
                         >
                           <div className="flex items-start gap-3">
+                            <input
+                              type="checkbox"
+                              checked={selectedVendorIds.includes(vendor.id)}
+                              onChange={(e) => {
+                                e.stopPropagation();
+                                toggleVendorSelected(vendor.id);
+                              }}
+                              onClick={(e) => e.stopPropagation()}
+                              className="mt-3 w-4 h-4 rounded border-gray-300 text-[#285301]"
+                            />
                             {/* Vendor Icon/Photo */}
                             <div className="w-12 h-12 rounded-[16px] bg-gradient-to-br from-[#F0F9FA] to-[#E8F4F5] flex items-center justify-center flex-shrink-0">
                               <Briefcase size={20} className="text-[#285301]" />
@@ -1954,13 +2287,13 @@ export default function PlanPage() {
                                   </h4>
                                   <div className="flex items-center gap-2 text-[11px] text-gray-500 mb-2">
                                     <span className="px-2 py-0.5 bg-[#E8F3EC] text-[#1F4D2B] rounded-full text-[10px]" style={{ fontWeight: 500 }}>
-                                      Contract signed
+                                      {vendor.contractSigned ? 'Contract signed' : 'Contract needed'}
                                     </span>
                                     <span>•</span>
-                                    <span>Booked {vendor.dateBooked}</span>
+                                    <span>{vendor.status}</span>
                                   </div>
                                   <div className="text-[12px] text-gray-600">
-                                    Deposit paid • Final walkthrough May 12
+                                    {vendor.contactPerson || vendor.email || vendor.phone || 'No contact details recorded yet'}
                                   </div>
                                 </div>
                                 <ChevronRight
@@ -1973,13 +2306,13 @@ export default function PlanPage() {
                               {!isExpanded && (
                                 <div className="flex items-center gap-3 text-[11px] text-gray-400 mt-2">
                                   <span className="flex items-center gap-1">
-                                    <MessageSquare size={10} />2 notes
+                                    <MessageSquare size={10} />{vendor.contactLogsCount ?? 0} notes
                                   </span>
                                   <span className="flex items-center gap-1">
-                                    <Upload size={10} />1 attachment
+                                    <Upload size={10} />{vendor.contractSigned ? 'Contract' : 'No contract'}
                                   </span>
                                   <span className="flex items-center gap-1">
-                                    <Check size={10} />1 task
+                                    <Check size={10} />{vendor.tasksCount ?? 0} tasks
                                   </span>
                                 </div>
                               )}
@@ -1995,23 +2328,23 @@ export default function PlanPage() {
                               <div>
                                 <div className="flex items-center justify-between mb-2">
                                   <span className="text-[12px] text-gray-700" style={{ fontWeight: 500 }}>Payment progress</span>
-                                  <span className="text-[12px] text-[#285301]" style={{ fontWeight: 500 }}>$3,000 / $12,000</span>
+                                  <span className="text-[12px] text-[#285301]" style={{ fontWeight: 500 }}>${(vendor.depositPaid ?? 0).toLocaleString()} / ${((vendor.depositPaid ?? 0) + (vendor.balanceDue ?? 0)).toLocaleString()}</span>
                                 </div>
                                 <div className="w-full bg-[#FAFAFA] rounded-full h-2">
-                                  <div className="bg-gradient-to-r from-[#285301] to-[#2A7B85] h-2 rounded-full" style={{ width: '25%' }} />
+                                  <div className="bg-gradient-to-r from-[#285301] to-[#2A7B85] h-2 rounded-full" style={{ width: `${Math.min(100, ((vendor.depositPaid ?? 0) / Math.max(1, (vendor.depositPaid ?? 0) + (vendor.balanceDue ?? 0))) * 100)}%` }} />
                                 </div>
-                                <p className="text-[11px] text-gray-500 mt-1">Next payment: $9,000 due May 1</p>
+                                <p className="text-[11px] text-gray-500 mt-1">Remaining balance: ${(vendor.balanceDue ?? 0).toLocaleString()}</p>
                               </div>
 
                               {/* Communication Status */}
                               <div className="grid grid-cols-2 gap-2">
                                 <div className="p-3 bg-[#FAFAFA] rounded-[14px]">
                                   <div className="text-[11px] text-gray-500 mb-0.5">Last contact</div>
-                                  <div className="text-[13px] text-gray-800" style={{ fontWeight: 500 }}>3 days ago</div>
+                                  <div className="text-[13px] text-gray-800" style={{ fontWeight: 500 }}>{vendor.recentLogs?.[0]?.subject ?? 'No log yet'}</div>
                                 </div>
                                 <div className="p-3 bg-[#FAFAFA] rounded-[14px]">
                                   <div className="text-[11px] text-gray-500 mb-0.5">Response time</div>
-                                  <div className="text-[13px] text-gray-800" style={{ fontWeight: 500 }}>{'< 24h'}</div>
+                                  <div className="text-[13px] text-gray-800" style={{ fontWeight: 500 }}>{vendor.contractSigned ? 'Signed' : 'Needed'}</div>
                                 </div>
                               </div>
 
@@ -2021,8 +2354,8 @@ export default function PlanPage() {
                                 <div className="space-y-2">
                                   <div className="p-2 bg-[#F0F9FA] rounded-[12px] flex items-center justify-between">
                                     <div>
-                                      <div className="text-[12px] text-gray-800" style={{ fontWeight: 500 }}>Sarah Martinez</div>
-                                      <div className="text-[11px] text-gray-500">Event coordinator</div>
+                                      <div className="text-[12px] text-gray-800" style={{ fontWeight: 500 }}>{vendor.contactPerson || vendor.name}</div>
+                                      <div className="text-[11px] text-gray-500">{vendor.email || vendor.phone || 'Contact details needed'}</div>
                                     </div>
                                     <div className="flex gap-1.5">
                                       <button className="w-8 h-8 rounded-full bg-white hover:bg-gray-50 flex items-center justify-center transition-colors">
@@ -2041,12 +2374,12 @@ export default function PlanPage() {
                                 <div className="text-[12px] text-gray-700 mb-2" style={{ fontWeight: 500 }}>Notes & tasks</div>
                                 <div className="p-3 bg-[#FAFAFA] rounded-[14px] mb-2">
                                   <p className="text-[12px] text-gray-600" style={{ lineHeight: 1.5 }}>
-                                    Confirmed ceremony setup at 2 PM. Need to follow up on lighting preferences.
+                                    {vendor.recentLogs?.[0]?.subject ?? 'No contact notes yet. Log calls, emails, meetings, and follow-ups here.'}
                                   </p>
                                 </div>
                                 <div className="flex items-center gap-2 p-2 bg-[#FFF5F8] rounded-[12px] border border-[#f194b2]/20">
                                   <div className="w-4 h-4 rounded border-2 border-[#f194b2]" />
-                                  <span className="text-[12px] text-gray-700 flex-1">Send final floor plan by Apr 15</span>
+                                  <span className="text-[12px] text-gray-700 flex-1">{vendor.openTasks?.[0]?.title ?? 'No linked open vendor task'}</span>
                                 </div>
                               </div>
 
@@ -2054,15 +2387,15 @@ export default function PlanPage() {
                               <div className="grid grid-cols-3 gap-2">
                                 <button className="py-2 bg-[#FAFAFA] text-gray-700 rounded-[14px] text-[11px] hover:bg-gray-100 transition-colors" style={{ fontWeight: 500 }}>
                                   <Upload size={12} className="inline mr-1 mb-0.5" />
-                                  Files
+                                  Contract
                                 </button>
                                 <button className="py-2 bg-[#FAFAFA] text-gray-700 rounded-[14px] text-[11px] hover:bg-gray-100 transition-colors" style={{ fontWeight: 500 }}>
                                   <DollarSign size={12} className="inline mr-1 mb-0.5" />
-                                  Invoice
+                                  Balance
                                 </button>
                                 <button className="py-2 bg-[#285301] text-white rounded-[14px] text-[11px] hover:bg-[#2A7B85] transition-colors" style={{ fontWeight: 500 }}>
                                   <MessageSquare size={12} className="inline mr-1 mb-0.5" />
-                                  Message
+                                  Contact
                                 </button>
                               </div>
                             </div>
@@ -2093,6 +2426,12 @@ export default function PlanPage() {
                   {vendors.filter(v => v.status === 'Shortlisted').map((vendor, idx) => (
                     <div key={idx} className="bg-white rounded-[20px] p-4 border border-gray-100 hover:border-[#285301] hover:shadow-md transition-all cursor-pointer">
                       <div className="flex items-start justify-between mb-3">
+                        <input
+                          type="checkbox"
+                          checked={selectedVendorIds.includes(vendor.id)}
+                          onChange={() => toggleVendorSelected(vendor.id)}
+                          className="mt-1 mr-3 w-4 h-4 rounded border-gray-300 text-[#285301]"
+                        />
                         <div className="flex-1">
                           <h4 className="text-[15px] text-gray-800 mb-1" style={{ fontWeight: 500 }}>{vendor.category}</h4>
                           <p className="text-[13px] text-gray-600 mb-2">{vendor.shortlistedCount} vendors • Comparing pricing and style</p>
@@ -2175,6 +2514,34 @@ export default function PlanPage() {
                         <button className="py-2 bg-[#FAFAFA] text-gray-700 rounded-[14px] text-[12px] hover:bg-gray-100 transition-colors" style={{ fontWeight: 500 }}>
                           Request quotes
                         </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {vendorSummary?.day_of_contact_sheet && vendorSummary.day_of_contact_sheet.length > 0 && (
+              <div className="mb-6">
+                <h3 className="text-[18px] text-[#1F4D2B] mb-4" style={{ fontFamily: 'Playfair Display, serif', fontWeight: 500 }}>
+                  Day-of contact sheet
+                </h3>
+                <div className="space-y-2">
+                  {vendorSummary.day_of_contact_sheet.slice(0, 6).map((row) => (
+                    <div key={row.id} className="bg-white rounded-[18px] p-4 border border-gray-100">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <div className="text-[12px] text-gray-500 mb-0.5">{row.category}</div>
+                          <div className="text-[14px] text-gray-800" style={{ fontWeight: 500 }}>{row.name}</div>
+                          <div className="text-[12px] text-gray-600 mt-1">{row.contact_person || row.email || row.phone || 'Contact details needed'}</div>
+                        </div>
+                        <div className={`px-2 py-1 rounded-full text-[10px] ${row.contract_signed ? 'bg-[#E8F3EC] text-[#1F4D2B]' : 'bg-[#FFF5F8] text-[#d45d78]'}`} style={{ fontWeight: 500 }}>
+                          {row.contract_signed ? 'Ready' : 'Contract'}
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2 mt-3 text-[11px] text-gray-600">
+                        <div className="bg-[#FAFAFA] rounded-[12px] p-2">Tasks: {row.open_task_count}</div>
+                        <div className="bg-[#FAFAFA] rounded-[12px] p-2">Balance: ${Number(row.balance_due || 0).toLocaleString()}</div>
                       </div>
                     </div>
                   ))}
@@ -2852,11 +3219,11 @@ export default function PlanPage() {
             <div className="space-y-4">
               <div>
                 <label className="text-[13px] text-gray-700 block mb-2" style={{ fontWeight: 500 }}>Vendor / Description</label>
-                <input type="text" className="w-full px-4 py-3 rounded-[20px] border border-gray-200 text-[14px]" placeholder="e.g., Gourmet Affairs" />
+                <input value={budgetForm.name} onChange={(e) => setBudgetForm({ ...budgetForm, name: e.target.value })} type="text" className="w-full px-4 py-3 rounded-[20px] border border-gray-200 text-[14px]" placeholder="e.g., Gourmet Affairs" />
               </div>
               <div>
                 <label className="text-[13px] text-gray-700 block mb-2" style={{ fontWeight: 500 }}>Category</label>
-                <select className="w-full px-4 py-3 rounded-[20px] border border-gray-200 text-[14px]">
+                <select value={budgetForm.category} onChange={(e) => setBudgetForm({ ...budgetForm, category: e.target.value })} className="w-full px-4 py-3 rounded-[20px] border border-gray-200 text-[14px]">
                   <option>Food & drink</option>
                   <option>Venue</option>
                   <option>Photography</option>
@@ -2869,11 +3236,11 @@ export default function PlanPage() {
               </div>
               <div>
                 <label className="text-[13px] text-gray-700 block mb-2" style={{ fontWeight: 500 }}>Amount</label>
-                <input type="number" className="w-full px-4 py-3 rounded-[20px] border border-gray-200 text-[14px]" placeholder="$0.00" />
+                <input value={budgetForm.amount} onChange={(e) => setBudgetForm({ ...budgetForm, amount: e.target.value })} type="number" className="w-full px-4 py-3 rounded-[20px] border border-gray-200 text-[14px]" placeholder="$0.00" />
               </div>
               <div>
                 <label className="text-[13px] text-gray-700 block mb-2" style={{ fontWeight: 500 }}>Date paid</label>
-                <input type="date" className="w-full px-4 py-3 rounded-[20px] border border-gray-200 text-[14px]" />
+                <input value={budgetForm.dueDate} onChange={(e) => setBudgetForm({ ...budgetForm, dueDate: e.target.value })} type="date" className="w-full px-4 py-3 rounded-[20px] border border-gray-200 text-[14px]" />
               </div>
               <div>
                 <label className="text-[13px] text-gray-700 block mb-2" style={{ fontWeight: 500 }}>Payment status</label>
@@ -2894,7 +3261,7 @@ export default function PlanPage() {
                 </div>
               </div>
             </div>
-            <button onClick={() => setActiveFormModal(null)} className="w-full bg-[#285301] text-white py-3 rounded-[20px] mt-6" style={{ fontWeight: 500 }}>
+            <button onClick={saveExpense} disabled={!budgetForm.name.trim() || !budgetForm.amount} className="w-full bg-[#285301] text-white py-3 rounded-[20px] mt-6 disabled:opacity-50" style={{ fontWeight: 500 }}>
               Save expense
             </button>
           </div>
@@ -2915,11 +3282,11 @@ export default function PlanPage() {
             <div className="space-y-4">
               <div>
                 <label className="text-[13px] text-gray-700 block mb-2" style={{ fontWeight: 500 }}>Vendor name</label>
-                <input type="text" className="w-full px-4 py-3 rounded-[20px] border border-gray-200 text-[14px]" placeholder="Business name" />
+                <input value={vendorForm.name} onChange={(e) => setVendorForm({ ...vendorForm, name: e.target.value })} type="text" className="w-full px-4 py-3 rounded-[20px] border border-gray-200 text-[14px]" placeholder="Business name" />
               </div>
               <div>
                 <label className="text-[13px] text-gray-700 block mb-2" style={{ fontWeight: 500 }}>Category</label>
-                <select className="w-full px-4 py-3 rounded-[20px] border border-gray-200 text-[14px]">
+                <select value={vendorForm.category} onChange={(e) => setVendorForm({ ...vendorForm, category: e.target.value })} className="w-full px-4 py-3 rounded-[20px] border border-gray-200 text-[14px]">
                   <option>Photographer</option>
                   <option>Videographer</option>
                   <option>Florist</option>
@@ -2950,14 +3317,14 @@ export default function PlanPage() {
               </div>
               <div>
                 <label className="text-[13px] text-gray-700 block mb-2" style={{ fontWeight: 500 }}>Contact email</label>
-                <input type="email" className="w-full px-4 py-3 rounded-[20px] border border-gray-200 text-[14px]" placeholder="vendor@email.com" />
+                <input value={vendorForm.email} onChange={(e) => setVendorForm({ ...vendorForm, email: e.target.value })} type="email" className="w-full px-4 py-3 rounded-[20px] border border-gray-200 text-[14px]" placeholder="vendor@email.com" />
               </div>
               <div>
                 <label className="text-[13px] text-gray-700 block mb-2" style={{ fontWeight: 500 }}>Phone</label>
-                <input type="tel" className="w-full px-4 py-3 rounded-[20px] border border-gray-200 text-[14px]" placeholder="555-0000" />
+                <input value={vendorForm.phone} onChange={(e) => setVendorForm({ ...vendorForm, phone: e.target.value })} type="tel" className="w-full px-4 py-3 rounded-[20px] border border-gray-200 text-[14px]" placeholder="555-0000" />
               </div>
             </div>
-            <button onClick={() => setActiveFormModal(null)} className="w-full bg-[#285301] text-white py-3 rounded-[20px] mt-6" style={{ fontWeight: 500 }}>
+            <button onClick={saveVendor} disabled={!vendorForm.name.trim()} className="w-full bg-[#285301] text-white py-3 rounded-[20px] mt-6 disabled:opacity-50" style={{ fontWeight: 500 }}>
               Save vendor
             </button>
           </div>
@@ -3544,12 +3911,12 @@ export default function PlanPage() {
               <div className="bg-[#FAFAFA]/40 rounded-[20px] p-4">
                 <div className="text-[13px] text-gray-600 mb-1" style={{ fontWeight: 400 }}>Total guests</div>
                 <div className="text-[24px] text-[#d45d78]" style={{ fontWeight: 500 }}>
-                  {Object.values(seatingTables).reduce((sum, guests) => sum + guests.length, 0) + unassignedGuests.length}
+                  {seatingSummary?.attending_guest_count ?? 0}
                 </div>
               </div>
               <div className="bg-[#FAFAFA]/40 rounded-[20px] p-4">
                 <div className="text-[13px] text-gray-600 mb-1" style={{ fontWeight: 400 }}>Unassigned</div>
-                <div className="text-[24px] text-[#d45d78]" style={{ fontWeight: 500 }}>{unassignedGuests.length}</div>
+                <div className="text-[24px] text-[#d45d78]" style={{ fontWeight: 500 }}>{seatingSummary?.unassigned_attending_count ?? 0}</div>
               </div>
             </div>
 
@@ -3579,6 +3946,21 @@ export default function PlanPage() {
                 }}
               >
                 <div className="flex flex-wrap gap-2">
+                  {(seatingSummary?.unassigned_guests ?? []).map((guest: any) => (
+                    <button
+                      key={guest.id}
+                      disabled={seatingSaving || seatingPlanTables.length === 0}
+                      onClick={() => {
+                        const targetTable = seatingPlanTables.find((table) => (table.seats ?? []).some((seat: any) => !seat.guest_id));
+                        const targetSeat = targetTable?.seats?.find((seat: any) => !seat.guest_id);
+                        if (targetTable && targetSeat) assignGuestToSeat(targetTable.id, targetSeat.seat_number, guest.id);
+                      }}
+                      className="bg-white px-3 py-2 rounded-[16px] border border-gray-200 text-[13px] hover:border-[#285301] flex items-center gap-2 disabled:opacity-50"
+                    >
+                      <GripVertical size={14} className="text-gray-400" />
+                      {guest.name}
+                    </button>
+                  ))}
                   {unassignedGuests.map((guest, idx) => (
                     <div
                       key={idx}
@@ -3591,7 +3973,7 @@ export default function PlanPage() {
                       {guest}
                     </div>
                   ))}
-                  {unassignedGuests.length === 0 && (
+                  {(seatingSummary?.unassigned_guests ?? []).length === 0 && unassignedGuests.length === 0 && (
                     <div className="text-[13px] text-gray-400 py-4">All guests assigned!</div>
                   )}
                 </div>
@@ -3603,16 +3985,49 @@ export default function PlanPage() {
               <div className="flex items-center justify-between">
                 <h3 className="text-[14px] text-gray-800" style={{ fontWeight: 500 }}>Tables</h3>
                 <button
-                  onClick={() => {
-                    const newTableNum = Object.keys(seatingTables).length + 1;
-                    setSeatingTables({...seatingTables, [`Table ${newTableNum}`]: []});
-                  }}
+                  onClick={createSeatingTable}
+                  disabled={seatingSaving}
                   className="text-[13px] text-[#d45d78] flex items-center gap-1"
                 >
                   <Plus size={16} />
                   Add table
                 </button>
               </div>
+
+              {seatingPlanTables.map((table) => (
+                <div
+                  key={table.id}
+                  className="bg-gradient-to-br from-[#FAFAFA]/40 to-white rounded-[20px] p-4 border border-gray-200"
+                >
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-2">
+                      <h4 className="text-[14px] text-gray-800" style={{ fontWeight: 500 }}>{table.name}</h4>
+                      <span className="text-[12px] text-gray-500">({table.assigned_count ?? 0}/{table.capacity})</span>
+                    </div>
+                    <span className="text-[11px] text-gray-500">{table.shape ?? 'round'}</span>
+                  </div>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                    {(table.seats ?? []).map((seat: any) => {
+                      const guest = seat.guest;
+                      const nextGuest = (seatingSummary?.unassigned_guests ?? [])[0];
+                      return (
+                        <button
+                          key={seat.id}
+                          disabled={seatingSaving}
+                          onClick={() => assignGuestToSeat(table.id, seat.seat_number, guest ? null : nextGuest?.id ?? null)}
+                          className={`min-h-[54px] rounded-[14px] border px-3 py-2 text-left text-[12px] disabled:opacity-50 ${guest ? 'bg-[#285301] text-white border-[#285301]' : 'bg-white text-gray-500 border-gray-200 hover:border-[#285301]'}`}
+                        >
+                          <div className="font-medium">Seat {seat.label ?? seat.seat_number}</div>
+                          <div className={guest ? 'text-white/80' : 'text-gray-400'}>
+                            {guest ? [guest.first_name, guest.last_name].filter(Boolean).join(' ') : nextGuest ? `Assign ${nextGuest.name}` : 'Open'}
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                  {table.notes && <p className="text-[12px] text-gray-500 mt-3">{table.notes}</p>}
+                </div>
+              ))}
 
               {Object.entries(seatingTables).map(([tableName, guests]) => (
                 <div

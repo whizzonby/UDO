@@ -12,6 +12,9 @@ class EditBlogPost extends EditRecord
 
     protected function getHeaderActions(): array
     {
-        return [Actions\DeleteAction::make()];
+        return [
+            BlogPostResource::previewAction(),
+            Actions\DeleteAction::make(),
+        ];
     }
 }

@@ -2,6 +2,8 @@
 
 namespace App\Filament\Resources;
 
+use App\Filament\Concerns\HasDomainPermission;
+
 use App\Filament\Resources\FaqResource\Pages;
 use App\Models\Faq;
 use Filament\Forms;
@@ -15,6 +17,10 @@ use UnitEnum;
 
 class FaqResource extends Resource
 {
+    use HasDomainPermission;
+
+    protected static string $requiredPermission = 'admin.content';
+
     protected static ?string $model = Faq::class;
     protected static string|\BackedEnum|null $navigationIcon = 'heroicon-o-question-mark-circle';
     protected static string|\UnitEnum|null $navigationGroup = 'Content';

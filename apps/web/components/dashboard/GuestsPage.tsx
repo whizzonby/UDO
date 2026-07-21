@@ -34,6 +34,32 @@ interface TransportGroup {
   notes: string;
 }
 
+type InvitationCampaign = {
+  id: number;
+  campaign_name: string | null;
+  campaign_type: 'invitation' | 'rsvp_reminder';
+  subject: string | null;
+  body: string;
+  channel: 'email' | 'sms' | 'whatsapp';
+  status: string;
+  scheduled_at: string | null;
+  recipient_count: number;
+  delivery_summary?: {
+    total: number;
+    delivered_count: number;
+    failed_count: number;
+    delivery_rate: number;
+    failure_rate: number;
+  };
+};
+
+type CampaignPreview = {
+  recipient_count: number;
+  sample_guest: { id: number; name: string; email: string | null; attending_status: string; invite_status: string | null } | null;
+  sample_subject: string;
+  sample_body: string;
+};
+
 export default function GuestsPage() {
   const [activeTab, setActiveTab] = useState<GuestTab>('overview');
   const [showInvitePreview, setShowInvitePreview] = useState(false);
@@ -115,12 +141,19 @@ export default function GuestsPage() {
       .catch(() => {});
   }, []);
   const [transportGroups, setTransportGroups] = useState<any[]>([]);
+  const [logisticsSummary, setLogisticsSummary] = useState<Record<string, number>>({});
 
   useEffect(() => {
     const t = getToken();
     if (!t) return;
-    api.get<{ data: any[] }>('/logistics/transport', t)
-      .then(res => setTransportGroups(res.data ?? []))
+    Promise.all([
+      api.get<{ data: any[] }>('/logistics/transport', t),
+      api.get<{ data: Record<string, number> }>('/logistics/summary', t),
+    ])
+      .then(([transportRes, summaryRes]) => {
+        setTransportGroups(transportRes.data ?? []);
+        setLogisticsSummary(summaryRes.data ?? {});
+      })
       .catch(() => {});
   }, []);
 
@@ -145,14 +178,81 @@ export default function GuestsPage() {
   };
 
   const [invitationSending, setInvitationSending] = useState(false);
-  const publishInvitation = async () => {
+  const [campaigns, setCampaigns] = useState<InvitationCampaign[]>([]);
+  const [campaignPreview, setCampaignPreview] = useState<CampaignPreview | null>(null);
+  const [campaignAudience, setCampaignAudience] = useState<'all' | 'pending' | 'not_invited' | 'vip'>('not_invited');
+  const [campaignType, setCampaignType] = useState<'invitation' | 'rsvp_reminder'>('invitation');
+  const [campaignChannel, setCampaignChannel] = useState<'email' | 'sms' | 'whatsapp'>('email');
+  const [campaignSubject, setCampaignSubject] = useState("You're invited to {{wedding_title}}");
+  const [campaignBody, setCampaignBody] = useState("Hi {{first_name}}, we'd love to celebrate with you. Open your personal invitation here: {{rsvp_url}}");
+  const [campaignSchedule, setCampaignSchedule] = useState('');
+  const [campaignError, setCampaignError] = useState<string | null>(null);
+
+  const campaignAudienceFilter = () => {
+    if (campaignAudience === 'pending') return { attending_status: 'pending', has_email: campaignChannel === 'email' };
+    if (campaignAudience === 'not_invited') return { invite_status: 'not_sent', has_email: campaignChannel === 'email' };
+    if (campaignAudience === 'vip') return { vip_flag: true, has_email: campaignChannel === 'email' };
+    return { has_email: campaignChannel === 'email' };
+  };
+
+  const campaignPayload = () => ({
+    campaign_name: campaignType === 'invitation' ? 'Wedding invitation campaign' : 'RSVP reminder campaign',
+    campaign_type: campaignType,
+    template_id: campaignType === 'invitation' ? 'classic-invite' : 'rsvp-reminder',
+    subject: campaignSubject,
+    body: campaignBody,
+    channel: campaignChannel,
+    audience_filter: campaignAudienceFilter(),
+    scheduled_at: campaignSchedule || null,
+  });
+
+  const loadCampaigns = async () => {
     const t = getToken();
     if (!t) return;
-    setInvitationSending(true);
     try {
-      await api.post('/invitation/publish', {}, t);
-      setShowSendInvitationsModal(false);
+      const res = await api.get<{ data: InvitationCampaign[] }>('/invitation/campaigns', t);
+      setCampaigns(res.data ?? []);
     } catch {}
+  };
+
+  useEffect(() => {
+    loadCampaigns();
+  }, []);
+
+  const previewCampaign = async () => {
+    const t = getToken();
+    if (!t || !campaignSubject.trim() || !campaignBody.trim()) return;
+    setInvitationSending(true);
+    setCampaignError(null);
+    try {
+      const res = await api.post<{ data: CampaignPreview }>('/invitation/campaigns/preview', campaignPayload(), t);
+      setCampaignPreview(res.data);
+    } catch (e) {
+      setCampaignError(e instanceof Error ? e.message : 'Could not preview campaign.');
+    } finally {
+      setInvitationSending(false);
+    }
+  };
+
+  const sendCampaign = async (sendNow: boolean) => {
+    const t = getToken();
+    if (!t || !campaignSubject.trim() || !campaignBody.trim()) return;
+    setInvitationSending(true);
+    setCampaignError(null);
+    try {
+      const created = await api.post<{ data: InvitationCampaign; preview: CampaignPreview }>('/invitation/campaigns', {
+        ...campaignPayload(),
+        scheduled_at: sendNow ? null : campaignSchedule || null,
+      }, t);
+      setCampaignPreview(created.preview);
+      if (sendNow) {
+        await api.post(`/invitation/campaigns/${created.data.id}/send`, { force: true }, t);
+      }
+      await loadCampaigns();
+      setShowSendInvitationsModal(false);
+    } catch (e) {
+      setCampaignError(e instanceof Error ? e.message : 'Could not create campaign.');
+    }
     finally { setInvitationSending(false); }
   };
 
@@ -166,14 +266,52 @@ export default function GuestsPage() {
   ];
 
   const [guests, setGuests] = useState<{id:number;first_name:string;last_name:string;email?:string;attending_status:string;meal_preference?:string;plus_one_allowed?:boolean}[]>([]);
+  const [guestSearch, setGuestSearch] = useState('');
+  const [guestStatusFilter, setGuestStatusFilter] = useState('all');
 
-  useEffect(() => {
+  const loadGuests = () => {
     const t = getToken();
     if (!t) return;
-    api.get<any[]>('/guests', t)
-      .then(data => setGuests(Array.isArray(data) ? data : []))
+    const params = new URLSearchParams();
+    if (guestSearch.trim()) params.set('search', guestSearch.trim());
+    if (guestStatusFilter !== 'all') {
+      params.set('status', guestStatusFilter === 'attending' ? 'yes' : guestStatusFilter === 'declined' ? 'no' : guestStatusFilter);
+    }
+    api.get<{ data: typeof guests }>(`/guests${params.toString() ? `?${params.toString()}` : ''}`, t)
+      .then(res => setGuests(res.data ?? []))
       .catch(() => {});
-  }, []);
+  };
+
+  const guestQueryString = () => {
+    const params = new URLSearchParams();
+    if (guestSearch.trim()) params.set('search', guestSearch.trim());
+    if (guestStatusFilter !== 'all') {
+      params.set('status', guestStatusFilter === 'attending' ? 'yes' : guestStatusFilter === 'declined' ? 'no' : guestStatusFilter);
+    }
+    return params.toString();
+  };
+
+  useEffect(() => {
+    loadGuests();
+  }, [guestSearch, guestStatusFilter]);
+
+  const bulkMarkVip = async (ids: number[]) => {
+    const t = getToken();
+    if (!t || ids.length === 0) return;
+    await api.post('/guests/bulk-update', {
+      ids,
+      updates: { vip_flag: true },
+      confirm: true,
+    }, t);
+    loadGuests();
+  };
+
+  const exportGuests = async () => {
+    const t = getToken();
+    if (!t) return;
+    const query = guestQueryString();
+    await api.download(`/guests/export${query ? `?${query}` : ''}`, 'guests.csv', t);
+  };
 
   return (
     <div className="min-h-screen bg-[#fefdfb]">
@@ -210,9 +348,10 @@ export default function GuestsPage() {
         {activeTab === 'guests' && (
           <GuestListSection
             guests={guests.map(g => ({
+              id: g.id,
               name: `${g.first_name} ${g.last_name || ''}`.trim(),
               email: g.email ?? '',
-              rsvp: g.attending_status === 'attending' ? 'Attending' : g.attending_status === 'declined' ? 'Declined' : 'Pending',
+              rsvp: g.attending_status === 'yes' ? 'Attending' : g.attending_status === 'no' ? 'Declined' : 'Pending',
               meal: g.meal_preference ?? '-',
               plusOne: g.plus_one_allowed ?? false,
             }))}
@@ -220,6 +359,10 @@ export default function GuestsPage() {
             onImportGuests={() => setShowImportGuestsModal(true)}
             onShowGuestDetail={() => setShowGuestDetail(true)}
             onComposeMessage={() => setShowComposeMessage(true)}
+            onSearchChange={setGuestSearch}
+            onStatusFilterChange={setGuestStatusFilter}
+            onBulkMarkVip={bulkMarkVip}
+            onExportGuests={exportGuests}
           />
         )}
         {activeTab === 'invites' && (
@@ -263,6 +406,7 @@ export default function GuestsPage() {
           <GuestLogistics
             savedHotels={savedHotels}
             transportGroups={transportGroups}
+            summary={logisticsSummary}
             onShowEditHotels={() => setShowEditHotels(true)}
             onShowEditTransport={() => setShowEditTransport(true)}
             onShowComposeMessage={() => setShowComposeMessage(true)}
@@ -2242,11 +2386,42 @@ export default function GuestsPage() {
             <div className="p-6 space-y-5">
               <div>
                 <label className="text-[13px] text-gray-700 block mb-2" style={{ fontWeight: 500 }}>Recipients</label>
-                <select className="w-full px-4 py-3 rounded-[20px] border border-gray-200 text-[14px]">
-                  <option>All guests (120)</option>
-                  <option>Pending only (34)</option>
-                  <option>Custom selection</option>
+                <select
+                  className="w-full px-4 py-3 rounded-[20px] border border-gray-200 text-[14px]"
+                  value={campaignAudience}
+                  onChange={(event) => setCampaignAudience(event.target.value as typeof campaignAudience)}
+                >
+                  <option value="not_invited">Not invited yet</option>
+                  <option value="pending">Pending RSVP</option>
+                  <option value="vip">VIP guests</option>
+                  <option value="all">All guests</option>
                 </select>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-[13px] text-gray-700 block mb-2" style={{ fontWeight: 500 }}>Campaign type</label>
+                  <select
+                    className="w-full px-4 py-3 rounded-[20px] border border-gray-200 text-[14px]"
+                    value={campaignType}
+                    onChange={(event) => setCampaignType(event.target.value as typeof campaignType)}
+                  >
+                    <option value="invitation">Invitation</option>
+                    <option value="rsvp_reminder">RSVP reminder</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="text-[13px] text-gray-700 block mb-2" style={{ fontWeight: 500 }}>Channel</label>
+                  <select
+                    className="w-full px-4 py-3 rounded-[20px] border border-gray-200 text-[14px]"
+                    value={campaignChannel}
+                    onChange={(event) => setCampaignChannel(event.target.value as typeof campaignChannel)}
+                  >
+                    <option value="email">Email</option>
+                    <option value="sms">SMS</option>
+                    <option value="whatsapp">WhatsApp</option>
+                  </select>
+                </div>
               </div>
 
               <div>
@@ -2254,6 +2429,8 @@ export default function GuestsPage() {
                 <input
                   type="text"
                   className="w-full px-4 py-3 rounded-[20px] border border-gray-200 text-[14px]"
+                  value={campaignSubject}
+                  onChange={(event) => setCampaignSubject(event.target.value)}
                   placeholder="You're invited to our wedding"
                 />
               </div>
@@ -2263,19 +2440,68 @@ export default function GuestsPage() {
                 <textarea
                   className="w-full px-4 py-3 rounded-[20px] border border-gray-200 text-[14px] resize-none"
                   rows={6}
+                  value={campaignBody}
+                  onChange={(event) => setCampaignBody(event.target.value)}
                   placeholder="Write your invitation message..."
+                />
+                <p className="text-[11px] text-gray-500 mt-2">Available tokens: {'{{first_name}}'}, {'{{guest_name}}'}, {'{{rsvp_url}}'}, {'{{couple_names}}'}, {'{{wedding_title}}'}</p>
+              </div>
+
+              <div>
+                <label className="text-[13px] text-gray-700 block mb-2" style={{ fontWeight: 500 }}>Schedule for later</label>
+                <input
+                  type="datetime-local"
+                  value={campaignSchedule}
+                  onChange={(event) => setCampaignSchedule(event.target.value)}
+                  className="w-full px-4 py-3 rounded-[20px] border border-gray-200 text-[14px]"
                 />
               </div>
 
-              <div className="space-y-3">
-                <div className="flex items-center justify-between p-3 bg-[#FAFAFA]/40 rounded-[20px]">
-                  <label className="text-[13px] text-gray-700">Include RSVP link</label>
-                  <input type="checkbox" defaultChecked className="w-5 h-5 rounded border-gray-300 text-[#FF3E9B]" />
+              {campaignError && <div className="text-[13px] text-red-600 bg-red-50 rounded-[16px] p-3">{campaignError}</div>}
+
+              {campaignPreview && (
+                <div className="bg-[#F0F9FA] rounded-[20px] p-4 border border-[#3A8B95]/20">
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="text-[13px] font-medium text-gray-800">Preview</div>
+                    <div className="text-[12px] text-[#3A8B95]">{campaignPreview.recipient_count} recipient{campaignPreview.recipient_count === 1 ? '' : 's'}</div>
+                  </div>
+                  <div className="text-[12px] text-gray-500 mb-2">Sample guest: {campaignPreview.sample_guest?.name ?? 'No matching guest'}</div>
+                  <div className="bg-white rounded-[14px] p-3">
+                    <div className="text-[12px] font-medium text-gray-800">{campaignPreview.sample_subject}</div>
+                    <div className="text-[12px] text-gray-600 mt-2 whitespace-pre-wrap">{campaignPreview.sample_body}</div>
+                  </div>
                 </div>
-                <div className="flex items-center justify-between p-3 bg-[#FAFAFA]/40 rounded-[20px]">
-                  <label className="text-[13px] text-gray-700">Include guest page link</label>
-                  <input type="checkbox" defaultChecked className="w-5 h-5 rounded border-gray-300 text-[#FF3E9B]" />
+              )}
+
+              {campaigns.length > 0 && (
+                <div className="bg-[#FAFAFA]/60 rounded-[20px] p-4">
+                  <div className="text-[13px] font-medium text-gray-800 mb-3">Recent campaigns</div>
+                  <div className="space-y-2">
+                    {campaigns.slice(0, 4).map((campaign) => (
+                      <div key={campaign.id} className="flex items-center justify-between gap-3 bg-white rounded-[14px] p-3 border border-gray-100">
+                        <div>
+                          <div className="text-[12px] font-medium text-gray-800">{campaign.campaign_name ?? campaign.subject}</div>
+                          <div className="text-[11px] text-gray-500">{campaign.status} · {campaign.recipient_count} recipients · {campaign.channel}</div>
+                        </div>
+                        <div className="text-right text-[11px] text-gray-500">
+                          <div>{campaign.delivery_summary?.delivered_count ?? 0} delivered</div>
+                          <div>{campaign.delivery_summary?.failed_count ?? 0} failed</div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
                 </div>
+              )}
+
+              <div className="flex gap-3">
+                <button
+                  onClick={previewCampaign}
+                  disabled={invitationSending}
+                  className="flex-1 border border-[#3A8B95] text-[#3A8B95] py-3 rounded-[20px] text-[14px] disabled:opacity-60"
+                  style={{ fontWeight: 500 }}
+                >
+                  Preview
+                </button>
               </div>
 
               <div className="flex gap-3 pt-4">
@@ -2287,13 +2513,14 @@ export default function GuestsPage() {
                   Cancel
                 </button>
                 <button
-                  onClick={() => setShowSendInvitationsModal(false)}
+                  onClick={() => sendCampaign(false)}
+                  disabled={invitationSending || !campaignSchedule}
                   className="px-5 py-3 bg-[#FAFAFA] text-gray-800 rounded-[20px] text-[14px] font-medium hover:bg-[#FF88BA]/30 transition-colors"
                 >
                   Schedule send
                 </button>
                 <button
-                  onClick={publishInvitation}
+                  onClick={() => sendCampaign(true)}
                   disabled={invitationSending}
                   className="flex-[2] bg-[#3A8B95] text-white py-3 rounded-[20px] text-[14px] flex items-center justify-center gap-2 disabled:opacity-60"
                   style={{ fontWeight: 500 }}

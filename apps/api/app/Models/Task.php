@@ -8,7 +8,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 class Task extends Model
 {
     protected $fillable = [
-        'wedding_id', 'created_by', 'title', 'description', 'category',
+        'wedding_id', 'created_by', 'vendor_id', 'title', 'description', 'category',
         'due_date', 'priority', 'completed', 'completed_at', 'assigned_to',
         'notes', 'sort_order',
     ];
@@ -22,4 +22,5 @@ class Task extends Model
     public function wedding(): BelongsTo { return $this->belongsTo(Wedding::class); }
     public function creator(): BelongsTo { return $this->belongsTo(User::class, 'created_by'); }
     public function assignee(): BelongsTo { return $this->belongsTo(User::class, 'assigned_to'); }
+    public function vendor(): BelongsTo { return $this->belongsTo(Vendor::class); }
 }

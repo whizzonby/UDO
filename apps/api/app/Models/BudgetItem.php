@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class BudgetItem extends Model
 {
@@ -23,4 +24,5 @@ class BudgetItem extends Model
 
     public function wedding(): BelongsTo { return $this->belongsTo(Wedding::class); }
     public function vendor(): BelongsTo { return $this->belongsTo(Vendor::class); }
+    public function paymentSchedules(): HasMany { return $this->hasMany(BudgetPaymentSchedule::class)->orderBy('due_date'); }
 }

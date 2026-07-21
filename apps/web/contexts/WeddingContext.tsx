@@ -35,15 +35,82 @@ export type UpcomingTask = {
   priority: string;
 };
 
+export type CommandCenterAction = {
+  id: string;
+  title: string;
+  reason: string;
+  priority: string;
+  target: string;
+};
+
+export type SmartAlert = {
+  id: number;
+  key: string;
+  alert_type: string;
+  severity: string;
+  status: string;
+  target: string | null;
+  title: string;
+  body: string | null;
+  action_label: string | null;
+  action_url: string | null;
+  trigger_at: string | null;
+  metadata: Record<string, unknown>;
+};
+
+export type CommandCenter = {
+  planning_health: { score: number; label: string; task_completion: number; days_until: number | null };
+  rsvp_health: { completion: number; pending: number; confirmed: number; declined: number; deadline: string | null };
+  budget_status: { usage: number; spent: number; total: number; remaining: number; unpaid_balance: number; due_soon: unknown[] };
+  guest_issues: Record<string, number>;
+  live_readiness: {
+    score: number;
+    label: string;
+    open_incidents: number;
+    timeline_items: number;
+    vendor_readiness: { confirmed: number; total: number; missing_contracts: number };
+  };
+  upcoming_actions: CommandCenterAction[];
+  smart_alerts?: {
+    total_active: number;
+    critical: number;
+    high: number;
+    next_alert: Pick<SmartAlert, 'id' | 'key' | 'title' | 'severity' | 'target' | 'trigger_at'> | null;
+    alerts: SmartAlert[];
+  };
+  platform_health?: {
+    status: string;
+    score: number;
+    checked_at: string;
+    queue: {
+      connection: string;
+      failed_jobs: number;
+      pending_deliveries: number;
+      failed_deliveries: number;
+      stale_sending_messages: number;
+    };
+    tokens: {
+      expired_active: number;
+      expiring_soon: number;
+    };
+    cache: {
+      driver: string;
+      ttl_seconds: number;
+    };
+  };
+};
+
 type DashboardResponse = {
   wedding: WeddingData | null;
   stats: WeddingStats;
+  command_center?: CommandCenter;
   upcoming_tasks: UpcomingTask[];
 };
 
 type WeddingContextType = {
   wedding: WeddingData | null;
   stats: WeddingStats | null;
+  commandCenter: CommandCenter | null;
   upcomingTasks: UpcomingTask[];
   loading: boolean;
   refresh: () => Promise<void>;
@@ -52,6 +119,7 @@ type WeddingContextType = {
 const WeddingContext = createContext<WeddingContextType>({
   wedding: null,
   stats: null,
+  commandCenter: null,
   upcomingTasks: [],
   loading: true,
   refresh: async () => {},
@@ -61,6 +129,7 @@ export function WeddingProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
   const [wedding, setWedding] = useState<WeddingData | null>(null);
   const [stats, setStats] = useState<WeddingStats | null>(null);
+  const [commandCenter, setCommandCenter] = useState<CommandCenter | null>(null);
   const [upcomingTasks, setUpcomingTasks] = useState<UpcomingTask[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -71,6 +140,7 @@ export function WeddingProvider({ children }: { children: ReactNode }) {
       const data = await api.get<DashboardResponse>('/dashboard', token);
       setWedding(data.wedding ?? null);
       setStats(data.stats ?? null);
+      setCommandCenter(data.command_center ?? null);
       setUpcomingTasks(data.upcoming_tasks ?? []);
     } catch {
       // silently fail — user may not have a wedding yet
@@ -85,7 +155,7 @@ export function WeddingProvider({ children }: { children: ReactNode }) {
   }, [user]);
 
   return (
-    <WeddingContext.Provider value={{ wedding, stats, upcomingTasks, loading, refresh: fetchDashboard }}>
+    <WeddingContext.Provider value={{ wedding, stats, commandCenter, upcomingTasks, loading, refresh: fetchDashboard }}>
       {children}
     </WeddingContext.Provider>
   );

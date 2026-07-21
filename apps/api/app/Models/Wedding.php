@@ -41,6 +41,7 @@ class Wedding extends Model
     public function tasks(): HasMany { return $this->hasMany(Task::class); }
     public function timelineItems(): HasMany { return $this->hasMany(TimelineItem::class)->orderBy('event_date')->orderBy('start_time'); }
     public function budgetItems(): HasMany { return $this->hasMany(BudgetItem::class); }
+    public function budgetPaymentSchedules(): HasMany { return $this->hasMany(BudgetPaymentSchedule::class)->orderBy('due_date'); }
     public function vendors(): HasMany { return $this->hasMany(Vendor::class); }
     public function messages(): HasMany { return $this->hasMany(Message::class); }
     public function accommodationOptions(): HasMany { return $this->hasMany(AccommodationOption::class); }
@@ -48,9 +49,14 @@ class Wedding extends Model
     public function seatingTables(): HasMany { return $this->hasMany(SeatingTable::class)->orderBy('sort_order'); }
     public function liveUpdates(): HasMany { return $this->hasMany(LiveUpdate::class)->latest(); }
     public function galleryAssets(): HasMany { return $this->hasMany(GalleryAsset::class)->latest(); }
+    public function auditLogs(): HasMany { return $this->hasMany(AuditLog::class)->latest(); }
+    public function smartAlerts(): HasMany { return $this->hasMany(SmartAlert::class)->latest('trigger_at')->latest(); }
+    public function savedFilters(): HasMany { return $this->hasMany(SavedFilter::class); }
     public function registryItems(): HasMany { return $this->hasMany(RegistryItem::class)->orderBy('sort_order'); }
+    public function thankYouRecords(): HasMany { return $this->hasMany(ThankYouRecord::class); }
     public function experienceConfig(): HasOne { return $this->hasOne(GuestExperienceConfig::class); }
     public function weddingPartyResponsibilities(): HasMany { return $this->hasMany(WeddingPartyResponsibility::class)->orderBy('sort_order'); }
     public function weddingPartyEmergencyContacts(): HasMany { return $this->hasMany(WeddingPartyEmergencyContact::class)->orderBy('sort_order'); }
     public function weddingPartyFiles(): HasMany { return $this->hasMany(WeddingPartyFile::class)->latest(); }
+    public function supportTickets(): HasMany { return $this->hasMany(SupportTicket::class)->latest(); }
 }

@@ -3,8 +3,10 @@
 namespace App\Http\Controllers;
 
 use App\Models\AccommodationOption;
+use App\Models\Guest;
 use App\Models\TransportGroup;
 use App\Models\GuestTransportAssignment;
+use App\Services\WeddingAccessService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -14,7 +16,53 @@ class LogisticsController extends Controller
     {
         $wedding = $request->user()->activeWedding;
         abort_unless($wedding, 403, 'No active wedding.');
+        abort_unless(app(WeddingAccessService::class)->can($request->user(), $wedding, 'manage_guests'), 403);
         return $wedding;
+    }
+
+    public function summary(Request $request): JsonResponse
+    {
+        $wedding = $this->wedding($request);
+        $guests = $wedding->guests()->get();
+        $travelling = $guests->where('travel_required', true);
+        $missingArrival = $travelling->filter(fn (Guest $guest) => ! $guest->arrival_date || ! $guest->arrival_time)->values();
+        $missingDeparture = $travelling->filter(fn (Guest $guest) => ! $guest->departure_date || ! $guest->departure_time)->values();
+        $missingAccommodation = $travelling->filter(fn (Guest $guest) => ! $guest->hotel_assignment_id)->values();
+        $missingTransport = $travelling->filter(fn (Guest $guest) => ! $guest->transport_assignment_id)->values();
+        $transportCapacity = (int) $wedding->transportGroups()->sum('capacity');
+        $transportAssigned = (int) $wedding->transportGroups()->sum('assigned_count');
+
+        return response()->json([
+            'data' => [
+                'travelling_guests' => $travelling->count(),
+                'arrival_complete' => $travelling->count() - $missingArrival->count(),
+                'departure_complete' => $travelling->count() - $missingDeparture->count(),
+                'accommodation_assigned' => $travelling->count() - $missingAccommodation->count(),
+                'transport_assigned' => $travelling->count() - $missingTransport->count(),
+                'missing_arrival_info' => $missingArrival->count(),
+                'missing_departure_info' => $missingDeparture->count(),
+                'missing_accommodation' => $missingAccommodation->count(),
+                'missing_transport' => $missingTransport->count(),
+                'transport_capacity' => $transportCapacity,
+                'transport_seats_remaining' => max(0, $transportCapacity - $transportAssigned),
+                'accommodation_options' => $wedding->accommodationOptions()->count(),
+                'transport_groups' => $wedding->transportGroups()->count(),
+                'incomplete_guests' => $travelling
+                    ->filter(fn (Guest $guest) => ! $guest->arrival_date || ! $guest->arrival_time || ! $guest->hotel_assignment_id || ! $guest->transport_assignment_id)
+                    ->map(fn (Guest $guest) => [
+                        'id' => $guest->id,
+                        'name' => $guest->full_name,
+                        'missing' => array_values(array_filter([
+                            ! $guest->arrival_date || ! $guest->arrival_time ? 'arrival' : null,
+                            ! $guest->departure_date || ! $guest->departure_time ? 'departure' : null,
+                            ! $guest->hotel_assignment_id ? 'accommodation' : null,
+                            ! $guest->transport_assignment_id ? 'transport' : null,
+                        ])),
+                    ])
+                    ->values()
+                    ->all(),
+            ],
+        ]);
     }
 
     // ── Accommodation ──────────────────────────────────────────────────────────
@@ -107,6 +155,45 @@ class LogisticsController extends Controller
         return response()->json(null, 204);
     }
 
+    public function assignAccommodation(Request $request, AccommodationOption $accommodationOption): JsonResponse
+    {
+        abort_unless($accommodationOption->wedding_id === $this->wedding($request)->id, 403);
+
+        $data = $request->validate([
+            'guest_id' => 'required|integer|exists:guests,id',
+        ]);
+
+        $guest = Guest::findOrFail($data['guest_id']);
+        abort_unless($guest->wedding_id === $accommodationOption->wedding_id, 403);
+        abort_if(
+            $accommodationOption->total_rooms_blocked !== null
+            && $accommodationOption->rooms_assigned >= $accommodationOption->total_rooms_blocked
+            && (int) $guest->hotel_assignment_id !== (int) $accommodationOption->id,
+            422,
+            'Accommodation is already fully assigned.'
+        );
+
+        $guest->update(['hotel_assignment_id' => $accommodationOption->id]);
+        $this->refreshAccommodationCount($accommodationOption);
+
+        return response()->json(['data' => $accommodationOption->fresh()]);
+    }
+
+    public function removeAccommodation(Request $request, AccommodationOption $accommodationOption, int $guestId): JsonResponse
+    {
+        abort_unless($accommodationOption->wedding_id === $this->wedding($request)->id, 403);
+
+        Guest::query()
+            ->where('wedding_id', $accommodationOption->wedding_id)
+            ->where('id', $guestId)
+            ->where('hotel_assignment_id', $accommodationOption->id)
+            ->update(['hotel_assignment_id' => null]);
+
+        $this->refreshAccommodationCount($accommodationOption);
+
+        return response()->json(null, 204);
+    }
+
     // ── Transport ──────────────────────────────────────────────────────────────
 
     public function transportGroups(Request $request): JsonResponse
@@ -170,13 +257,24 @@ class LogisticsController extends Controller
         $data = $request->validate([
             'guest_id' => 'required|integer|exists:guests,id',
         ]);
+        $guest = Guest::findOrFail($data['guest_id']);
+        abort_unless($guest->wedding_id === $transportGroup->wedding_id, 403);
+        abort_if(
+            $transportGroup->capacity !== null
+            && $transportGroup->assigned_count >= $transportGroup->capacity
+            && (int) $guest->transport_assignment_id !== (int) $transportGroup->id,
+            422,
+            'Transport group is already at capacity.'
+        );
 
         GuestTransportAssignment::updateOrCreate(
             ['transport_group_id' => $transportGroup->id, 'guest_id' => $data['guest_id']],
-            []
+            ['wedding_id' => $transportGroup->wedding_id]
         );
+        $guest->update(['transport_assignment_id' => $transportGroup->id]);
+        $this->refreshTransportCount($transportGroup);
 
-        return response()->json(['data' => $transportGroup->load('assignments.guest')]);
+        return response()->json(['data' => $transportGroup->fresh()->load('assignments.guest')]);
     }
 
     public function removeTransport(Request $request, TransportGroup $transportGroup, int $guestId): JsonResponse
@@ -187,7 +285,27 @@ class LogisticsController extends Controller
             'transport_group_id' => $transportGroup->id,
             'guest_id'           => $guestId,
         ])->delete();
+        Guest::query()
+            ->where('wedding_id', $transportGroup->wedding_id)
+            ->where('id', $guestId)
+            ->where('transport_assignment_id', $transportGroup->id)
+            ->update(['transport_assignment_id' => null]);
+        $this->refreshTransportCount($transportGroup);
 
         return response()->json(null, 204);
+    }
+
+    private function refreshAccommodationCount(AccommodationOption $accommodationOption): void
+    {
+        $accommodationOption->update([
+            'rooms_assigned' => Guest::where('hotel_assignment_id', $accommodationOption->id)->count(),
+        ]);
+    }
+
+    private function refreshTransportCount(TransportGroup $transportGroup): void
+    {
+        $transportGroup->update([
+            'assigned_count' => GuestTransportAssignment::where('transport_group_id', $transportGroup->id)->count(),
+        ]);
     }
 }

@@ -6,6 +6,7 @@ import { Plane, Hotel, MapPin, Users, Calendar, Clock, AlertCircle, Car, Ship, S
 interface GuestLogisticsProps {
   savedHotels: any[];
   transportGroups: any[];
+  summary?: Record<string, number>;
   onShowEditHotels: () => void;
   onShowEditTransport: () => void;
   onShowComposeMessage: () => void;
@@ -17,6 +18,7 @@ type LogisticsView = 'overview' | 'arrivals' | 'transport' | 'accommodation';
 export default function GuestLogistics({
   savedHotels,
   transportGroups,
+  summary = {},
   onShowEditHotels,
   onShowEditTransport,
   onShowComposeMessage,
@@ -25,14 +27,14 @@ export default function GuestLogistics({
   const [logisticsView, setLogisticsView] = useState<LogisticsView>('overview');
 
   const stats = {
-    travellingGuests: savedHotels.reduce((sum: number, h: any) => sum + (h.rooms_available ?? 0), 0),
-    accommodationOptions: savedHotels.length,
-    transportGroups: transportGroups.length,
+    travellingGuests: summary.travelling_guests ?? 0,
+    accommodationOptions: summary.accommodation_options ?? savedHotels.length,
+    transportGroups: summary.transport_groups ?? transportGroups.length,
     // kept for backward compat with UI cards below
-    partnerHotelGuests: savedHotels.reduce((sum: number, h: any) => sum + (h.rooms_available ?? 0), 0),
-    airportTransfersRequested: 0,
-    missingArrivalInfo: 0,
-    shuttleSeatsRemaining: transportGroups.reduce((sum: number, t: any) => sum + ((t.capacity ?? 0) - (t.assigned_count ?? 0)), 0),
+    partnerHotelGuests: summary.accommodation_assigned ?? 0,
+    airportTransfersRequested: summary.transport_assigned ?? 0,
+    missingArrivalInfo: summary.missing_arrival_info ?? 0,
+    shuttleSeatsRemaining: summary.transport_seats_remaining ?? transportGroups.reduce((sum: number, t: any) => sum + ((t.capacity ?? 0) - (t.assigned_count ?? 0)), 0),
     villaGroups: 0,
   };
 

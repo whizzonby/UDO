@@ -2,9 +2,13 @@
 
 namespace App\Filament\Resources;
 
+use App\Filament\Concerns\HasDomainPermission;
+
 use App\Filament\Resources\BudgetItemResource\Pages;
+use App\Filament\Resources\BudgetItemResource\RelationManagers;
 use App\Models\BudgetItem;
 use Filament\Forms;
+use Filament\Infolists;
 use Filament\Schemas\Schema;
 use Filament\Resources\Resource;
 use Filament\Tables;
@@ -13,10 +17,14 @@ use Filament\Tables\Table;
 
 class BudgetItemResource extends Resource
 {
+    use HasDomainPermission;
+
+    protected static string $requiredPermission = 'admin.operations';
+
     protected static ?string $model = BudgetItem::class;
     protected static string|\BackedEnum|null $navigationIcon = 'heroicon-o-banknotes';
     protected static string|\UnitEnum|null $navigationGroup = 'Operations';
-    protected static ?int $navigationSort = 6;
+    protected static ?int $navigationSort = 12;
     protected static ?string $recordTitleAttribute = 'name';
 
     public static function form(Schema $schema): Schema
@@ -43,6 +51,36 @@ class BudgetItemResource extends Resource
         ]);
     }
 
+    public static function infolist(Schema $schema): Schema
+    {
+        return $schema->schema([
+            \Filament\Schemas\Components\Section::make('Budget item')->columns(3)->schema([
+                Infolists\Components\TextEntry::make('name'),
+                Infolists\Components\TextEntry::make('wedding.couple_name_primary')->label('Wedding'),
+                Infolists\Components\TextEntry::make('vendor.name')->label('Vendor')->default('-'),
+                Infolists\Components\TextEntry::make('category')->badge(),
+                Infolists\Components\TextEntry::make('payment_status')->label('Payment')->badge()
+                    ->color(fn ($state) => match ($state) {
+                        'paid' => 'success',
+                        'partial' => 'warning',
+                        default => 'gray',
+                    }),
+                Infolists\Components\TextEntry::make('due_date')->date()->placeholder('-'),
+                Infolists\Components\TextEntry::make('estimated_amount')->money('usd')->label('Estimated'),
+                Infolists\Components\TextEntry::make('actual_amount')->money('usd')->label('Actual'),
+                Infolists\Components\TextEntry::make('paid_amount')->money('usd')->label('Paid'),
+                Infolists\Components\TextEntry::make('balance_due')
+                    ->label('Balance due')
+                    ->money('usd')
+                    ->getStateUsing(fn (BudgetItem $item) => max(0, (float) max($item->actual_amount, $item->estimated_amount) - (float) $item->paid_amount)),
+                Infolists\Components\IconEntry::make('is_essential')->boolean()->label('Essential'),
+            ]),
+            \Filament\Schemas\Components\Section::make('Notes')->schema([
+                Infolists\Components\TextEntry::make('notes')->default('-')->columnSpanFull(),
+            ]),
+        ]);
+    }
+
     public static function table(Table $table): Table
     {
         return $table
@@ -57,6 +95,11 @@ class BudgetItemResource extends Resource
                 Tables\Columns\TextColumn::make('estimated_amount')->money('USD')->label('Estimated')->sortable(),
                 Tables\Columns\TextColumn::make('actual_amount')->money('USD')->label('Actual')->sortable(),
                 Tables\Columns\TextColumn::make('paid_amount')->money('USD')->label('Paid')->sortable(),
+                Tables\Columns\TextColumn::make('balance_due')
+                    ->label('Balance')
+                    ->money('USD')
+                    ->getStateUsing(fn (BudgetItem $item) => max(0, (float) max($item->actual_amount, $item->estimated_amount) - (float) $item->paid_amount))
+                    ->sortable(),
                 Tables\Columns\TextColumn::make('due_date')->date()->sortable()->label('Due'),
                 Tables\Columns\IconColumn::make('is_essential')->boolean()->label('Essential'),
             ])
@@ -68,8 +111,15 @@ class BudgetItemResource extends Resource
                     ->options(['venue' => 'Venue', 'catering' => 'Catering', 'photography' => 'Photography', 'florals' => 'Florals']),
                 Tables\Filters\TernaryFilter::make('is_essential')->label('Essential only'),
             ])
-            ->actions([Actions\EditAction::make(), Actions\DeleteAction::make()])
+            ->actions([Actions\ViewAction::make(), Actions\EditAction::make(), Actions\DeleteAction::make()])
             ->bulkActions([Actions\BulkActionGroup::make([Actions\DeleteBulkAction::make()])]);
+    }
+
+    public static function getRelations(): array
+    {
+        return [
+            RelationManagers\PaymentSchedulesRelationManager::class,
+        ];
     }
 
     public static function getPages(): array
@@ -77,6 +127,7 @@ class BudgetItemResource extends Resource
         return [
             'index'  => Pages\ListBudgetItems::route('/'),
             'create' => Pages\CreateBudgetItem::route('/create'),
+            'view'   => Pages\ViewBudgetItem::route('/{record}'),
             'edit'   => Pages\EditBudgetItem::route('/{record}/edit'),
         ];
     }

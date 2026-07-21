@@ -3,26 +3,42 @@
 namespace App\Providers\Filament;
 
 use App\Filament\Resources\AccommodationOptionResource;
+use App\Filament\Resources\AuditLogResource;
 use App\Filament\Resources\BlogPostResource;
 use App\Filament\Resources\BudgetItemResource;
+use App\Filament\Resources\BudgetPaymentScheduleResource;
 use App\Filament\Resources\EmailTemplateResource;
+use App\Filament\Resources\FailedJobResource;
 use App\Filament\Resources\FaqResource;
 use App\Filament\Resources\GalleryAssetResource;
+use App\Filament\Resources\GuestMessageDeliveryResource;
+use App\Filament\Resources\GuestExperienceConfigResource;
 use App\Filament\Resources\GuestResource;
+use App\Filament\Resources\GuestTokenResource;
+use App\Filament\Resources\IdempotencyKeyResource;
+use App\Filament\Resources\InvitationCampaignResource;
 use App\Filament\Resources\LiveUpdateResource;
 use App\Filament\Resources\MessageResource;
 use App\Filament\Resources\RegistryContributionResource;
+use App\Filament\Resources\SavedFilterResource;
 use App\Filament\Resources\SeatingTableResource;
+use App\Filament\Resources\SmartAlertResource;
 use App\Filament\Resources\SubscriptionResource;
 use App\Filament\Resources\SupportTicketResource;
 use App\Filament\Resources\TaskResource;
 use App\Filament\Resources\TestimonialResource;
+use App\Filament\Resources\ThankYouRecordResource;
 use App\Filament\Resources\TimelineItemResource;
 use App\Filament\Resources\TransportGroupResource;
 use App\Filament\Resources\UserResource;
 use App\Filament\Resources\VendorResource;
 use App\Filament\Resources\WeddingCollaboratorResource;
 use App\Filament\Resources\WeddingResource;
+use App\Filament\Pages\LiveCommandCenter;
+use App\Filament\Pages\ReliabilityConsole;
+use App\Filament\Widgets\ActiveSmartAlertsWidget;
+use App\Filament\Widgets\LiveWeddingsWidget;
+use App\Filament\Widgets\OperationsHealthWidget;
 use App\Filament\Widgets\RecentSignupsWidget;
 use App\Filament\Widgets\StatsOverviewWidget;
 use App\Filament\Widgets\WeddingsChartWidget;
@@ -68,13 +84,23 @@ class AdminPanelProvider extends PanelProvider
                 GuestResource::class,
                 WeddingCollaboratorResource::class,
                 // Operations
+                InvitationCampaignResource::class,
                 MessageResource::class,
+                GuestMessageDeliveryResource::class,
+                GuestExperienceConfigResource::class,
+                GuestTokenResource::class,
                 VendorResource::class,
                 TaskResource::class,
                 GalleryAssetResource::class,
                 LiveUpdateResource::class,
+                SmartAlertResource::class,
                 BudgetItemResource::class,
+                BudgetPaymentScheduleResource::class,
                 TimelineItemResource::class,
+                AuditLogResource::class,
+                SavedFilterResource::class,
+                FailedJobResource::class,
+                IdempotencyKeyResource::class,
                 // Logistics
                 SeatingTableResource::class,
                 AccommodationOptionResource::class,
@@ -82,17 +108,23 @@ class AdminPanelProvider extends PanelProvider
                 // Finance & Support
                 SubscriptionResource::class,
                 RegistryContributionResource::class,
+                ThankYouRecordResource::class,
+                SupportTicketResource::class,
                 // Content
                 BlogPostResource::class,
                 TestimonialResource::class,
                 FaqResource::class,
-                SupportTicketResource::class,
                 EmailTemplateResource::class,
             ])
             ->pages([
                 Pages\Dashboard::class,
+                LiveCommandCenter::class,
+                ReliabilityConsole::class,
             ])
             ->widgets([
+                OperationsHealthWidget::class,
+                ActiveSmartAlertsWidget::class,
+                LiveWeddingsWidget::class,
                 StatsOverviewWidget::class,
                 WeddingsChartWidget::class,
                 RecentSignupsWidget::class,

@@ -14,6 +14,9 @@ return Application::configure(basePath: dirname(__DIR__))
     )
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->statefulApi();
+        $middleware->alias([
+            'idempotency' => \App\Http\Middleware\IdempotencyMiddleware::class,
+        ]);
         $middleware->use([
             \Illuminate\Http\Middleware\HandleCors::class,
         ]);

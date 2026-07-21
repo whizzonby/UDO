@@ -13,7 +13,11 @@ class Guest extends Model
         'first_name',
         'last_name',
         'email',
+        'email_opt_out',
         'phone',
+        'sms_opt_out',
+        'whatsapp_opt_out',
+        'communication_preferences_updated_at',
         'guest_group',
         'custom_tags',
         'vip_flag',
@@ -45,8 +49,12 @@ class Guest extends Model
         'vip_flag' => 'boolean',
         'plus_one_allowed' => 'boolean',
         'travel_required' => 'boolean',
+        'email_opt_out' => 'boolean',
+        'sms_opt_out' => 'boolean',
+        'whatsapp_opt_out' => 'boolean',
         'arrival_date' => 'date',
         'departure_date' => 'date',
+        'communication_preferences_updated_at' => 'datetime',
     ];
 
     public function getFullNameAttribute(): string

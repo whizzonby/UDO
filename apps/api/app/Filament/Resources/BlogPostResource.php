@@ -2,11 +2,14 @@
 
 namespace App\Filament\Resources;
 
+use App\Filament\Concerns\HasDomainPermission;
+
 use App\Filament\Resources\BlogPostResource\Pages;
 use App\Models\BlogPost;
 use Filament\Forms;
 use Filament\Schemas\Schema;
 use Filament\Resources\Resource;
+use Filament\Support\Enums\Width;
 use Filament\Tables;
 use Filament\Actions;
 use Filament\Tables\Table;
@@ -15,6 +18,10 @@ use UnitEnum;
 
 class BlogPostResource extends Resource
 {
+    use HasDomainPermission;
+
+    protected static string $requiredPermission = 'admin.content';
+
     protected static ?string $model = BlogPost::class;
     protected static string|\BackedEnum|null $navigationIcon = 'heroicon-o-document-text';
     protected static string|\UnitEnum|null $navigationGroup = 'Content';
@@ -78,7 +85,7 @@ class BlogPostResource extends Resource
                     ->options(['draft' => 'Draft', 'published' => 'Published', 'archived' => 'Archived']),
                 Tables\Filters\TernaryFilter::make('featured'),
             ])
-            ->actions([Actions\EditAction::make(), Actions\DeleteAction::make()])
+            ->actions([static::previewAction(), Actions\EditAction::make(), Actions\DeleteAction::make()])
             ->bulkActions([Actions\BulkActionGroup::make([Actions\DeleteBulkAction::make()])]);
     }
 
@@ -94,5 +101,24 @@ class BlogPostResource extends Resource
             'create' => Pages\CreateBlogPost::route('/create'),
             'edit'   => Pages\EditBlogPost::route('/{record}/edit'),
         ];
+    }
+
+    public static function previewAction(): Actions\Action
+    {
+        return Actions\Action::make('preview')
+            ->label('Preview')
+            ->icon('heroicon-o-eye')
+            ->color('gray')
+            ->modalHeading(fn (BlogPost $record) => "Preview: {$record->title}")
+            ->modalWidth(Width::TwoExtraLarge)
+            ->modalSubmitAction(false)
+            ->modalCancelActionLabel('Close')
+            ->modalContent(fn (BlogPost $record) => view('filament.blog-posts.preview', [
+                'title' => $record->title,
+                'excerpt' => $record->excerpt,
+                'coverImage' => $record->cover_image,
+                'category' => $record->category,
+                'body' => $record->body,
+            ]));
     }
 }

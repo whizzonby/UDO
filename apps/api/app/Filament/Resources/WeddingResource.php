@@ -2,9 +2,13 @@
 
 namespace App\Filament\Resources;
 
+use App\Filament\Concerns\HasDomainPermission;
+
 use App\Filament\Resources\WeddingResource\Pages;
 use App\Filament\Resources\WeddingResource\RelationManagers;
 use App\Models\Wedding;
+use App\Services\OperationalHealthService;
+use App\Services\SmartAlertService;
 use Filament\Forms;
 use Filament\Schemas\Schema;
 use Filament\Infolists;
@@ -17,6 +21,10 @@ use UnitEnum;
 
 class WeddingResource extends Resource
 {
+    use HasDomainPermission;
+
+    protected static string $requiredPermission = 'admin.weddings';
+
     protected static ?string $model = Wedding::class;
     protected static string|\BackedEnum|null $navigationIcon = 'heroicon-o-heart';
     protected static string|\UnitEnum|null $navigationGroup = 'Platform';
@@ -100,6 +108,79 @@ class WeddingResource extends Resource
                     ->label('Gallery assets')
                     ->getStateUsing(fn (Wedding $w) => $w->galleryAssets()->count()),
             ]),
+            \Filament\Schemas\Components\Section::make('Readiness')->columns(4)->schema([
+                Infolists\Components\TextEntry::make('rsvp_confirmed_count')
+                    ->label('Confirmed')
+                    ->getStateUsing(fn (Wedding $w) => $w->guests()->where('attending_status', 'yes')->count()),
+                Infolists\Components\TextEntry::make('rsvp_pending_count')
+                    ->label('Pending RSVP')
+                    ->getStateUsing(fn (Wedding $w) => $w->guests()->where('attending_status', 'pending')->count()),
+                Infolists\Components\TextEntry::make('missing_meals_count')
+                    ->label('Missing meals')
+                    ->getStateUsing(fn (Wedding $w) => $w->guests()->where('attending_status', 'yes')->whereNull('meal_preference')->count()),
+                Infolists\Components\TextEntry::make('vip_attention_count')
+                    ->label('VIP gaps')
+                    ->getStateUsing(fn (Wedding $w) => $w->guests()
+                        ->where('vip_flag', true)
+                        ->where('attending_status', '!=', 'no')
+                        ->where(function ($query) {
+                            $query->whereNull('meal_preference')->orWhereNull('seating_assignment_id');
+                        })
+                        ->count()),
+            ]),
+            \Filament\Schemas\Components\Section::make('Operations health')->columns(4)->schema([
+                Infolists\Components\TextEntry::make('health_status')
+                    ->label('Status')
+                    ->badge()
+                    ->getStateUsing(fn (Wedding $w) => app(OperationalHealthService::class)->snapshot($w)['status'])
+                    ->color(fn (string $state): string => match ($state) {
+                        'healthy' => 'success',
+                        'watch' => 'warning',
+                        default => 'danger',
+                    }),
+                Infolists\Components\TextEntry::make('health_score')
+                    ->label('Score')
+                    ->getStateUsing(fn (Wedding $w) => app(OperationalHealthService::class)->snapshot($w)['score']),
+                Infolists\Components\TextEntry::make('failed_deliveries')
+                    ->label('Failed deliveries')
+                    ->getStateUsing(fn (Wedding $w) => app(OperationalHealthService::class)->snapshot($w)['queue']['failed_deliveries']),
+                Infolists\Components\TextEntry::make('stale_messages')
+                    ->label('Stale sending')
+                    ->getStateUsing(fn (Wedding $w) => app(OperationalHealthService::class)->snapshot($w)['queue']['stale_sending_messages']),
+            ]),
+            \Filament\Schemas\Components\Section::make('Finance and alerts')->columns(4)->schema([
+                Infolists\Components\TextEntry::make('budget_actual_total')
+                    ->label('Actual budget')
+                    ->money('usd')
+                    ->getStateUsing(fn (Wedding $w) => $w->budgetItems()->sum('actual_amount')),
+                Infolists\Components\TextEntry::make('budget_paid_total')
+                    ->label('Paid')
+                    ->money('usd')
+                    ->getStateUsing(fn (Wedding $w) => $w->budgetItems()->sum('paid_amount')),
+                Infolists\Components\TextEntry::make('active_alerts_count')
+                    ->label('Active alerts')
+                    ->getStateUsing(fn (Wedding $w) => app(SmartAlertService::class)->activeAlerts($w)->count()),
+                Infolists\Components\TextEntry::make('audit_logs_count')
+                    ->label('Audit events')
+                    ->getStateUsing(fn (Wedding $w) => $w->auditLogs()->count()),
+            ]),
+            \Filament\Schemas\Components\Section::make('Guest experience')->columns(4)->schema([
+                Infolists\Components\TextEntry::make('experienceConfig.publish_state')
+                    ->label('Publish state')
+                    ->badge()
+                    ->default('Not configured')
+                    ->color(fn (?string $state): string => $state === 'published' ? 'success' : 'warning'),
+                Infolists\Components\TextEntry::make('experienceConfig.published_at')
+                    ->label('Published')
+                    ->since()
+                    ->placeholder('-'),
+                Infolists\Components\TextEntry::make('guest_tokens_count')
+                    ->label('Guest tokens')
+                    ->getStateUsing(fn (Wedding $w) => $w->guestTokens()->count()),
+                Infolists\Components\TextEntry::make('active_guest_tokens_count')
+                    ->label('Active tokens')
+                    ->getStateUsing(fn (Wedding $w) => $w->guestTokens()->where('revoked', false)->where('expires_at', '>', now())->count()),
+            ]),
         ]);
     }
 
@@ -167,6 +248,13 @@ class WeddingResource extends Resource
             RelationManagers\BudgetItemsRelationManager::class,
             RelationManagers\GalleryAssetsRelationManager::class,
             RelationManagers\RegistryItemsRelationManager::class,
+            RelationManagers\TeamRelationManager::class,
+            RelationManagers\LiveUpdatesRelationManager::class,
+            RelationManagers\AccommodationRelationManager::class,
+            RelationManagers\TransportRelationManager::class,
+            RelationManagers\SmartAlertsRelationManager::class,
+            RelationManagers\SupportTicketsRelationManager::class,
+            RelationManagers\AuditLogsRelationManager::class,
         ];
     }
 

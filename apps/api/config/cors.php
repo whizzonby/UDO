@@ -1,7 +1,7 @@
 <?php
 
 return [
-    'paths'                => ['api/*', 'sanctum/csrf-cookie'],
+    'paths'                => ['api/*', 'sanctum/csrf-cookie', 'storage/*'],
     'allowed_methods'      => ['*'],
     // Comma-separated for multiple trusted origins (e.g. the Next.js web app
     // plus a Flutter web build during development); falls back to FRONTEND_URL.

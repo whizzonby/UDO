@@ -36,4 +36,23 @@ export const api = {
   patch: <T>(path: string, body: unknown, token?: string) => request<T>(path, { method: 'PATCH', body, token }),
   put: <T>(path: string, body: unknown, token?: string) => request<T>(path, { method: 'PUT', body, token }),
   delete: <T>(path: string, token?: string) => request<T>(path, { method: 'DELETE', token }),
+  download: async (path: string, filename: string, token?: string) => {
+    const headers: Record<string, string> = { Accept: 'text/csv' };
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+
+    const res = await fetch(`${API_BASE}${path}`, { headers });
+    if (!res.ok) {
+      throw new Error(res.statusText || `HTTP ${res.status}`);
+    }
+
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
+    link.click();
+    URL.revokeObjectURL(url);
+  },
 };

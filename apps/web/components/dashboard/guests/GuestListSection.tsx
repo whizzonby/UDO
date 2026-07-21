@@ -1,9 +1,10 @@
 'use client';
 
 import { useState } from 'react';
-import { Search, Plus, AlertCircle, Check, Mail, ChevronRight } from 'lucide-react';
+import { Search, Plus, AlertCircle, Check, Mail, ChevronRight, Download } from 'lucide-react';
 
 interface Guest {
+  id: number;
   name: string;
   email: string;
   rsvp: string;
@@ -18,6 +19,10 @@ interface GuestListSectionProps {
   onImportGuests: () => void;
   onShowGuestDetail: () => void;
   onComposeMessage: () => void;
+  onSearchChange: (value: string) => void;
+  onStatusFilterChange: (value: string) => void;
+  onBulkMarkVip: (ids: number[]) => void;
+  onExportGuests: () => void;
 }
 
 export default function GuestListSection({
@@ -25,12 +30,21 @@ export default function GuestListSection({
   onAddGuest,
   onImportGuests,
   onShowGuestDetail,
-  onComposeMessage
+  onComposeMessage,
+  onSearchChange,
+  onStatusFilterChange,
+  onBulkMarkVip,
+  onExportGuests,
 }: GuestListSectionProps) {
   const [primaryFilter, setPrimaryFilter] = useState('all');
   const [secondaryFilter, setSecondaryFilter] = useState<string | null>(null);
   const [guestSort, setGuestSort] = useState('rsvp-status');
   const [hoveredGuestIdx, setHoveredGuestIdx] = useState<number | null>(null);
+  const [selectedGuestIds, setSelectedGuestIds] = useState<number[]>([]);
+
+  const toggleSelected = (id: number) => {
+    setSelectedGuestIds((current) => current.includes(id) ? current.filter((guestId) => guestId !== id) : [...current, id]);
+  };
 
   return (
     <div className="space-y-5">
@@ -57,6 +71,14 @@ export default function GuestListSection({
           >
             Import Guests
           </button>
+          <button
+            onClick={onExportGuests}
+            className="bg-white border border-gray-300 text-gray-700 px-4 py-2.5 rounded-full text-[14px] hover:bg-gray-50 transition-colors flex items-center gap-2"
+            style={{ fontWeight: 500 }}
+          >
+            <Download size={16} />
+            Export
+          </button>
         </div>
       </div>
 
@@ -67,6 +89,7 @@ export default function GuestListSection({
           <input
             type="text"
             placeholder="Search guests, tags, travel, meals, or seating"
+            onChange={(e) => onSearchChange(e.target.value)}
             className="w-full pl-12 pr-4 py-3.5 bg-white border border-gray-200 rounded-[20px] text-[14px] focus:outline-none focus:ring-2 focus:ring-[#FF3E9B]/20 focus:border-[#FF3E9B] transition-all"
           />
         </div>
@@ -104,7 +127,10 @@ export default function GuestListSection({
         ].map((filter) => (
           <button
             key={filter.id}
-            onClick={() => setPrimaryFilter(filter.id)}
+            onClick={() => {
+              setPrimaryFilter(filter.id);
+              onStatusFilterChange(filter.id);
+            }}
             className={`px-5 py-2.5 rounded-full whitespace-nowrap text-[13px] transition-all font-medium ${
               primaryFilter === filter.id
                 ? 'bg-gradient-to-r from-[#FF3E9B] to-[#FF88BA] text-white shadow-md'
@@ -145,9 +171,24 @@ export default function GuestListSection({
       {/* Emotional Intelligence */}
       <div className="px-1">
         <p className="text-[13px] text-gray-600 italic">
-          86 guests are ready to celebrate with you.
+          {guests.length} guest{guests.length === 1 ? ' is' : 's are'} in this view.
         </p>
       </div>
+
+      {selectedGuestIds.length > 0 && (
+        <div className="bg-white border border-[#3A8B95]/20 rounded-[16px] p-3 flex items-center justify-between">
+          <span className="text-[13px] font-medium text-gray-800">{selectedGuestIds.length} selected</span>
+          <button
+            onClick={() => {
+              onBulkMarkVip(selectedGuestIds);
+              setSelectedGuestIds([]);
+            }}
+            className="px-3 py-1.5 rounded-full bg-[#3A8B95] text-white text-[12px] font-medium"
+          >
+            Mark VIP
+          </button>
+        </div>
+      )}
 
       {/* Guest List */}
       <div className="space-y-2">
@@ -173,6 +214,16 @@ export default function GuestListSection({
               >
                 {guest.name.split(' ').map(n => n[0]).join('')}
               </div>
+              <input
+                type="checkbox"
+                checked={selectedGuestIds.includes(guest.id)}
+                onChange={(e) => {
+                  e.stopPropagation();
+                  toggleSelected(guest.id);
+                }}
+                onClick={(e) => e.stopPropagation()}
+                className="w-4 h-4 rounded border-gray-300 text-[#FF3E9B]"
+              />
 
               {/* LEFT - Name & Contact */}
               <div className="flex-1 min-w-0">

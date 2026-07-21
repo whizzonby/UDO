@@ -13,6 +13,7 @@ class EditEmailTemplate extends EditRecord
     protected function getHeaderActions(): array
     {
         return [
+            EmailTemplateResource::previewAction(),
             EmailTemplateResource::sendTestEmailAction(),
             Actions\DeleteAction::make(),
         ];

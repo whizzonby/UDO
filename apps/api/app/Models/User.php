@@ -10,6 +10,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Database\Eloquent\Relations\MorphMany;
 use App\Notifications\EmailVerificationNotification;
 use App\Notifications\ResetPasswordNotification;
 use Illuminate\Foundation\Auth\User as Authenticatable;
@@ -31,6 +32,8 @@ class User extends Authenticatable implements FilamentUser, MustVerifyEmail
         'password',
         'phone',
         'avatar_url',
+        'notification_preferences',
+        'support_preferences',
         'auth_provider',
         'auth_provider_id',
         'active_wedding_id',
@@ -48,12 +51,21 @@ class User extends Authenticatable implements FilamentUser, MustVerifyEmail
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
             'onboarding_completed' => 'boolean',
+            'notification_preferences' => 'array',
+            'support_preferences' => 'array',
         ];
     }
 
     public function canAccessPanel(Panel $panel): bool
     {
-        return $this->hasRole(['super_admin', 'admin']);
+        return $this->hasAnyRole([
+            'super_admin',
+            'admin',
+            'ops_admin',
+            'support_admin',
+            'finance_admin',
+            'content_admin',
+        ]);
     }
 
     public function getFilamentName(): string
@@ -106,6 +118,11 @@ class User extends Authenticatable implements FilamentUser, MustVerifyEmail
     public function supportTickets(): HasMany
     {
         return $this->hasMany(SupportTicket::class);
+    }
+
+    public function subjectAuditLogs(): MorphMany
+    {
+        return $this->morphMany(AuditLog::class, 'auditable');
     }
 
     public function getFullNameAttribute(): string

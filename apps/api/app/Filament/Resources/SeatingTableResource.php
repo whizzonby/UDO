@@ -2,6 +2,8 @@
 
 namespace App\Filament\Resources;
 
+use App\Filament\Concerns\HasDomainPermission;
+
 use App\Filament\Resources\SeatingTableResource\Pages;
 use App\Models\SeatingTable;
 use Filament\Forms;
@@ -13,6 +15,10 @@ use Filament\Tables\Table;
 
 class SeatingTableResource extends Resource
 {
+    use HasDomainPermission;
+
+    protected static string $requiredPermission = 'admin.operations';
+
     protected static ?string $model = SeatingTable::class;
     protected static string|\BackedEnum|null $navigationIcon = 'heroicon-o-squares-2x2';
     protected static string|\UnitEnum|null $navigationGroup = 'Logistics';

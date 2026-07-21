@@ -10,7 +10,34 @@ export type AuthUser = {
   last_name: string;
   avatar_url?: string;
   wedding_id?: number;
+  wedding_role?: string | null;
+  wedding_permissions?: string[];
+  is_wedding_owner?: boolean;
+  notification_preferences?: {
+    rsvp_updates: boolean;
+    task_reminders: boolean;
+    guest_messages: boolean;
+    live_mode: boolean;
+    vendor_updates: boolean;
+  };
+  support_preferences?: {
+    email_support: boolean;
+    chat_support: boolean;
+    proactive_checkins: boolean;
+    response_time: 'within-1h' | 'within-24h' | 'within-3d';
+  };
+  subscription?: {
+    plan: string;
+    label: string;
+    status: string;
+    billing_cycle: string;
+    current_period_end?: string | null;
+    limits: Record<string, number | null>;
+    usage: Record<string, number>;
+  } | null;
   onboarding_completed?: boolean;
+  roles?: string[];
+  is_admin?: boolean;
 };
 
 export function getToken(): string | null {

@@ -3,7 +3,9 @@
 namespace App\Http\Controllers;
 
 use App\Models\Message;
-use App\Models\Guest;
+use App\Services\MessageAnalyticsService;
+use App\Services\MessageDispatchService;
+use App\Services\WeddingAccessService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -13,6 +15,7 @@ class MessagesController extends Controller
     {
         $wedding = $request->user()->activeWedding;
         abort_unless($wedding, 403, 'No active wedding.');
+        abort_unless(app(WeddingAccessService::class)->can($request->user(), $wedding, 'manage_messages'), 403);
         return $wedding;
     }
 
@@ -23,7 +26,7 @@ class MessagesController extends Controller
             ->orderByDesc('created_at')
             ->get();
 
-        return response()->json(['data' => $messages]);
+        return response()->json(['data' => $this->withDeliverySummaries($messages)]);
     }
 
     public function store(Request $request): JsonResponse
@@ -34,7 +37,7 @@ class MessagesController extends Controller
             'subject'         => 'required|string|max:255',
             'body'            => 'required|string',
             'channel'         => 'required|in:email,sms,whatsapp,in_app',
-            'message_type'    => 'nullable|in:general,rsvp_reminder,logistics,day_of,thank_you',
+            'message_type'    => 'nullable|in:general,invitation,rsvp_reminder,logistics,day_of,thank_you',
             'audience_filter' => 'nullable|array',
             'scheduled_at'    => 'nullable|date',
         ]);
@@ -45,13 +48,13 @@ class MessagesController extends Controller
             'created_by' => $request->user()->id,
         ]);
 
-        return response()->json(['data' => $message], 201);
+        return response()->json(['data' => $this->withDeliverySummary($message)], 201);
     }
 
     public function show(Request $request, Message $message): JsonResponse
     {
         $this->authorizeMessage($request, $message);
-        return response()->json(['data' => $message->load('deliveries')]);
+        return response()->json(['data' => $this->withDeliverySummary($message->load('deliveries.guest'))]);
     }
 
     public function update(Request $request, Message $message): JsonResponse
@@ -63,51 +66,54 @@ class MessagesController extends Controller
             'subject'         => 'sometimes|string|max:255',
             'body'            => 'sometimes|string',
             'channel'         => 'nullable|in:email,sms,whatsapp,in_app',
-            'message_type'    => 'nullable|in:general,rsvp_reminder,logistics,day_of,thank_you',
+            'message_type'    => 'nullable|in:general,invitation,rsvp_reminder,logistics,day_of,thank_you',
             'audience_filter' => 'nullable|array',
             'scheduled_at'    => 'nullable|date',
         ]);
 
         $message->update($data);
 
-        return response()->json(['data' => $message->fresh()]);
+        return response()->json(['data' => $this->withDeliverySummary($message->fresh())]);
     }
 
     public function send(Request $request, Message $message): JsonResponse
     {
         $this->authorizeMessage($request, $message);
-        abort_if($message->status === 'sent', 422, 'Already sent.');
+        abort_if(in_array($message->status, ['sending', 'sent'], true), 422, 'Already sent or currently sending.');
 
-        $wedding = $this->wedding($request);
-        $filter  = $message->audience_filter ?? [];
+        $recipients = app(MessageDispatchService::class)->dispatch(
+            $message->load('wedding'),
+            $request->boolean('force')
+        );
 
-        $query = $wedding->guests();
-        if (!empty($filter['attending_status'])) {
-            $query->where('attending_status', $filter['attending_status']);
-        }
-        if (!empty($filter['guest_group'])) {
-            $query->where('guest_group', $filter['guest_group']);
-        }
-        if (!empty($filter['vip_flag'])) {
-            $query->where('vip_flag', true);
-        }
-        $guests = $query->get();
-
-        foreach ($guests as $guest) {
-            $message->deliveries()->create([
-                'guest_id' => $guest->id,
-                'status'   => 'queued',
-                'channel'  => $message->channel,
-            ]);
-        }
-
-        $message->update([
-            'status'           => 'sent',
-            'sent_at'          => now(),
-            'recipient_count'  => $guests->count(),
+        return response()->json([
+            'data' => $this->withDeliverySummary($message->fresh()),
+            'recipients' => $recipients,
         ]);
+    }
 
-        return response()->json(['data' => $message->fresh(), 'recipients' => $guests->count()]);
+    public function retryFailed(Request $request, Message $message): JsonResponse
+    {
+        $this->authorizeMessage($request, $message);
+
+        $queued = app(MessageDispatchService::class)->retryFailed($message);
+
+        return response()->json([
+            'data' => $this->withDeliverySummary($message->fresh('deliveries')),
+            'queued' => $queued,
+            'message' => $queued > 0
+                ? 'Failed deliveries queued for retry.'
+                : 'No failed deliveries were available to retry.',
+        ]);
+    }
+
+    public function deliverySummary(Request $request, Message $message): JsonResponse
+    {
+        $this->authorizeMessage($request, $message);
+
+        return response()->json([
+            'data' => app(MessageAnalyticsService::class)->summaryFor($message),
+        ]);
     }
 
     public function destroy(Request $request, Message $message): JsonResponse
@@ -121,5 +127,28 @@ class MessagesController extends Controller
     private function authorizeMessage(Request $request, Message $message): void
     {
         abort_unless($message->wedding_id === $this->wedding($request)->id, 403);
+    }
+
+    private function withDeliverySummary(Message $message): array
+    {
+        $data = $message->toArray();
+        $data['delivery_summary'] = app(MessageAnalyticsService::class)->summaryFor($message);
+
+        return $data;
+    }
+
+    private function withDeliverySummaries($messages): array
+    {
+        $summaries = app(MessageAnalyticsService::class)->summariesFor($messages);
+
+        return $messages
+            ->map(function (Message $message) use ($summaries) {
+                $data = $message->toArray();
+                $data['delivery_summary'] = $summaries[$message->id];
+
+                return $data;
+            })
+            ->values()
+            ->all();
     }
 }

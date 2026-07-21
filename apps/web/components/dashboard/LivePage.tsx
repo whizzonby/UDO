@@ -1,11 +1,21 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Clock, MapPin, Cloud, Phone, Radio as RadioIcon, CheckCircle, Sun, CloudRain, Wind, ChevronDown, ChevronUp, MessageCircle, Camera, Heart, Sparkles, Users } from 'lucide-react';
+import { MapPin, Cloud, Phone, Radio as RadioIcon, CheckCircle, Sun, CloudRain, Wind, ChevronDown, ChevronUp, MessageCircle, Camera, Heart, Sparkles, Users } from 'lucide-react';
 import { api } from '@/lib/api';
 import { getToken } from '@/lib/auth';
 
 type LiveTab = 'today' | 'timeline' | 'map' | 'weather' | 'updates';
+type LiveUpdate = { id: number; title: string; body?: string; created_at: string; event_time?: string };
+type LiveToday = {
+  status?: { state: string; label: string; message: string; unresolved_incidents: number };
+  guests?: { confirmed: number; invited: number };
+  arrivals?: { travelling_guests: number; arriving_today: number; missing_arrival_info: number; vip_attention_count: number };
+  vip_attention?: { id: number; name: string; issues: string[] }[];
+  incidents?: { id: number; title: string; severity?: string; body?: string; created_at?: string }[];
+  timeline?: { current?: { title?: string; start_time?: string }; next?: { title?: string; start_time?: string } };
+  recent_updates?: LiveUpdate[];
+};
 
 export default function LivePage() {
   const [activeTab, setActiveTab] = useState<LiveTab>('today');
@@ -14,7 +24,8 @@ export default function LivePage() {
   const [showUpdateHistory, setShowUpdateHistory] = useState(false);
   const [currentTime, setCurrentTime] = useState('4:12 PM');
   const [guestsArrived, setGuestsArrived] = useState(89);
-  const [liveUpdates, setLiveUpdates] = useState<{id:number;title:string;body?:string;created_at:string;event_time?:string}[]>([]);
+  const [liveUpdates, setLiveUpdates] = useState<LiveUpdate[]>([]);
+  const [today, setToday] = useState<LiveToday | null>(null);
   const [newMessage, setNewMessage] = useState('');
   const [sending, setSending] = useState(false);
 
@@ -36,8 +47,11 @@ export default function LivePage() {
   useEffect(() => {
     const t = getToken();
     if (!t) return;
-    api.get<{ data: any[] }>('/live', t)
+    api.get<{ data: LiveUpdate[] }>('/live', t)
       .then(res => setLiveUpdates(res.data ?? []))
+      .catch(() => {});
+    api.get<{ data: LiveToday }>('/live/today', t)
+      .then(res => setToday(res.data ?? null))
       .catch(() => {});
   }, []);
 
@@ -64,12 +78,17 @@ export default function LivePage() {
     if (!t) return;
     setSending(true);
     try {
-      const res = await api.post<{ data: any }>('/live', { title: newMessage, visible_to_guests: true }, t);
+      const res = await api.post<{ data: LiveUpdate }>('/live', { title: newMessage, visible_to_guests: true }, t);
       setLiveUpdates(prev => [res.data, ...prev]);
       setNewMessage('');
     } catch {}
     finally { setSending(false); }
   };
+  const status = today?.status;
+  const currentMoment = today?.timeline?.current?.title ?? (today?.timeline?.next?.title ? `Next: ${today.timeline.next.title}` : 'No events scheduled');
+  const recentUpdates = today?.recent_updates?.length ? today.recent_updates : liveUpdates.slice(0, 4);
+  const incidents = today?.incidents ?? [];
+  const vipAttention = today?.vip_attention ?? [];
 
   return (
     <div className="min-h-screen bg-[#FAFAFA]">
@@ -83,7 +102,7 @@ export default function LivePage() {
 
         <div className="text-center">
           <h1 className="text-[26px] leading-tight" style={{ fontFamily: 'Playfair Display, serif', fontWeight: 400 }}>
-            {guestsArrived >= 110 ? "Your loved ones are here, and everything is perfect." : "Everything is flowing beautifully today."}
+            {status?.state === 'attention' ? 'A few live details need attention.' : "Everything is flowing beautifully today."}
           </h1>
         </div>
 
@@ -121,14 +140,34 @@ export default function LivePage() {
                 </div>
                 <div className="flex-1">
                   <h3 className="text-[16px] text-[#2B2B2B] mb-1" style={{ fontWeight: 500 }}>
-                    No action needed right now
+                    {status?.label ?? 'No action needed right now'}
                   </h3>
                   <p className="text-[13px] text-[#6F6F6F]" style={{ lineHeight: 1.5 }}>
-                    Your planner and vendors are handling everything.
+                    {status?.message ?? 'Your planner and vendors are handling everything.'}
                   </p>
                 </div>
               </div>
             </button>
+
+            {(incidents.length > 0 || vipAttention.length > 0) && (
+              <div className="bg-white rounded-2xl p-5 shadow-[0_4px_12px_rgba(0,0,0,0.04)] border border-[#EAE7E2]">
+                <h3 className="text-[16px] text-[#2B2B2B] mb-4" style={{ fontWeight: 500 }}>Needs attention</h3>
+                <div className="space-y-3">
+                  {incidents.map((item) => (
+                    <div key={item.id} className="rounded-[18px] bg-[#FFF5F5] border border-[#F3CACA] p-3">
+                      <div className="text-[13px] font-medium text-[#8A2D2D]">{item.title}</div>
+                      {item.body && <div className="text-[12px] text-[#7A5B5B] mt-1">{item.body}</div>}
+                    </div>
+                  ))}
+                  {vipAttention.slice(0, 4).map((guest) => (
+                    <div key={guest.id} className="rounded-[18px] bg-[#F3EFEA] p-3">
+                      <div className="text-[13px] font-medium text-[#2B2B2B]">{guest.name}</div>
+                      <div className="text-[12px] text-[#6F6F6F] mt-1">Needs: {guest.issues.join(', ')}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {/* RIGHT NOW SECTION */}
             <div className="bg-white rounded-2xl p-5 shadow-[0_4px_12px_rgba(0,0,0,0.04)] border border-[#EAE7E2]">
@@ -141,12 +180,12 @@ export default function LivePage() {
                 <div className="h-px bg-[#EAE7E2]"></div>
                 <div className="flex items-center justify-between py-2">
                   <span className="text-[14px] text-[#6F6F6F]">Current moment</span>
-                  <span className="text-[14px] text-[#2B2B2B]" style={{ fontWeight: 500 }}>Guests arriving</span>
+                  <span className="text-[14px] text-[#2B2B2B]" style={{ fontWeight: 500 }}>{currentMoment}</span>
                 </div>
                 <div className="h-px bg-[#EAE7E2]"></div>
                 <div className="flex items-center justify-between py-2">
                   <span className="text-[14px] text-[#6F6F6F]">Guests present</span>
-                  <span className="text-[14px] text-[#3A8B95]" style={{ fontWeight: 500 }}>{guestsArrived} of 120</span>
+                  <span className="text-[14px] text-[#3A8B95]" style={{ fontWeight: 500 }}>{today?.guests?.confirmed ?? guestsArrived} of {today?.guests?.invited ?? 120}</span>
                 </div>
               </div>
             </div>
@@ -161,22 +200,18 @@ export default function LivePage() {
                 </div>
               </div>
               <div className="space-y-3">
-                {[
-                  { icon: Users, text: 'Sarah and Michael just arrived', time: 'Just now', color: '#3A7D6D' },
-                  { icon: Camera, text: 'Photographer capturing ceremony details', time: '2 min ago', color: '#2F5D50' },
-                  { icon: Heart, text: 'Your parents are greeting guests at entrance', time: '5 min ago', color: '#C97C7C' },
-                  { icon: Sparkles, text: 'Final touches on floral arrangements complete', time: '8 min ago', color: '#D6A77A' },
-                ].map((item, idx) => (
+                {recentUpdates.map((item, idx) => (
                   <div key={idx} className="flex items-start gap-3 p-3 bg-[#F3EFEA] rounded-[20px]">
                     <div className="w-8 h-8 rounded-full bg-white flex items-center justify-center flex-shrink-0 border border-[#EAE7E2]">
-                      <item.icon size={16} style={{ color: item.color }} strokeWidth={2} />
+                      <RadioIcon size={16} style={{ color: '#3A7D6D' }} strokeWidth={2} />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-[13px] text-[#2B2B2B]" style={{ lineHeight: 1.5 }}>{item.text}</p>
-                      <p className="text-[11px] text-[#6F6F6F] mt-1">{item.time}</p>
+                      <p className="text-[13px] text-[#2B2B2B]" style={{ lineHeight: 1.5 }}>{item.title}</p>
+                      <p className="text-[11px] text-[#6F6F6F] mt-1">{item.event_time ?? item.created_at ?? 'Just now'}</p>
                     </div>
                   </div>
                 ))}
+                {recentUpdates.length === 0 && <p className="text-[13px] text-[#6F6F6F]">No live updates shared yet.</p>}
               </div>
             </div>
 
@@ -184,20 +219,17 @@ export default function LivePage() {
             <div className="bg-white rounded-2xl p-5 shadow-[0_4px_12px_rgba(0,0,0,0.04)] border border-[#EAE7E2]">
               <h3 className="text-[16px] text-[#2B2B2B] mb-4" style={{ fontWeight: 500 }}>Coming up next</h3>
               <div className="space-y-3">
-                {[
-                  { event: 'Ceremony begins', time: '4:30 PM', countdown: 'in 18 minutes' },
-                  { event: 'Cocktail hour', time: '5:15 PM', countdown: 'in 1 hour 3 minutes' },
-                ].map((item, idx) => (
-                  <div key={idx} className="p-4 bg-[#F3EFEA] rounded-[20px]">
+                {today?.timeline?.next ? (
+                  <div className="p-4 bg-[#F3EFEA] rounded-[20px]">
                     <div className="flex items-start justify-between">
                       <div className="flex-1">
-                        <div className="text-[14px] text-[#2B2B2B] mb-1" style={{ fontWeight: 500 }}>{item.event}</div>
-                        <div className="text-[13px] text-[#6F6F6F]">{item.time}</div>
+                        <div className="text-[14px] text-[#2B2B2B] mb-1" style={{ fontWeight: 500 }}>{today.timeline.next.title}</div>
+                        <div className="text-[13px] text-[#6F6F6F]">{today.timeline.next.start_time ?? 'Time not set'}</div>
                       </div>
-                      <span className="text-[13px] text-[#3A8B95] ml-3" style={{ fontWeight: 500 }}>{item.countdown}</span>
+                      <span className="text-[13px] text-[#3A8B95] ml-3" style={{ fontWeight: 500 }}>Next</span>
                     </div>
                   </div>
-                ))}
+                ) : <p className="text-[13px] text-[#6F6F6F]">No upcoming timeline moments.</p>}
               </div>
             </div>
 

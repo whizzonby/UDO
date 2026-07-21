@@ -142,7 +142,7 @@ class MobileSocialAuthController extends Controller
 
             return $decoded;
         } catch (\Throwable $e) {
-            Log::warning('Apple token verification failed: ' . $e->getMessage());
+            Log::warning('Apple token verification failed', ['reason' => class_basename($e)]);
             return null;
         }
     }

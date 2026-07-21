@@ -1,36 +1,123 @@
 'use client';
 
+/* eslint-disable @next/next/no-img-element */
+
 import { useState, useEffect } from 'react';
-import { Image, Upload, Heart, Archive, Star, Plus, ExternalLink, QrCode, Link2, Check, X, Filter, ChevronDown, Sparkles, Camera, Clock, MapPin } from 'lucide-react';
+import { Image as ImageIcon, Upload, Archive, Star, Plus, ExternalLink, QrCode, Link2, Check, X, ChevronDown, Sparkles, Camera, Clock } from 'lucide-react';
 import { api } from '@/lib/api';
 import { getToken } from '@/lib/auth';
 
 type GalleryTab = 'inspiration' | 'moments' | 'guest-uploads' | 'saved' | 'archive';
 type SavedFilter = 'all' | 'florals' | 'attire' | 'venues' | 'decor';
 type ModalType = 'moment' | 'pinterest' | 'share' | 'upload' | null;
+type GalleryAsset = {
+  id: number;
+  url: string;
+  thumbnail_url?: string | null;
+  album: string | null;
+  caption?: string | null;
+  title?: string;
+  approved: boolean;
+  is_featured?: boolean;
+  is_saved?: boolean;
+  source: string;
+  created_at: string;
+  uploaded_by_guest_id?: number | null;
+  uploaded_by_guest_name?: string | null;
+};
+type GallerySummary = {
+  total_assets: number;
+  approved_assets: number;
+  pending_assets: number;
+  featured_assets: number;
+  saved_assets: number;
+  archived_assets: number;
+  albums: {
+    inspiration: GalleryAsset[];
+    moments: GalleryAsset[];
+    guest_uploads_pending: GalleryAsset[];
+    guest_uploads_approved: GalleryAsset[];
+    saved: GalleryAsset[];
+    featured: GalleryAsset[];
+    archive: GalleryAsset[];
+  };
+};
 
 export default function GalleryPage() {
   const [activeTab, setActiveTab] = useState<GalleryTab>('inspiration');
   const [savedFilter, setSavedFilter] = useState<SavedFilter>('all');
   const [openModal, setOpenModal] = useState<ModalType>(null);
   const [selectedMoment, setSelectedMoment] = useState<number | null>(null);
-  const [galleryAssets, setGalleryAssets] = useState<{id:number;url:string;thumbnail_url?:string;album:string;title?:string;approved:boolean;source:string;created_at:string;uploaded_by_guest_name?:string}[]>([]);
+  const [galleryAssets, setGalleryAssets] = useState<GalleryAsset[]>([]);
+  const [gallerySummary, setGallerySummary] = useState<GallerySummary | null>(null);
+  const [isLoadingGallery, setIsLoadingGallery] = useState(true);
+  const [galleryError, setGalleryError] = useState<string | null>(null);
+  const [galleryNotice, setGalleryNotice] = useState<string | null>(null);
+
+  const loadGallery = async () => {
+    const t = getToken();
+    if (!t) {
+      setIsLoadingGallery(false);
+      return;
+    }
+    setIsLoadingGallery(true);
+    setGalleryError(null);
+    try {
+      const [assetsRes, summaryRes] = await Promise.all([
+        api.get<{ data: GalleryAsset[] }>('/gallery', t),
+        api.get<{ data: GallerySummary }>('/gallery/summary', t),
+      ]);
+      setGalleryAssets(assetsRes.data ?? []);
+      setGallerySummary(summaryRes.data ?? null);
+    } catch (error) {
+      setGalleryError(error instanceof Error ? error.message : 'Could not load gallery.');
+    } finally {
+      setIsLoadingGallery(false);
+    }
+  };
 
   useEffect(() => {
-    const t = getToken();
-    if (!t) return;
-    api.get<{ data: any[] }>('/gallery', t)
-      .then(res => setGalleryAssets(res.data ?? []))
-      .catch(() => {});
+    loadGallery().catch(() => {});
   }, []);
 
   const approveAsset = async (id: number, approved: boolean) => {
     const t = getToken();
     if (!t) return;
     try {
-      await api.patch(`/gallery/${id}`, { approved }, t);
-      setGalleryAssets(prev => prev.map(a => a.id === id ? { ...a, approved } : a));
-    } catch {}
+      const path = approved ? `/gallery/${id}/approve` : `/gallery/${id}/reject`;
+      const res = await api.post<{ data: GalleryAsset }>(path, {}, t);
+      setGalleryAssets(prev => prev.map(a => a.id === id ? res.data : a));
+      setGalleryNotice(approved ? 'Photo approved.' : 'Photo rejected.');
+      loadGallery().catch(() => {});
+    } catch (error) {
+      setGalleryError(error instanceof Error ? error.message : 'Could not update photo.');
+    }
+  };
+
+  const toggleFeatured = async (asset: GalleryAsset) => {
+    const t = getToken();
+    if (!t) return;
+    try {
+      const res = await api.post<{ data: GalleryAsset }>(`/gallery/${asset.id}/feature`, { is_featured: !(asset.is_featured === true) }, t);
+      setGalleryAssets(prev => prev.map(a => a.id === asset.id ? res.data : a));
+      setGalleryNotice(asset.is_featured ? 'Removed from featured photos.' : 'Marked as featured.');
+      loadGallery().catch(() => {});
+    } catch (error) {
+      setGalleryError(error instanceof Error ? error.message : 'Could not update featured status.');
+    }
+  };
+
+  const archiveAsset = async (asset: GalleryAsset) => {
+    const t = getToken();
+    if (!t) return;
+    try {
+      const res = await api.post<{ data: GalleryAsset }>(`/gallery/${asset.id}/archive`, {}, t);
+      setGalleryAssets(prev => prev.map(a => a.id === asset.id ? res.data : a));
+      setGalleryNotice('Photo archived.');
+      loadGallery().catch(() => {});
+    } catch (error) {
+      setGalleryError(error instanceof Error ? error.message : 'Could not archive photo.');
+    }
   };
 
   const tabs = [
@@ -42,12 +129,18 @@ export default function GalleryPage() {
   ];
 
   const pinterestBoards = [
-    { title: 'Rustic Garden Ceremony', pins: 127, connected: true },
-    { title: 'Romantic Florals', pins: 89, connected: true },
-    { title: 'Bridal Attire Inspo', pins: 156, connected: false },
+    { title: 'Rustic Garden Ceremony', pins: 127, connected: true, url: 'https://www.pinterest.com/search/pins/?q=rustic%20garden%20ceremony' },
+    { title: 'Romantic Florals', pins: 89, connected: true, url: 'https://www.pinterest.com/search/pins/?q=romantic%20wedding%20florals' },
+    { title: 'Bridal Attire Inspo', pins: 156, connected: false, url: 'https://www.pinterest.com/search/pins/?q=bridal%20attire%20inspiration' },
   ];
 
-  const moments = galleryAssets.filter(a => a.album === 'moments');
+  const moments = gallerySummary?.albums.moments ?? galleryAssets.filter(a => a.album === 'moments' && a.approved);
+  const pendingUploads = gallerySummary?.albums.guest_uploads_pending ?? galleryAssets.filter(a => a.uploaded_by_guest_id != null && !a.approved);
+  const approvedGuestUploads = gallerySummary?.albums.guest_uploads_approved ?? galleryAssets.filter(a => a.uploaded_by_guest_id != null && a.approved);
+  const savedAssets = gallerySummary?.albums.saved ?? galleryAssets.filter(a => a.is_saved);
+  const archivedAssets = gallerySummary?.albums.archive ?? galleryAssets.filter(a => a.album === 'archive');
+  const uploadUrl = typeof window !== 'undefined' ? `${window.location.origin}/guest/upload` : 'https://udo.wedding/guest/upload';
+  const selectedMomentAsset = moments.find(m => m.id === selectedMoment);
 
   const savedFilterOptions: { id: SavedFilter; label: string }[] = [
     { id: 'all', label: 'All' },
@@ -56,6 +149,19 @@ export default function GalleryPage() {
     { id: 'venues', label: 'Venues' },
     { id: 'decor', label: 'Decor' },
   ];
+
+  const copyText = async (value: string, message: string) => {
+    try {
+      await navigator.clipboard.writeText(value);
+      setGalleryNotice(message);
+    } catch {
+      setGalleryError('Could not copy the link. Select and copy it manually.');
+    }
+  };
+
+  const openExternal = (url: string) => {
+    window.open(url, '_blank', 'noopener,noreferrer');
+  };
 
   return (
     <div className="min-h-screen bg-[#FAFAFA]">
@@ -88,6 +194,32 @@ export default function GalleryPage() {
 
       {/* Content */}
       <div className="px-4 py-8">
+        {galleryNotice && (
+          <div className="max-w-[720px] mx-auto mb-4 rounded-[16px] border border-[#3A8B95]/20 bg-[#F0F9FA] px-4 py-3 text-[13px] text-[#2B2B2B] flex items-center justify-between gap-3">
+            <span>{galleryNotice}</span>
+            <button onClick={() => setGalleryNotice(null)} className="text-[#3A8B95]" aria-label="Dismiss gallery notice">
+              <X size={16} />
+            </button>
+          </div>
+        )}
+
+        {galleryError && (
+          <div className="max-w-[720px] mx-auto mb-4 rounded-[16px] border border-[#8B6F47]/20 bg-[#FFF5F8] px-4 py-3 text-[13px] text-[#2B2B2B]">
+            <div className="flex items-center justify-between gap-3">
+              <span>{galleryError}</span>
+              <button onClick={loadGallery} className="text-[#3A8B95]" style={{ fontWeight: 500 }}>
+                Retry
+              </button>
+            </div>
+          </div>
+        )}
+
+        {isLoadingGallery && (
+          <div className="max-w-[720px] mx-auto mb-4 rounded-[16px] border border-[#EAE7E2] bg-white px-4 py-3 text-[13px] text-[#6F6F6F]">
+            Loading gallery...
+          </div>
+        )}
+
         {/* INSPIRATION TAB */}
         {activeTab === 'inspiration' && (
           <div className="space-y-8">
@@ -130,11 +262,11 @@ export default function GalleryPage() {
                             key={i}
                             className="aspect-square bg-gradient-to-br from-[#E8CFCF]/30 to-[#F8F7F4] rounded-[16px] flex items-center justify-center"
                           >
-                            <Image size={20} className="text-[#3A8B95]/40" />
+                            <ImageIcon size={20} className="text-[#3A8B95]/40" />
                           </div>
                         ))}
                       </div>
-                      <button className="w-full py-2 text-[12px] text-[#3A8B95] border border-[#EAE7E2] rounded-[16px] hover:bg-[#FAFAFA] transition-colors flex items-center justify-center gap-1.5">
+                      <button onClick={() => openExternal(board.url)} className="w-full py-2 text-[12px] text-[#3A8B95] border border-[#EAE7E2] rounded-[16px] hover:bg-[#FAFAFA] transition-colors flex items-center justify-center gap-1.5">
                         <ExternalLink size={14} />
                         View on Pinterest
                       </button>
@@ -220,7 +352,7 @@ export default function GalleryPage() {
                 Add a new moment
               </span>
               <span className="text-[12px] text-[#6F6F6F]">
-                Upload photos from your journey
+                Prepare a named collection for your photos
               </span>
             </button>
           </div>
@@ -235,7 +367,7 @@ export default function GalleryPage() {
                 Share with your guests
               </h3>
               <p className="text-[13px] text-[#6F6F6F] mb-4">
-                Let guests upload photos directly to your gallery. They'll be held for your approval.
+                Let guests upload photos directly to your gallery. They&apos;ll be held for your approval.
               </p>
 
               <div className="space-y-3">
@@ -276,14 +408,14 @@ export default function GalleryPage() {
                   Pending approval
                 </h3>
                 <div className="px-2.5 py-1 bg-[#3A8B95] text-white rounded-full text-[11px]" style={{ fontWeight: 500 }}>
-                  {galleryAssets.filter(a => !a.approved).length} new
+                  {pendingUploads.length} new
                 </div>
               </div>
 
               <div className="space-y-3">
-                {galleryAssets.filter(a => !a.approved).length === 0 ? (
+                {pendingUploads.length === 0 ? (
                   <p className="text-[13px] text-[#6F6F6F] text-center py-4">No photos pending approval</p>
-                ) : galleryAssets.filter(a => !a.approved).map((asset) => (
+                ) : pendingUploads.map((asset) => (
                   <div key={asset.id} className="flex items-center gap-3 p-3 bg-[#FAFAFA] rounded-[20px]">
                     <div className="w-16 h-16 bg-gradient-to-br from-[#E8CFCF] to-[#2F5D50]/40 rounded-[16px] flex items-center justify-center flex-shrink-0 overflow-hidden">
                       {asset.thumbnail_url ? (
@@ -312,21 +444,25 @@ export default function GalleryPage() {
             {/* Approved Gallery */}
             <div className="bg-white rounded-2xl p-5 shadow-[0_4px_12px_rgba(0,0,0,0.04)] border border-[#EAE7E2]">
               <h3 className="text-[16px] text-[#2B2B2B] mb-4" style={{ fontWeight: 500 }}>
-                Guest photos ({galleryAssets.filter(a => a.approved && a.source === 'guest_upload').length})
+                Guest photos ({approvedGuestUploads.length})
               </h3>
-              <div className="grid grid-cols-3 gap-2">
-                {[...Array(9)].map((_, i) => (
-                  <div
-                    key={i}
-                    className="aspect-square bg-gradient-to-br from-[#E8CFCF]/30 to-[#F8F7F4] rounded-[16px] flex items-center justify-center relative cursor-pointer hover:opacity-80 transition-opacity"
-                  >
-                    <Image size={24} className="text-[#3A8B95]/40" />
-                    <button className="absolute top-2 right-2 bg-white/90 backdrop-blur-sm rounded-full p-1.5 shadow-sm hover:bg-white transition-colors">
-                      <Heart size={14} className="text-[#3A8B95]" />
-                    </button>
-                  </div>
-                ))}
-              </div>
+              {approvedGuestUploads.length === 0 ? (
+                <p className="text-[13px] text-[#6F6F6F] text-center py-4">Approved guest photos will appear here</p>
+              ) : (
+                <div className="grid grid-cols-3 gap-2">
+                  {approvedGuestUploads.map((asset) => (
+                    <div key={asset.id} className="aspect-square bg-gradient-to-br from-[#E8CFCF]/30 to-[#F8F7F4] rounded-[16px] flex items-center justify-center relative cursor-pointer hover:opacity-80 transition-opacity overflow-hidden">
+                      {asset.thumbnail_url || asset.url ? <img src={asset.thumbnail_url ?? asset.url} alt={asset.caption ?? 'Guest photo'} className="h-full w-full object-cover" /> : <ImageIcon size={24} className="text-[#3A8B95]/40" />}
+                      <button onClick={() => toggleFeatured(asset)} className="absolute top-2 right-2 bg-white/90 backdrop-blur-sm rounded-full p-1.5 shadow-sm hover:bg-white transition-colors">
+                        <Star size={14} className={asset.is_featured ? 'text-[#3A8B95] fill-[#2F5D50]' : 'text-[#3A8B95]'} />
+                      </button>
+                      <button onClick={() => archiveAsset(asset)} className="absolute bottom-2 right-2 bg-white/90 backdrop-blur-sm rounded-full p-1.5 shadow-sm hover:bg-white transition-colors">
+                        <Archive size={14} className="text-[#3A8B95]" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         )}
@@ -354,21 +490,21 @@ export default function GalleryPage() {
 
             <div className="text-center">
               <p className="text-[13px] text-[#6F6F6F]">
-                173 images saved
+                {savedAssets.length} images saved
               </p>
             </div>
 
             {/* Masonry Grid */}
             <div className="columns-2 gap-3 space-y-3">
-              {[...Array(12)].map((_, i) => {
+              {savedAssets.map((asset, i) => {
                 const heights = ['h-48', 'h-64', 'h-56', 'h-72'];
                 const randomHeight = heights[i % heights.length];
                 return (
                   <div
-                    key={i}
-                    className={`${randomHeight} bg-gradient-to-br from-[#E8CFCF]/30 to-[#F8F7F4] rounded-[20px] flex items-center justify-center relative cursor-pointer hover:opacity-80 transition-opacity break-inside-avoid`}
+                    key={asset.id}
+                    className={`${randomHeight} bg-gradient-to-br from-[#E8CFCF]/30 to-[#F8F7F4] rounded-[20px] flex items-center justify-center relative cursor-pointer hover:opacity-80 transition-opacity break-inside-avoid overflow-hidden`}
                   >
-                    <Image size={32} className="text-[#3A8B95]/40" />
+                    {asset.thumbnail_url || asset.url ? <img src={asset.thumbnail_url ?? asset.url} alt={asset.caption ?? 'Saved image'} className="h-full w-full object-cover" /> : <ImageIcon size={32} className="text-[#3A8B95]/40" />}
                     <button className="absolute top-3 right-3 bg-white/90 backdrop-blur-sm rounded-full p-2 shadow-sm hover:bg-white transition-colors">
                       <Star size={16} className="text-[#3A8B95] fill-[#2F5D50]" />
                     </button>
@@ -383,7 +519,7 @@ export default function GalleryPage() {
                 Save images from Inspiration or Moments
               </p>
               <p className="text-[11px] text-[#6F6F6F]" style={{ fontStyle: 'italic' }}>
-                They'll appear here for easy reference
+                They&apos;ll appear here for easy reference
               </p>
             </div>
           </div>
@@ -403,10 +539,7 @@ export default function GalleryPage() {
 
             {/* Grouped by Stage */}
             {[
-              { stage: 'The Ceremony', date: 'April 15, 2026', count: 147 },
-              { stage: 'Cocktail Hour', date: 'April 15, 2026', count: 82 },
-              { stage: 'Reception', date: 'April 15, 2026', count: 203 },
-              { stage: 'First Dance', date: 'April 15, 2026', count: 54 },
+              { stage: 'Archived photos', date: 'Hidden from guest gallery', count: archivedAssets.length },
             ].map((group, idx) => (
               <div key={idx} className="bg-white rounded-2xl p-5 shadow-[0_4px_12px_rgba(0,0,0,0.04)] border border-[#EAE7E2]">
                 <div className="flex items-center justify-between mb-4">
@@ -414,24 +547,32 @@ export default function GalleryPage() {
                     <h3 className="text-[17px] text-[#2B2B2B]" style={{ fontWeight: 500, fontFamily: 'Playfair Display, serif' }}>
                       {group.stage}
                     </h3>
-                    <p className="text-[11px] text-[#6F6F6F] mt-1">{group.date} • {group.count} photos</p>
+                    <p className="text-[11px] text-[#6F6F6F] mt-1">{group.date} - {group.count} photos</p>
                   </div>
                   <Archive size={20} className="text-[#3A8B95]" />
                 </div>
 
-                <div className="grid grid-cols-3 gap-2 mb-3">
-                  {[...Array(6)].map((_, i) => (
-                    <div
-                      key={i}
-                      className="aspect-square bg-gradient-to-br from-[#E8CFCF]/30 to-[#F8F7F4] rounded-[16px] flex items-center justify-center cursor-pointer hover:opacity-80 transition-opacity"
-                    >
-                      <Camera size={20} className="text-[#3A8B95]/40" />
-                    </div>
-                  ))}
-                </div>
+                {archivedAssets.length > 0 ? (
+                  <div className="grid grid-cols-3 gap-2 mb-3">
+                    {archivedAssets.slice(0, 6).map((asset) => (
+                      <div
+                        key={asset.id}
+                        className="aspect-square bg-gradient-to-br from-[#E8CFCF]/30 to-[#F8F7F4] rounded-[16px] flex items-center justify-center cursor-pointer hover:opacity-80 transition-opacity overflow-hidden"
+                      >
+                        {asset.thumbnail_url || asset.url ? <img src={asset.thumbnail_url ?? asset.url} alt={asset.caption ?? 'Archived photo'} className="h-full w-full object-cover" /> : <Camera size={20} className="text-[#3A8B95]/40" />}
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-[13px] text-[#6F6F6F] text-center py-4">Archived photos will appear here.</p>
+                )}
 
-                <button className="w-full py-2.5 text-[13px] text-[#3A8B95] border border-[#EAE7E2] rounded-[16px] hover:bg-[#FAFAFA] transition-colors" style={{ fontWeight: 500 }}>
-                  View all {group.count} photos
+                <button
+                  onClick={() => setActiveTab('guest-uploads')}
+                  className="w-full py-2.5 text-[13px] text-[#3A8B95] border border-[#EAE7E2] rounded-[16px] hover:bg-[#FAFAFA] transition-colors"
+                  style={{ fontWeight: 500 }}
+                >
+                  Manage guest photos
                 </button>
               </div>
             ))}
@@ -445,8 +586,8 @@ export default function GalleryPage() {
               <p className="text-[13px] text-[#6F6F6F] mb-4">
                 All your planning moments, engagement photos, and pre-wedding celebrations
               </p>
-              <button className="px-5 py-2.5 bg-white border border-[#2F5D50] rounded-[20px] text-[13px] text-[#3A8B95] hover:bg-[#3A8B95] hover:text-white transition-colors" style={{ fontWeight: 500 }}>
-                Browse 284 photos
+              <button onClick={() => setActiveTab('moments')} className="px-5 py-2.5 bg-white border border-[#2F5D50] rounded-[20px] text-[13px] text-[#3A8B95] hover:bg-[#3A8B95] hover:text-white transition-colors" style={{ fontWeight: 500 }}>
+                Browse moments
               </button>
             </div>
           </div>
@@ -466,7 +607,7 @@ export default function GalleryPage() {
             <div className="p-6">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-[20px] text-[#2B2B2B]" style={{ fontWeight: 500 }}>
-                  {moments.find(m => m.id === selectedMoment)?.title ?? 'Moment'}
+                  {selectedMomentAsset?.title ?? 'Moment'}
                 </h3>
                 <button
                   onClick={() => setOpenModal(null)}
@@ -476,15 +617,14 @@ export default function GalleryPage() {
                 </button>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                {[...Array(8)].map((_, i) => (
-                  <div
-                    key={i}
-                    className="aspect-square bg-gradient-to-br from-[#E8CFCF]/30 to-[#F8F7F4] rounded-[20px] flex items-center justify-center"
-                  >
-                    <Image size={32} className="text-[#3A8B95]/40" />
+              <div className="rounded-[20px] bg-[#FAFAFA] overflow-hidden">
+                {selectedMomentAsset?.thumbnail_url || selectedMomentAsset?.url ? (
+                  <img src={selectedMomentAsset.thumbnail_url ?? selectedMomentAsset.url} alt={selectedMomentAsset.caption ?? selectedMomentAsset.title ?? 'Moment photo'} className="w-full max-h-[60vh] object-cover" />
+                ) : (
+                  <div className="aspect-square flex items-center justify-center">
+                    <ImageIcon size={32} className="text-[#3A8B95]/40" />
                   </div>
-                ))}
+                )}
               </div>
             </div>
           </div>
@@ -518,9 +658,9 @@ export default function GalleryPage() {
 
             <div className="bg-[#FAFAFA] rounded-[16px] p-3 mb-4 flex items-center justify-between">
               <span className="text-[12px] text-[#6F6F6F] truncate">
-                udo.wedding/upload/sarah-john-2026
+                {uploadUrl}
               </span>
-              <button className="px-3 py-1.5 bg-[#3A8B95] text-white rounded-[16px] text-[11px] hover:bg-[#3A8B95]/90 transition-colors" style={{ fontWeight: 500 }}>
+              <button onClick={() => copyText(uploadUrl, 'Guest upload link copied.')} className="px-3 py-1.5 bg-[#3A8B95] text-white rounded-[16px] text-[11px] hover:bg-[#3A8B95]/90 transition-colors" style={{ fontWeight: 500 }}>
                 Copy
               </button>
             </div>
@@ -554,11 +694,11 @@ export default function GalleryPage() {
             </div>
 
             <p className="text-[13px] text-[#6F6F6F] mb-6">
-              Link your Pinterest account to import your wedding inspiration boards
+              Pinterest import needs OAuth before it can sync boards into UDO. You can still open Pinterest inspiration in a new tab.
             </p>
 
-            <button className="w-full py-3 bg-[#3A8B95] text-white rounded-[20px] text-[14px] hover:bg-[#3A8B95]/90 transition-colors mb-3" style={{ fontWeight: 500 }}>
-              Connect with Pinterest
+            <button onClick={() => openExternal('https://www.pinterest.com/search/pins/?q=wedding%20inspiration')} className="w-full py-3 bg-[#3A8B95] text-white rounded-[20px] text-[14px] hover:bg-[#3A8B95]/90 transition-colors mb-3" style={{ fontWeight: 500 }}>
+              Open Pinterest inspiration
             </button>
 
             <button
@@ -604,18 +744,18 @@ export default function GalleryPage() {
                 />
               </div>
 
-              <div className="bg-[#FAFAFA] border-2 border-dashed border-[#EAE7E2] rounded-[20px] p-8 text-center cursor-pointer hover:border-[#2F5D50] transition-colors">
+              <div className="bg-[#FAFAFA] border-2 border-dashed border-[#EAE7E2] rounded-[20px] p-8 text-center">
                 <Upload size={32} className="text-[#3A8B95] mx-auto mb-3" />
                 <p className="text-[13px] text-[#2B2B2B] mb-1" style={{ fontWeight: 500 }}>
-                  Upload photos
+                  Upload endpoint required
                 </p>
                 <p className="text-[11px] text-[#6F6F6F]">
-                  Drag and drop or click to browse
+                  Use the guest upload link for now. Direct organizer upload is queued for backend support.
                 </p>
               </div>
 
-              <button className="w-full py-3 bg-[#3A8B95] text-white rounded-[20px] text-[14px] hover:bg-[#3A8B95]/90 transition-colors" style={{ fontWeight: 500 }}>
-                Create moment
+              <button onClick={() => copyText(uploadUrl, 'Guest upload link copied.')} className="w-full py-3 bg-[#3A8B95] text-white rounded-[20px] text-[14px] hover:bg-[#3A8B95]/90 transition-colors" style={{ fontWeight: 500 }}>
+                Copy upload link
               </button>
             </div>
           </div>

@@ -4,6 +4,8 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Database\Eloquent\Relations\MorphMany;
 
 class RegistryContribution extends Model
 {
@@ -21,5 +23,8 @@ class RegistryContribution extends Model
     ];
 
     public function item(): BelongsTo { return $this->belongsTo(RegistryItem::class, 'registry_item_id'); }
+    public function wedding(): BelongsTo { return $this->belongsTo(Wedding::class); }
     public function guest(): BelongsTo { return $this->belongsTo(Guest::class); }
+    public function thankYouRecord(): HasOne { return $this->hasOne(ThankYouRecord::class, 'contribution_id'); }
+    public function subjectAuditLogs(): MorphMany { return $this->morphMany(AuditLog::class, 'auditable'); }
 }

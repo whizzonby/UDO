@@ -2,12 +2,14 @@
 
 namespace App\Http\Controllers;
 
-use App\Mail\TemplatedMail;
+use App\Jobs\SendGuestInviteJob;
 use App\Models\Guest;
 use App\Models\GuestToken;
+use App\Services\AuditLogService;
+use App\Services\SubscriptionEntitlementService;
+use App\Services\WeddingAccessService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Mail;
 
 class GuestController extends Controller
 {
@@ -15,21 +17,18 @@ class GuestController extends Controller
     {
         $wedding = $request->user()->activeWedding;
         abort_unless($wedding, 403, 'No active wedding.');
+        abort_unless(app(WeddingAccessService::class)->canAccessWedding($request->user(), $wedding), 403);
         return $wedding;
+    }
+
+    private function ensureCanManageGuests(Request $request): void
+    {
+        abort_unless(app(WeddingAccessService::class)->can($request->user(), $this->wedding($request), 'manage_guests'), 403);
     }
 
     public function index(Request $request): JsonResponse
     {
-        $wedding = $this->wedding($request);
-
-        $guests = $wedding->guests()
-            ->when($request->group, fn($q) => $q->where('guest_group', $request->group))
-            ->when($request->status, fn($q) => $q->where('attending_status', $request->status))
-            ->when($request->search, fn($q) => $q->where(function ($q) use ($request) {
-                $q->where('first_name', 'like', "%{$request->search}%")
-                  ->orWhere('last_name', 'like', "%{$request->search}%")
-                  ->orWhere('email', 'like', "%{$request->search}%");
-            }))
+        $guests = $this->filteredGuests($request)
             ->orderBy('last_name')
             ->orderBy('first_name')
             ->get();
@@ -37,27 +36,77 @@ class GuestController extends Controller
         return response()->json(['data' => $guests]);
     }
 
+    public function export(Request $request)
+    {
+        $guests = $this->filteredGuests($request)
+            ->orderBy('last_name')
+            ->orderBy('first_name')
+            ->get();
+
+        $rows = $guests->map(fn (Guest $guest) => [
+            $guest->first_name,
+            $guest->last_name,
+            $guest->email,
+            $guest->phone,
+            $guest->attending_status,
+            $guest->guest_group,
+            $guest->vip_flag ? 'yes' : 'no',
+        ])->prepend(['first_name', 'last_name', 'email', 'phone', 'attending_status', 'guest_group', 'vip']);
+
+        return response($this->csv($rows), 200, [
+            'Content-Type' => 'text/csv',
+            'Content-Disposition' => 'attachment; filename="guests.csv"',
+        ]);
+    }
+
+    private function filteredGuests(Request $request)
+    {
+        return $this->wedding($request)->guests()
+            ->when($request->group, fn ($q) => $q->where('guest_group', $request->group))
+            ->when($request->status, fn ($q) => $q->where('attending_status', $request->status))
+            ->when($request->invite_status, fn ($q) => $q->where('invite_status', $request->invite_status))
+            ->when($request->has('vip_flag'), fn ($q) => $q->where('vip_flag', $request->boolean('vip_flag')))
+            ->when($request->has('travel_required'), fn ($q) => $q->where('travel_required', $request->boolean('travel_required')))
+            ->when($request->boolean('missing_meal'), fn ($q) => $q->where('attending_status', 'yes')->whereNull('meal_preference'))
+            ->when($request->boolean('missing_logistics'), fn ($q) => $q->where('travel_required', true)->where(function ($missing) {
+                $missing->whereNull('arrival_date')->orWhereNull('hotel_assignment_id')->orWhereNull('transport_assignment_id');
+            }))
+            ->when($request->boolean('has_email'), fn ($q) => $q->whereNotNull('email')->where('email', '!=', ''))
+            ->when($request->search, fn ($q) => $q->where(function ($q) use ($request) {
+                $q->where('first_name', 'like', "%{$request->search}%")
+                  ->orWhere('last_name', 'like', "%{$request->search}%")
+                  ->orWhere('email', 'like', "%{$request->search}%")
+                  ->orWhere('phone', 'like', "%{$request->search}%");
+            }));
+    }
+
     public function store(Request $request): JsonResponse
     {
         $wedding = $this->wedding($request);
+        $this->ensureCanManageGuests($request);
+        app(SubscriptionEntitlementService::class)->ensureWithinLimit($wedding, 'guests');
 
         $data = $request->validate([
-            'first_name'      => 'required|string|max:100',
-            'last_name'       => 'nullable|string|max:100',
-            'email'           => 'nullable|email',
-            'phone'           => 'nullable|string',
-            'guest_group'     => 'nullable|string',
-            'vip_flag'        => 'boolean',
+            'first_name' => 'required|string|max:100',
+            'last_name' => 'nullable|string|max:100',
+            'email' => 'nullable|email',
+            'email_opt_out' => 'boolean',
+            'phone' => 'nullable|string',
+            'sms_opt_out' => 'boolean',
+            'whatsapp_opt_out' => 'boolean',
+            'guest_group' => 'nullable|string',
+            'vip_flag' => 'boolean',
             'plus_one_allowed' => 'boolean',
             'meal_preference' => 'nullable|string',
-            'allergies'       => 'nullable|string',
-            'notes'           => 'nullable|string',
+            'allergies' => 'nullable|string',
+            'notes' => 'nullable|string',
             'wedding_party_role' => 'nullable|string|max:100',
-            'attire_status'      => 'nullable|in:not_started,ordered,fitted,ready',
-            'rehearsal_status'   => 'nullable|in:pending,confirmed,declined',
+            'attire_status' => 'nullable|in:not_started,ordered,fitted,ready',
+            'rehearsal_status' => 'nullable|in:pending,confirmed,declined',
         ]);
 
         $guest = $wedding->guests()->create($data);
+        app(AuditLogService::class)->record('guest.created', $wedding, $request->user(), $guest, null, $guest->toArray(), request: $request);
 
         return response()->json(['data' => $guest], 201);
     }
@@ -72,41 +121,55 @@ class GuestController extends Controller
     public function update(Request $request, Guest $guest): JsonResponse
     {
         $this->authorizeGuest($request, $guest);
+        $this->ensureCanManageGuests($request);
 
         $data = $request->validate([
-            'first_name'       => 'sometimes|string|max:100',
-            'last_name'        => 'nullable|string|max:100',
-            'email'            => 'nullable|email',
-            'phone'            => 'nullable|string',
-            'guest_group'      => 'nullable|string',
-            'custom_tags'      => 'nullable|array',
-            'vip_flag'         => 'boolean',
+            'first_name' => 'sometimes|string|max:100',
+            'last_name' => 'nullable|string|max:100',
+            'email' => 'nullable|email',
+            'email_opt_out' => 'boolean',
+            'phone' => 'nullable|string',
+            'sms_opt_out' => 'boolean',
+            'whatsapp_opt_out' => 'boolean',
+            'guest_group' => 'nullable|string',
+            'custom_tags' => 'nullable|array',
+            'vip_flag' => 'boolean',
             'attending_status' => 'nullable|in:pending,yes,no',
-            'invite_status'    => 'nullable|string',
+            'invite_status' => 'nullable|string',
             'plus_one_allowed' => 'boolean',
-            'plus_one_count'   => 'integer|min:0|max:5',
-            'meal_preference'  => 'nullable|string',
-            'allergies'        => 'nullable|string',
-            'dietary_note'     => 'nullable|string',
-            'travel_required'  => 'boolean',
-            'arrival_date'     => 'nullable|date',
-            'departure_date'   => 'nullable|date',
-            'arrival_airport'  => 'nullable|string',
-            'notes'            => 'nullable|string',
+            'plus_one_count' => 'integer|min:0|max:5',
+            'meal_preference' => 'nullable|string',
+            'allergies' => 'nullable|string',
+            'dietary_note' => 'nullable|string',
+            'travel_required' => 'boolean',
+            'arrival_date' => 'nullable|date',
+            'departure_date' => 'nullable|date',
+            'arrival_airport' => 'nullable|string',
+            'notes' => 'nullable|string',
             'wedding_party_role' => 'nullable|string|max:100',
-            'attire_status'      => 'nullable|in:not_started,ordered,fitted,ready',
-            'rehearsal_status'   => 'nullable|in:pending,confirmed,declined',
+            'attire_status' => 'nullable|in:not_started,ordered,fitted,ready',
+            'rehearsal_status' => 'nullable|in:pending,confirmed,declined',
         ]);
 
+        $before = $guest->only(array_keys($data));
         $guest->update($data);
+        $fresh = $guest->fresh();
+        [$beforeChanged, $afterChanged] = app(AuditLogService::class)->changes($before, $fresh->only(array_keys($data)), array_keys($data));
 
-        return response()->json(['data' => $guest->fresh()]);
+        if ($afterChanged) {
+            app(AuditLogService::class)->record('guest.updated', $this->wedding($request), $request->user(), $fresh, $beforeChanged, $afterChanged, request: $request);
+        }
+
+        return response()->json(['data' => $fresh]);
     }
 
     public function destroy(Request $request, Guest $guest): JsonResponse
     {
         $this->authorizeGuest($request, $guest);
+        $this->ensureCanManageGuests($request);
+        $before = $guest->toArray();
         $guest->delete();
+        app(AuditLogService::class)->record('guest.deleted', $this->wedding($request), $request->user(), $guest, $before, null, request: $request);
 
         return response()->json(null, 204);
     }
@@ -114,6 +177,7 @@ class GuestController extends Controller
     public function generateToken(Request $request, Guest $guest): JsonResponse
     {
         $this->authorizeGuest($request, $guest);
+        $this->ensureCanManageGuests($request);
 
         $existing = $guest->token;
         if ($existing) {
@@ -123,8 +187,8 @@ class GuestController extends Controller
 
         $guestToken = GuestToken::create([
             'wedding_id' => $guest->wedding_id,
-            'guest_id'   => $guest->id,
-            'view_type'  => $guest->guest_view_type,
+            'guest_id' => $guest->id,
+            'view_type' => $guest->guest_view_type,
         ]);
 
         return response()->json(['token' => $guestToken->token]);
@@ -133,59 +197,111 @@ class GuestController extends Controller
     public function sendInvite(Request $request, Guest $guest): JsonResponse
     {
         $this->authorizeGuest($request, $guest);
-        $wedding = $this->wedding($request);
+        $this->ensureCanManageGuests($request);
 
         if (! $guest->token) {
             GuestToken::create([
                 'wedding_id' => $guest->wedding_id,
-                'guest_id'   => $guest->id,
-                'view_type'  => $guest->guest_view_type,
+                'guest_id' => $guest->id,
+                'view_type' => $guest->guest_view_type,
             ]);
             $guest->load('token');
         }
 
-        if ($guest->email) {
-            $coupleNames = trim(implode(' & ', array_filter([
-                $wedding->couple_name_primary, $wedding->couple_name_secondary,
-            ]))) ?: 'We';
-            $venueLine = $wedding->primary_venue_name
-                ? " at {$wedding->primary_venue_name}"
-                : ($wedding->city ? " in {$wedding->city}" : '');
-            $frontendUrl = rtrim(env('FRONTEND_URL', 'http://localhost:3000'), '/');
+        if (! $guest->email) {
+            $guest->update(['invite_status' => 'failed']);
+            app(AuditLogService::class)->record('guest.invite_failed', $this->wedding($request), $request->user(), $guest->fresh(), null, ['invite_status' => 'failed'], [
+                'reason' => 'missing_email',
+            ], $request);
 
-            Mail::to($guest->email)->send(new TemplatedMail('guest_invite', [
-                'first_name'   => $guest->first_name,
-                'couple_names' => $coupleNames,
-                'event_date'   => $wedding->event_date?->format('F j, Y') ?? 'a date to be confirmed',
-                'venue_line'   => $venueLine,
-                'rsvp_url'     => "{$frontendUrl}/rsvp/{$guest->token->token}",
-            ]));
+            return response()->json([
+                'data' => $guest->fresh('token'),
+                'message' => 'Guest has no email address, so the invite could not be queued.',
+            ], 422);
         }
 
-        $guest->update(['invite_status' => 'sent']);
+        $guest->update(['invite_status' => 'queued']);
+        SendGuestInviteJob::dispatch($guest->id);
+        app(AuditLogService::class)->record('guest.invite_queued', $this->wedding($request), $request->user(), $guest->fresh(), null, ['invite_status' => 'queued'], request: $request);
 
-        return response()->json(['data' => $guest->fresh('token'), 'message' => $guest->email ? 'Invite sent.' : 'No email on file — invite marked sent without emailing.']);
+        return response()->json(['data' => $guest->fresh('token'), 'message' => 'Invite queued for delivery.']);
     }
 
     public function bulkImport(Request $request): JsonResponse
     {
         $wedding = $this->wedding($request);
+        $this->ensureCanManageGuests($request);
 
         $request->validate([
-            'guests'              => 'required|array|min:1',
+            'guests' => 'required|array|min:1',
             'guests.*.first_name' => 'required|string',
-            'guests.*.last_name'  => 'nullable|string',
-            'guests.*.email'      => 'nullable|email',
+            'guests.*.last_name' => 'nullable|string',
+            'guests.*.email' => 'nullable|email',
         ]);
 
-        $created = collect($request->guests)->map(fn($g) => $wedding->guests()->create($g));
+        $guests = $request->input('guests', []);
+        app(SubscriptionEntitlementService::class)->ensureWithinLimit($wedding, 'guests', count($guests));
+
+        $created = collect($guests)->map(fn ($g) => $wedding->guests()->create($g));
+        app(AuditLogService::class)->record('guest.bulk_imported', $wedding, $request->user(), null, null, [
+            'imported' => $created->count(),
+        ], request: $request);
 
         return response()->json(['data' => $created->values(), 'imported' => $created->count()]);
+    }
+
+    public function bulkUpdate(Request $request): JsonResponse
+    {
+        $wedding = $this->wedding($request);
+        $this->ensureCanManageGuests($request);
+
+        $data = $request->validate([
+            'ids' => 'required|array|min:1',
+            'ids.*' => 'integer',
+            'updates' => 'required|array',
+            'updates.attending_status' => 'nullable|in:pending,yes,no',
+            'updates.invite_status' => 'nullable|string|max:100',
+            'updates.guest_group' => 'nullable|string|max:100',
+            'updates.vip_flag' => 'nullable|boolean',
+            'updates.travel_required' => 'nullable|boolean',
+            'updates.meal_preference' => 'nullable|string|max:100',
+            'confirm' => 'accepted',
+        ]);
+
+        $allowedUpdates = collect($data['updates'])->only([
+            'attending_status',
+            'invite_status',
+            'guest_group',
+            'vip_flag',
+            'travel_required',
+            'meal_preference',
+        ])->all();
+        abort_if(empty($allowedUpdates), 422, 'No supported updates were provided.');
+
+        $guests = $wedding->guests()->whereIn('id', $data['ids'])->get();
+        abort_unless($guests->count() === count(array_unique($data['ids'])), 422, 'One or more guests do not belong to this wedding.');
+
+        $before = $guests->map(fn (Guest $guest) => $guest->only(array_keys($allowedUpdates)));
+        $wedding->guests()->whereIn('id', $data['ids'])->update($allowedUpdates);
+        app(AuditLogService::class)->record('guest.bulk_updated', $wedding, $request->user(), null, ['records' => $before], [
+            'updated_ids' => $guests->pluck('id')->values()->all(),
+            'updates' => $allowedUpdates,
+        ], request: $request);
+
+        return response()->json([
+            'updated' => $guests->count(),
+            'data' => $wedding->guests()->whereIn('id', $data['ids'])->orderBy('last_name')->orderBy('first_name')->get(),
+        ]);
     }
 
     private function authorizeGuest(Request $request, Guest $guest): void
     {
         $wedding = $this->wedding($request);
         abort_unless($guest->wedding_id === $wedding->id, 403, 'Forbidden.');
+    }
+
+    private function csv($rows): string
+    {
+        return $rows->map(fn ($row) => collect($row)->map(fn ($value) => '"' . str_replace('"', '""', (string) $value) . '"')->implode(','))->implode("\n") . "\n";
     }
 }

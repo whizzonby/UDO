@@ -9,7 +9,8 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 class Message extends Model
 {
     protected $fillable = [
-        'wedding_id', 'created_by', 'subject', 'body', 'channel',
+        'wedding_id', 'created_by', 'campaign_name', 'campaign_type', 'template_id',
+        'subject', 'body', 'channel',
         'audience_filter', 'recipient_count', 'status',
         'scheduled_at', 'sent_at', 'message_type',
     ];

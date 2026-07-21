@@ -2,10 +2,13 @@
 
 namespace App\Filament\Resources;
 
+use App\Filament\Concerns\HasDomainPermission;
+
 use App\Filament\Resources\UserResource\Pages;
 use App\Filament\Resources\UserResource\RelationManagers;
 use App\Models\User;
 use Filament\Forms;
+use Filament\Infolists;
 use Filament\Schemas\Schema;
 use Filament\Resources\Resource;
 use Filament\Tables;
@@ -16,6 +19,10 @@ use UnitEnum;
 
 class UserResource extends Resource
 {
+    use HasDomainPermission;
+
+    protected static string $requiredPermission = 'admin.users';
+
     protected static ?string $model = User::class;
     protected static string|\BackedEnum|null $navigationIcon = 'heroicon-o-user';
     protected static string|\UnitEnum|null $navigationGroup = 'Platform';
@@ -46,6 +53,89 @@ class UserResource extends Resource
                     ->multiple()
                     ->preload()
                     ->label('Roles'),
+            ]),
+        ]);
+    }
+
+    public static function infolist(Schema $schema): Schema
+    {
+        return $schema->schema([
+            \Filament\Schemas\Components\Section::make('Account overview')->columns(3)->schema([
+                Infolists\Components\TextEntry::make('full_name')
+                    ->label('Name')
+                    ->getStateUsing(fn (User $user) => $user->full_name),
+                Infolists\Components\TextEntry::make('email')
+                    ->copyable(),
+                Infolists\Components\TextEntry::make('phone')
+                    ->default('-'),
+                Infolists\Components\TextEntry::make('auth_provider')
+                    ->label('Auth provider')
+                    ->badge()
+                    ->formatStateUsing(fn ($state) => $state ?: 'email')
+                    ->color(fn ($state) => match ($state) {
+                        'google' => 'info',
+                        'apple' => 'gray',
+                        'deleted' => 'danger',
+                        default => 'success',
+                    }),
+                Infolists\Components\TextEntry::make('email_verified_at')
+                    ->label('Email verified')
+                    ->since()
+                    ->placeholder('Not verified'),
+                Infolists\Components\TextEntry::make('onboarding_completed')
+                    ->label('Onboarded')
+                    ->badge()
+                    ->formatStateUsing(fn ($state) => $state ? 'Yes' : 'No')
+                    ->color(fn ($state) => $state ? 'success' : 'warning'),
+            ]),
+            \Filament\Schemas\Components\Section::make('Admin and support context')->columns(4)->schema([
+                Infolists\Components\TextEntry::make('roles.name')
+                    ->label('Roles')
+                    ->badge()
+                    ->separator(', ')
+                    ->default('No staff roles'),
+                Infolists\Components\TextEntry::make('subscription.plan')
+                    ->label('Current plan')
+                    ->badge()
+                    ->default('free')
+                    ->color(fn ($state) => match ($state) {
+                        'starter' => 'info',
+                        'pro' => 'success',
+                        'elite' => 'warning',
+                        default => 'gray',
+                    }),
+                Infolists\Components\TextEntry::make('activeWedding.couple_name_primary')
+                    ->label('Active wedding')
+                    ->default('-'),
+                Infolists\Components\TextEntry::make('created_at')
+                    ->label('Joined')
+                    ->since(),
+                Infolists\Components\TextEntry::make('owned_weddings_count')
+                    ->label('Owned weddings')
+                    ->getStateUsing(fn (User $user) => $user->ownedWeddings()->count()),
+                Infolists\Components\TextEntry::make('collaborations_count')
+                    ->label('Collaborations')
+                    ->getStateUsing(fn (User $user) => $user->collaborations()->count()),
+                Infolists\Components\TextEntry::make('support_tickets_count')
+                    ->label('Support tickets')
+                    ->getStateUsing(fn (User $user) => $user->supportTickets()->count()),
+                Infolists\Components\TextEntry::make('api_tokens_count')
+                    ->label('API tokens')
+                    ->getStateUsing(fn (User $user) => $user->tokens()->count()),
+                Infolists\Components\TextEntry::make('account_deleted_at')
+                    ->label('Account deletion marker')
+                    ->getStateUsing(fn (User $user) => $user->support_preferences['account_deleted_at'] ?? null)
+                    ->default('-'),
+            ]),
+            \Filament\Schemas\Components\Section::make('Preferences')->columns(2)->schema([
+                Infolists\Components\TextEntry::make('notification_preferences')
+                    ->label('Notifications')
+                    ->formatStateUsing(fn ($state) => json_encode($state ?: [], JSON_PRETTY_PRINT))
+                    ->columnSpan(1),
+                Infolists\Components\TextEntry::make('support_preferences')
+                    ->label('Support')
+                    ->formatStateUsing(fn ($state) => json_encode($state ?: [], JSON_PRETTY_PRINT))
+                    ->columnSpan(1),
             ]),
         ]);
     }
@@ -99,6 +189,7 @@ class UserResource extends Resource
                     ->options(['email' => 'Email', 'google' => 'Google', 'apple' => 'Apple']),
             ])
             ->actions([
+                Actions\ViewAction::make(),
                 Actions\EditAction::make(),
                 Actions\DeleteAction::make(),
             ])
@@ -113,8 +204,10 @@ class UserResource extends Resource
     {
         return [
             RelationManagers\WeddingsRelationManager::class,
+            RelationManagers\CollaborationsRelationManager::class,
             RelationManagers\SubscriptionsRelationManager::class,
             RelationManagers\SupportTicketsRelationManager::class,
+            RelationManagers\SubjectAuditLogsRelationManager::class,
         ];
     }
 
@@ -123,6 +216,7 @@ class UserResource extends Resource
         return [
             'index'  => Pages\ListUsers::route('/'),
             'create' => Pages\CreateUser::route('/create'),
+            'view'   => Pages\ViewUser::route('/{record}'),
             'edit'   => Pages\EditUser::route('/{record}/edit'),
         ];
     }
