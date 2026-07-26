@@ -100,7 +100,7 @@ export function Pricing() {
                       color: "#ffffff"
                     }}
                   >
-                    <Link href="/register">Get Started Now</Link>
+                    <Link href="/checkout">Get Started Now</Link>
                   </Button>
 
                   <p

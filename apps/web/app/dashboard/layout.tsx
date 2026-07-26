@@ -3,21 +3,20 @@
 import { useEffect } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
-import { Home, Calendar, Users, Radio, Image, MoreHorizontal } from 'lucide-react';
+import { LayoutDashboard, ListChecks, Image as ImageIcon, User, CreditCard, LogOut, Heart } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { WeddingProvider } from '@/contexts/WeddingContext';
 
 const tabs = [
-  { href: '/dashboard/home', label: 'Home', icon: Home },
-  { href: '/dashboard/plan', label: 'Plan', icon: Calendar },
-  { href: '/dashboard/guests', label: 'Guests', icon: Users },
-  { href: '/dashboard/live', label: 'Live', icon: Radio },
-  { href: '/dashboard/gallery', label: 'Gallery', icon: Image },
-  { href: '/dashboard/more', label: 'More', icon: MoreHorizontal },
+  { href: '/dashboard/home', label: 'Overview', icon: LayoutDashboard },
+  { href: '/dashboard/tasks', label: 'Tasks', icon: ListChecks },
+  { href: '/dashboard/gallery', label: 'Gallery', icon: ImageIcon },
+  { href: '/dashboard/account', label: 'Account', icon: User },
+  { href: '/dashboard/billing', label: 'Billing', icon: CreditCard },
 ];
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
-  const { user, isLoading } = useAuth();
+  const { user, isLoading, logout } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
 
@@ -39,36 +38,59 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   return (
     <WeddingProvider>
-    <div className="h-screen flex flex-col bg-white overflow-hidden max-w-md mx-auto relative">
-      <div className="flex-1 overflow-y-auto pb-20">
-        {children}
-      </div>
-
-      {/* Bottom navigation */}
-      <div className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-md bg-white border-t border-gray-200 shadow-[0_-4px_12px_rgba(0,0,0,0.05)] z-50">
-        <div className="flex justify-around items-center px-2 py-2">
-          {tabs.map(({ href, label, icon: Icon }) => {
-            const isActive = pathname.startsWith(href);
-            return (
-              <Link
-                key={href}
-                href={href}
-                className="flex flex-col items-center justify-center flex-1 py-2 px-1 transition-all duration-200"
-              >
-                <Icon
-                  className={`mb-1 transition-colors ${isActive ? 'text-[#FF3E9B]' : 'text-gray-400'}`}
-                  size={22}
-                  strokeWidth={isActive ? 2.5 : 2}
-                />
-                <span className={`text-[10px] transition-colors ${isActive ? 'text-[#FF3E9B] font-medium' : 'text-gray-500'}`}>
+      <div className="min-h-screen bg-[#FAFAF8]">
+        <header className="bg-white border-b border-gray-200">
+          <div className="mx-auto max-w-6xl px-6 flex items-center justify-between h-16">
+            <Link href="/dashboard/home" className="flex items-center gap-2">
+              <Heart className="text-[#D8909A]" size={20} fill="#D8909A" />
+              <span className="font-medium text-[#2F4A3C]">Udo</span>
+            </Link>
+            <nav className="hidden sm:flex items-center gap-1">
+              {tabs.map(({ href, label, icon: Icon }) => {
+                const isActive = pathname.startsWith(href);
+                return (
+                  <Link
+                    key={href}
+                    href={href}
+                    className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                      isActive ? 'bg-[#285301]/10 text-[#285301]' : 'text-gray-500 hover:text-gray-700'
+                    }`}
+                  >
+                    <Icon size={16} />
+                    {label}
+                  </Link>
+                );
+              })}
+            </nav>
+            <button
+              onClick={logout}
+              className="flex items-center gap-1.5 text-sm text-gray-400 hover:text-gray-600"
+            >
+              <LogOut size={16} />
+              <span className="hidden sm:inline">Log out</span>
+            </button>
+          </div>
+          {/* Mobile nav */}
+          <nav className="sm:hidden flex items-center gap-1 overflow-x-auto px-4 pb-3">
+            {tabs.map(({ href, label, icon: Icon }) => {
+              const isActive = pathname.startsWith(href);
+              return (
+                <Link
+                  key={href}
+                  href={href}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap ${
+                    isActive ? 'bg-[#285301]/10 text-[#285301]' : 'text-gray-500'
+                  }`}
+                >
+                  <Icon size={14} />
                   {label}
-                </span>
-              </Link>
-            );
-          })}
-        </div>
+                </Link>
+              );
+            })}
+          </nav>
+        </header>
+        <main className="mx-auto max-w-6xl px-6 py-8">{children}</main>
       </div>
-    </div>
     </WeddingProvider>
   );
 }

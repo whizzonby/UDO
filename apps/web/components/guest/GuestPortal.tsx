@@ -4,7 +4,8 @@
 
 import { useEffect, useState } from 'react';
 import type { ReactNode } from 'react';
-import { Calendar, Check, Clock, Gift, Heart, Image as ImageIcon, MapPin, Radio, X } from 'lucide-react';
+import { Calendar, Check, Clock, Gift, Heart, Image as ImageIcon, MapPin, MessageSquare, Radio, X } from 'lucide-react';
+import VoiceRecorder from './VoiceRecorder';
 
 type GuestData = {
   first_name: string;
@@ -103,6 +104,12 @@ type GalleryItem = {
   is_featured: boolean;
 };
 
+type GuestbookMessage = {
+  guest_name: string | null;
+  message: string;
+  created_at: string;
+};
+
 type LiveUpdate = {
   id: number;
   type: string;
@@ -166,6 +173,7 @@ type PortalData = {
     registry: RegistryItem[];
     gallery: GalleryItem[];
     live_updates: LiveUpdate[];
+    guestbook: GuestbookMessage[];
   };
 };
 
@@ -183,6 +191,7 @@ export default function GuestPortal({ token }: { token: string }) {
   const [preferencesSaved, setPreferencesSaved] = useState(false);
   const [preferencesError, setPreferencesError] = useState<string | null>(null);
   const [photoFile, setPhotoFile] = useState<File | null>(null);
+  const [voiceFile, setVoiceFile] = useState<File | null>(null);
   const [photoCaption, setPhotoCaption] = useState('');
   const [photoSaving, setPhotoSaving] = useState(false);
   const [photoMessage, setPhotoMessage] = useState<string | null>(null);
@@ -190,6 +199,9 @@ export default function GuestPortal({ token }: { token: string }) {
   const [registryMessage, setRegistryMessage] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
+  const [guestbookText, setGuestbookText] = useState('');
+  const [guestbookSaving, setGuestbookSaving] = useState(false);
+  const [guestbookMessage, setGuestbookMessage] = useState<string | null>(null);
 
   useEffect(() => {
     fetch(`${API_BASE}/g/${token}`)
@@ -250,22 +262,44 @@ export default function GuestPortal({ token }: { token: string }) {
   };
 
   const uploadPhoto = async () => {
-    if (!photoFile) return;
+    const fileToSend = photoFile ?? voiceFile;
+    if (!fileToSend) return;
     setPhotoSaving(true);
     setPhotoMessage(null);
     try {
       const form = new FormData();
-      form.append('file', photoFile);
+      form.append('file', fileToSend);
       if (photoCaption.trim()) form.append('caption', photoCaption.trim());
       const res = await fetch(`${API_BASE}/g/${token}/gallery`, { method: 'POST', body: form });
-      if (!res.ok) throw new Error('Could not upload this photo.');
+      if (!res.ok) throw new Error('Could not upload this.');
       setPhotoFile(null);
+      setVoiceFile(null);
       setPhotoCaption('');
-      setPhotoMessage('Photo uploaded for review.');
+      setPhotoMessage('Uploaded for review.');
     } catch (e) {
-      setPhotoMessage(e instanceof Error ? e.message : 'Could not upload this photo.');
+      setPhotoMessage(e instanceof Error ? e.message : 'Could not upload this.');
     } finally {
       setPhotoSaving(false);
+    }
+  };
+
+  const submitGuestbookMessage = async () => {
+    if (!guestbookText.trim()) return;
+    setGuestbookSaving(true);
+    setGuestbookMessage(null);
+    try {
+      const res = await fetch(`${API_BASE}/g/${token}/guestbook`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: guestbookText.trim() }),
+      });
+      if (!res.ok) throw new Error('Could not sign the guestbook.');
+      setGuestbookText('');
+      setGuestbookMessage('Thank you for signing the guestbook.');
+    } catch (e) {
+      setGuestbookMessage(e instanceof Error ? e.message : 'Could not sign the guestbook.');
+    } finally {
+      setGuestbookSaving(false);
     }
   };
 
@@ -571,14 +605,53 @@ export default function GuestPortal({ token }: { token: string }) {
       )}
 
       {experience.sections.photo_uploads && (
-        <Card title="Share a photo">
+        <Card title="Share a photo, video, or voice message">
           <div className="space-y-3">
-            <input type="file" accept="image/*,video/*" onChange={event => setPhotoFile(event.target.files?.[0] ?? null)} className="block w-full text-sm text-gray-600" />
+            <input
+              type="file"
+              accept="image/*,video/*"
+              onChange={event => { setPhotoFile(event.target.files?.[0] ?? null); setVoiceFile(null); }}
+              className="block w-full text-sm text-gray-600"
+            />
+            <div className="flex items-center gap-2 text-xs text-gray-400">
+              <div className="flex-1 border-t border-gray-100" />
+              or
+              <div className="flex-1 border-t border-gray-100" />
+            </div>
+            <VoiceRecorder onRecorded={file => { setVoiceFile(file); if (file) setPhotoFile(null); }} />
             <input value={photoCaption} onChange={event => setPhotoCaption(event.target.value)} placeholder="Caption" className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm" />
-            <button disabled={!photoFile || photoSaving} onClick={uploadPhoto} className="w-full py-3 rounded-xl text-sm font-semibold text-white disabled:opacity-50" style={{ backgroundColor: portalColor }}>
+            <button disabled={(!photoFile && !voiceFile) || photoSaving} onClick={uploadPhoto} className="w-full py-3 rounded-xl text-sm font-semibold text-white disabled:opacity-50" style={{ backgroundColor: portalColor }}>
               {photoSaving ? 'Uploading...' : 'Upload for review'}
             </button>
             {photoMessage && <p className="text-xs text-gray-500">{photoMessage}</p>}
+          </div>
+        </Card>
+      )}
+
+      {experience.sections.messages && (
+        <Card title="Sign the guestbook" icon={<MessageSquare size={16} style={{ color: portalColor }} />}>
+          <div className="space-y-3">
+            <textarea
+              value={guestbookText}
+              onChange={event => setGuestbookText(event.target.value)}
+              placeholder="Leave a message for the happy couple..."
+              rows={3}
+              className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm resize-none"
+            />
+            <button disabled={!guestbookText.trim() || guestbookSaving} onClick={submitGuestbookMessage} className="w-full py-3 rounded-xl text-sm font-semibold text-white disabled:opacity-50" style={{ backgroundColor: portalColor }}>
+              {guestbookSaving ? 'Sending...' : 'Sign the guestbook'}
+            </button>
+            {guestbookMessage && <p className="text-xs text-gray-500">{guestbookMessage}</p>}
+            {sections.guestbook.length > 0 && (
+              <div className="mt-4 space-y-2 border-t border-gray-100 pt-4">
+                {sections.guestbook.map((entry, i) => (
+                  <div key={i} className="bg-gray-50 rounded-xl p-3">
+                    <p className="text-sm text-gray-700">{entry.message}</p>
+                    <p className="text-xs text-gray-400 mt-1">{entry.guest_name ?? 'A guest'}</p>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </Card>
       )}
