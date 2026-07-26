@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Plan;
 
 use App\Http\Controllers\Controller;
 use App\Models\Vendor;
+use App\Services\ApprovalGatingService;
 use App\Services\WeddingAccessService;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Http\JsonResponse;
@@ -122,6 +123,7 @@ class VendorController extends Controller
     public function update(Request $request, Vendor $vendor): JsonResponse
     {
         $this->authorize($request, $vendor);
+        $wedding = $this->wedding($request);
         $this->ensureCanManageVendors($request);
 
         $data = $request->validate([
@@ -138,6 +140,7 @@ class VendorController extends Controller
             'deposit_due_date'  => 'nullable|date',
             'balance_due_date'  => 'nullable|date',
             'booking_status'   => 'nullable|in:researching,negotiating,booked,confirmed,cancelled',
+            'checked_in_at'    => 'nullable|date',
             'contract_signed'  => 'nullable|boolean',
             'contract_file_url' => 'nullable|url',
             'on_timeline'      => 'nullable|boolean',
@@ -145,9 +148,33 @@ class VendorController extends Controller
             'notes'            => 'nullable|string',
         ]);
 
+        $isConfirming = ($data['booking_status'] ?? null) === 'confirmed' && $vendor->booking_status !== 'confirmed';
+
+        if ($isConfirming) {
+            $result = app(ApprovalGatingService::class)->requestOrApply(
+                $wedding,
+                'vendors',
+                $vendor,
+                $data,
+                $request->user(),
+                "Confirm vendor: {$vendor->name}",
+                "Booking status changing to confirmed for {$vendor->name}.",
+            );
+
+            if ($result['gated']) {
+                return response()->json([
+                    'data' => $vendor->fresh(),
+                    'gated' => true,
+                    'approval_request_id' => $result['request']->id,
+                ]);
+            }
+
+            return response()->json(['data' => $result['subject'], 'gated' => false]);
+        }
+
         $vendor->update($data);
 
-        return response()->json(['data' => $vendor->fresh()]);
+        return response()->json(['data' => $vendor->fresh(), 'gated' => false]);
     }
 
     public function destroy(Request $request, Vendor $vendor): JsonResponse
@@ -181,10 +208,37 @@ class VendorController extends Controller
         $vendors = $wedding->vendors()->whereIn('id', $data['ids'])->get();
         abort_unless($vendors->count() === count(array_unique($data['ids'])), 422, 'One or more vendors do not belong to this wedding.');
 
+        $isConfirming = ($updates['booking_status'] ?? null) === 'confirmed';
+
+        if ($isConfirming) {
+            $gating = app(ApprovalGatingService::class);
+            $pendingCount = 0;
+            $appliedCount = 0;
+
+            foreach ($vendors as $vendor) {
+                if ($vendor->booking_status === 'confirmed') {
+                    continue;
+                }
+                $result = $gating->requestOrApply(
+                    $wedding, 'vendors', $vendor, $updates, $request->user(),
+                    "Confirm vendor: {$vendor->name}",
+                    "Booking status changing to confirmed for {$vendor->name}.",
+                );
+                $result['gated'] ? $pendingCount++ : $appliedCount++;
+            }
+
+            return response()->json([
+                'updated' => $appliedCount,
+                'pending_approval' => $pendingCount,
+                'data' => $wedding->vendors()->whereIn('id', $data['ids'])->orderBy('category')->orderBy('name')->get(),
+            ]);
+        }
+
         $wedding->vendors()->whereIn('id', $data['ids'])->update($updates);
 
         return response()->json([
             'updated' => $vendors->count(),
+            'pending_approval' => 0,
             'data' => $wedding->vendors()->whereIn('id', $data['ids'])->orderBy('category')->orderBy('name')->get(),
         ]);
     }

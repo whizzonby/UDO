@@ -19,30 +19,11 @@ class MessageDispatchService
         }
 
         $filter = $message->audience_filter ?? [];
-        $query = $message->wedding->guests();
-
-        if (! empty($filter['attending_status'])) {
-            $query->where('attending_status', $filter['attending_status']);
-        }
-        if (! empty($filter['guest_group'])) {
-            $query->where('guest_group', $filter['guest_group']);
-        }
-        if (! empty($filter['invite_status'])) {
-            $query->where('invite_status', $filter['invite_status']);
-        }
-        if (! empty($filter['vip_flag'])) {
-            $query->where('vip_flag', true);
-        }
-        if (! empty($filter['has_email'])) {
-            $query->whereNotNull('email')->where('email', '!=', '');
-        }
-        if (! empty($filter['guest_ids']) && is_array($filter['guest_ids'])) {
-            $query->whereIn('id', $filter['guest_ids']);
-        }
+        $query = app(GuestAudienceFilterService::class)->apply($message->wedding->guests(), $filter);
 
         $guests = $query->get();
         if ($message->message_type === 'invitation') {
-            $this->ensureInvitationTokens($message, $guests);
+            $this->ensureGuestTokens($message->wedding_id, $guests);
         }
         $message->deliveries()->delete();
 
@@ -69,9 +50,9 @@ class MessageDispatchService
         return $guests->count();
     }
 
-    private function ensureInvitationTokens(Message $message, $guests): void
+    public function ensureGuestTokens(int $weddingId, $guests): void
     {
-        $existingGuestIds = $message->wedding->guestTokens()
+        $existingGuestIds = GuestToken::where('wedding_id', $weddingId)
             ->whereIn('guest_id', $guests->pluck('id'))
             ->pluck('guest_id')
             ->all();
@@ -80,7 +61,7 @@ class MessageDispatchService
 
         foreach ($missingGuests as $guest) {
             GuestToken::create([
-                'wedding_id' => $message->wedding_id,
+                'wedding_id' => $weddingId,
                 'guest_id' => $guest->id,
                 'view_type' => $guest->guest_view_type,
             ]);

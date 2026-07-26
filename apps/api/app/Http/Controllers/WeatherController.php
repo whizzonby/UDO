@@ -41,7 +41,7 @@ class WeatherController extends Controller
             ]);
         }
 
-        $forecast = $this->weather->forecast((float) $wedding->venue_lat, (float) $wedding->venue_lng);
+        $forecast = $this->weather->forecast((float) $wedding->venue_lat, (float) $wedding->venue_lng, $wedding->event_date);
 
         if ($forecast === null) {
             return response()->json([

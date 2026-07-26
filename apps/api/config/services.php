@@ -62,6 +62,29 @@ return [
         'validate_webhooks' => env('TWILIO_VALIDATE_WEBHOOKS', true),
     ],
 
+    'pinterest' => [
+        'client_id' => env('PINTEREST_CLIENT_ID'),
+        'client_secret' => env('PINTEREST_CLIENT_SECRET'),
+        'redirect_uri' => env('PINTEREST_REDIRECT_URI'),
+    ],
+
+    'stripe' => [
+        'secret_key' => env('STRIPE_SECRET_KEY'),
+        'publishable_key' => env('STRIPE_PUBLISHABLE_KEY'),
+        'webhook_secret' => env('STRIPE_WEBHOOK_SECRET'),
+    ],
+
+    'apple_iap' => [
+        'shared_secret' => env('APPLE_IAP_SHARED_SECRET'),
+        'product_id' => env('IOS_LIFETIME_PRODUCT_ID'),
+    ],
+
+    'google_play' => [
+        'service_account_json' => env('GOOGLE_PLAY_SERVICE_ACCOUNT_JSON'),
+        'package_name' => env('GOOGLE_PLAY_PACKAGE_NAME'),
+        'product_id' => env('ANDROID_LIFETIME_PRODUCT_ID'),
+    ],
+
     'guest_tokens' => [
         'default_expiry_days' => env('GUEST_TOKEN_DEFAULT_EXPIRY_DAYS', 365),
     ],

@@ -44,7 +44,7 @@ class BillingController extends Controller
         abort_unless($wedding->owner_user_id === $request->user()->id, 403, 'Only the wedding owner can change plans.');
 
         $data = $request->validate([
-            'plan' => ['required', 'string', Rule::in(array_keys(SubscriptionEntitlementService::PLANS))],
+            'plan' => ['required', 'string', Rule::in(SubscriptionEntitlementService::SELF_SERVICE_PLANS)],
             'billing_cycle' => 'nullable|string|in:monthly,annual',
             'confirm' => 'accepted',
         ]);

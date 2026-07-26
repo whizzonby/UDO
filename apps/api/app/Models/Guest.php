@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class Guest extends Model
@@ -21,6 +22,8 @@ class Guest extends Model
         'guest_group',
         'custom_tags',
         'vip_flag',
+        'is_elderly',
+        'accessibility_needs',
         'attending_status',
         'invite_status',
         'plus_one_allowed',
@@ -33,6 +36,7 @@ class Guest extends Model
         'arrival_time',
         'departure_date',
         'departure_time',
+        'checked_in_at',
         'arrival_airport',
         'hotel_assignment_id',
         'transport_assignment_id',
@@ -47,6 +51,8 @@ class Guest extends Model
     protected $casts = [
         'custom_tags' => 'array',
         'vip_flag' => 'boolean',
+        'is_elderly' => 'boolean',
+        'accessibility_needs' => 'boolean',
         'plus_one_allowed' => 'boolean',
         'travel_required' => 'boolean',
         'email_opt_out' => 'boolean',
@@ -54,6 +60,7 @@ class Guest extends Model
         'whatsapp_opt_out' => 'boolean',
         'arrival_date' => 'date',
         'departure_date' => 'date',
+        'checked_in_at' => 'datetime',
         'communication_preferences_updated_at' => 'datetime',
     ];
 
@@ -70,5 +77,10 @@ class Guest extends Model
     public function token(): HasOne
     {
         return $this->hasOne(GuestToken::class);
+    }
+
+    public function menuSelections(): HasMany
+    {
+        return $this->hasMany(GuestMenuSelection::class);
     }
 }

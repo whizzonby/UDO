@@ -2,11 +2,13 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\GalleryAsset;
 use App\Models\GuestToken;
 use App\Models\GuestExperienceConfig;
 use App\Models\RegistryContribution;
 use App\Models\RegistryItem;
 use App\Models\ThankYouRecord;
+use App\Services\AuditLogService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
@@ -104,6 +106,16 @@ class GuestPortalController extends Controller
 
         $guest->update($update);
 
+        app(AuditLogService::class)->record(
+            'guest.rsvp_submitted',
+            $guestToken->wedding,
+            null,
+            $guest->fresh(),
+            null,
+            ['attending_status' => $data['attending_status']],
+            request: $request,
+        );
+
         return response()->json(['message' => 'RSVP saved.', 'status' => $data['attending_status']]);
     }
 
@@ -146,7 +158,7 @@ class GuestPortalController extends Controller
         abort_unless($config->publish_state === 'published' && $config->allow_photo_uploads, 403, 'Photo uploads are not currently open.');
 
         $data = $request->validate([
-            'file' => 'required|file|mimes:jpg,jpeg,png,gif,webp,mp4,mov|max:51200',
+            'file' => 'required|file|mimes:jpg,jpeg,png,gif,webp,mp4,mov,webm,mp3,wav,m4a,aac,ogg|max:51200',
             'caption' => 'nullable|string|max:255',
         ]);
 
@@ -159,7 +171,7 @@ class GuestPortalController extends Controller
 
         $asset = $wedding->galleryAssets()->create([
             'uploaded_by_guest_id' => $guest->id,
-            'type' => str_starts_with($mimeType, 'video/') ? 'video' : 'photo',
+            'type' => GalleryAsset::resolveTypeFromMime($mimeType),
             'source' => 'upload',
             'url' => $url,
             'thumbnail_url' => $url,
@@ -171,6 +183,31 @@ class GuestPortalController extends Controller
         ]);
 
         return response()->json(['data' => $asset, 'message' => 'Photo uploaded for review.'], 201);
+    }
+
+    public function submitGuestbookMessage(Request $request, string $token): JsonResponse
+    {
+        $guestToken = GuestToken::where('token', $token)->with(['guest', 'wedding'])->firstOrFail();
+
+        abort_unless($guestToken->isValid(), 403, 'This invitation link is no longer valid.');
+        $config = $this->experienceConfig($guestToken->wedding);
+        abort_unless($config->publish_state === 'published' && $config->allow_messages, 403, 'The guestbook is not currently open.');
+
+        $data = $request->validate([
+            'message' => 'required|string|max:2000',
+        ]);
+
+        $wedding = $guestToken->wedding;
+        $guestbook = $wedding->memoryGuestbook()->firstOrCreate([]);
+
+        $entry = $guestbook->entries()->create([
+            'guest_id' => $guestToken->guest->id,
+            'guest_name' => $guestToken->guest->full_name,
+            'message' => $data['message'],
+            'approved' => false,
+        ]);
+
+        return response()->json(['data' => $entry, 'message' => 'Thank you for signing the guestbook.'], 201);
     }
 
     public function contributeRegistry(Request $request, string $token, RegistryItem $registryItem): JsonResponse
@@ -319,6 +356,9 @@ class GuestPortalController extends Controller
                     ->orderByDesc('event_time')
                     ->limit(10)
                     ->get(['id', 'type', 'title', 'body', 'image_url', 'pinned', 'event_time'])
+                : [],
+            'guestbook' => $config->allow_messages
+                ? ($wedding->memoryGuestbook?->entries()->where('approved', true)->limit(50)->get(['guest_name', 'message', 'created_at']) ?? [])
                 : [],
         ];
     }

@@ -931,7 +931,10 @@ class WeddingFlowBugFixTest extends TestCase
             ->assertJsonPath('data.overdue_amount', 500)
             ->assertJsonPath('data.categories.0.category', 'Food & drink')
             ->assertJsonPath('data.next_payments.0.label', 'Final catering balance')
-            ->assertJsonPath('data.overdue_payments.0.label', 'Late tasting invoice');
+            ->assertJsonPath('data.overdue_payments.0.label', 'Late tasting invoice')
+            ->assertJsonPath('data.largest_expense.category', 'Food & drink')
+            ->assertJsonPath('data.largest_expense.amount', 8200)
+            ->assertJsonPath('data.largest_expense.percentage', 100);
 
         $this->postJson("/api/plan/budget/payment-schedules/{$scheduleId}/mark-paid")
             ->assertOk()
@@ -942,6 +945,25 @@ class WeddingFlowBugFixTest extends TestCase
             'paid_amount' => 6200,
             'payment_status' => 'partial',
         ]);
+    }
+
+    public function test_budget_summary_largest_expense_picks_the_highest_spending_category(): void
+    {
+        [$user, $wedding] = $this->userWithWedding();
+        Sanctum::actingAs($user);
+
+        $this->postJson('/api/plan/budget', [
+            'name' => 'Venue deposit', 'category' => 'Venue', 'actual_amount' => 12000,
+        ])->assertCreated();
+        $this->postJson('/api/plan/budget', [
+            'name' => 'Florist', 'category' => 'Flowers', 'actual_amount' => 3000,
+        ])->assertCreated();
+
+        $this->getJson('/api/plan/budget/summary')
+            ->assertOk()
+            ->assertJsonPath('data.largest_expense.category', 'Venue')
+            ->assertJsonPath('data.largest_expense.amount', 12000)
+            ->assertJsonPath('data.largest_expense.percentage', 80);
     }
 
     public function test_smart_alerts_generate_from_real_wedding_risks(): void

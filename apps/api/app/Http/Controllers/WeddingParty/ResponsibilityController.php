@@ -35,6 +35,7 @@ class ResponsibilityController extends Controller
             'title'       => 'required|string|max:255',
             'description' => 'nullable|string',
             'status'      => 'nullable|in:pending,in_progress,done',
+            'priority'    => 'nullable|in:high,medium,low',
             'due_date'    => 'nullable|date',
             'sort_order'  => 'nullable|integer',
         ]);
@@ -53,6 +54,7 @@ class ResponsibilityController extends Controller
             'title'       => 'sometimes|string|max:255',
             'description' => 'nullable|string',
             'status'      => 'nullable|in:pending,in_progress,done',
+            'priority'    => 'nullable|in:high,medium,low',
             'due_date'    => 'nullable|date',
             'sort_order'  => 'nullable|integer',
         ]);
@@ -67,6 +69,34 @@ class ResponsibilityController extends Controller
         $this->authorize($request, $responsibility);
         $responsibility->delete();
         return response()->json(null, 204);
+    }
+
+    public function bulkUpdate(Request $request): JsonResponse
+    {
+        $wedding = $this->wedding($request);
+
+        $data = $request->validate([
+            'ids' => 'required|array|min:1',
+            'ids.*' => 'integer',
+            'updates' => 'required|array',
+            'updates.status' => 'nullable|in:pending,in_progress,done',
+            'updates.priority' => 'nullable|in:high,medium,low',
+            'updates.guest_id' => 'nullable|integer|exists:guests,id',
+            'confirm' => 'accepted',
+        ]);
+
+        $updates = collect($data['updates'])->only(['status', 'priority', 'guest_id'])->all();
+        abort_if(empty($updates), 422, 'No supported updates were provided.');
+
+        $items = $wedding->weddingPartyResponsibilities()->whereIn('id', $data['ids'])->get();
+        abort_unless($items->count() === count(array_unique($data['ids'])), 422, 'One or more responsibilities do not belong to this wedding.');
+
+        $wedding->weddingPartyResponsibilities()->whereIn('id', $data['ids'])->update($updates);
+
+        return response()->json([
+            'updated' => $items->count(),
+            'data' => $wedding->weddingPartyResponsibilities()->whereIn('id', $data['ids'])->with('guest:id,first_name,last_name')->get(),
+        ]);
     }
 
     private function authorize(Request $request, WeddingPartyResponsibility $responsibility): void

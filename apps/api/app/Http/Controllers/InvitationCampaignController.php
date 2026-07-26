@@ -2,7 +2,9 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\GuestToken;
 use App\Models\Message;
+use App\Services\GuestAudienceFilterService;
 use App\Services\MessageAnalyticsService;
 use App\Services\MessageDispatchService;
 use App\Services\WeddingAccessService;
@@ -150,6 +152,9 @@ class InvitationCampaignController extends Controller
             'audience_filter.invite_status' => 'nullable|string|max:255',
             'audience_filter.vip_flag' => 'nullable|boolean',
             'audience_filter.has_email' => 'nullable|boolean',
+            'audience_filter.has_phone' => 'nullable|boolean',
+            'audience_filter.travel_required' => 'nullable|boolean',
+            'audience_filter.added_after' => 'nullable|date',
             'audience_filter.guest_ids' => 'nullable|array',
             'audience_filter.guest_ids.*' => 'integer',
             'scheduled_at' => 'nullable|date',
@@ -158,32 +163,15 @@ class InvitationCampaignController extends Controller
 
     private function previewFor($wedding, array $filter, ?Message $campaign = null, ?string $body = null, ?string $subject = null): array
     {
-        $query = $wedding->guests();
-
-        if (! empty($filter['attending_status'])) {
-            $query->where('attending_status', $filter['attending_status']);
-        }
-        if (! empty($filter['guest_group'])) {
-            $query->where('guest_group', $filter['guest_group']);
-        }
-        if (! empty($filter['invite_status'])) {
-            $query->where('invite_status', $filter['invite_status']);
-        }
-        if (! empty($filter['vip_flag'])) {
-            $query->where('vip_flag', true);
-        }
-        if (! empty($filter['has_email'])) {
-            $query->whereNotNull('email')->where('email', '!=', '');
-        }
-        if (! empty($filter['guest_ids']) && is_array($filter['guest_ids'])) {
-            $query->whereIn('id', $filter['guest_ids']);
-        }
+        $filterService = app(GuestAudienceFilterService::class);
+        $query = $filterService->apply($wedding->guests(), $filter);
 
         $recipientCount = (clone $query)->count();
         $sample = (clone $query)->orderBy('last_name')->orderBy('first_name')->first();
 
         return [
             'recipient_count' => $recipientCount,
+            'contact_breakdown' => $filterService->contactBreakdown(clone $query),
             'sample_guest' => $sample ? [
                 'id' => $sample->id,
                 'name' => trim(implode(' ', array_filter([$sample->first_name, $sample->last_name]))),
@@ -195,6 +183,36 @@ class InvitationCampaignController extends Controller
             'sample_body' => $this->renderSample($wedding, $sample, $body ?? $campaign?->body ?? ''),
             'delivery_summary' => $campaign ? app(MessageAnalyticsService::class)->summaryFor($campaign) : null,
         ];
+    }
+
+    public function guestLinks(Request $request, Message $campaign): JsonResponse
+    {
+        $this->authorizeCampaign($request, $campaign);
+
+        $wedding = $campaign->wedding;
+        $filterService = app(GuestAudienceFilterService::class);
+        $guests = $filterService->apply($wedding->guests(), $campaign->audience_filter ?? [])
+            ->orderBy('last_name')->orderBy('first_name')->get();
+
+        app(MessageDispatchService::class)->ensureGuestTokens($wedding->id, $guests);
+
+        $tokens = GuestToken::where('wedding_id', $wedding->id)
+            ->whereIn('guest_id', $guests->pluck('id'))
+            ->get()
+            ->keyBy('guest_id');
+
+        $frontendUrl = rtrim((string) config('app.frontend_url', config('app.url')), '/');
+
+        return response()->json([
+            'data' => $guests->map(function ($guest) use ($tokens, $frontendUrl) {
+                $token = $tokens->get($guest->id);
+                return [
+                    'guest_id' => $guest->id,
+                    'name' => trim(implode(' ', array_filter([$guest->first_name, $guest->last_name]))),
+                    'link' => $token ? "{$frontendUrl}/g/{$token->token}" : null,
+                ];
+            })->values()->all(),
+        ]);
     }
 
     private function renderSample($wedding, $guest, string $content): string

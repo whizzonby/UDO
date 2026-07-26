@@ -10,7 +10,8 @@ class Subscription extends Model
 {
     protected $fillable = [
         'user_id', 'plan', 'status', 'billing_cycle', 'amount', 'currency',
-        'stripe_customer_id', 'stripe_subscription_id', 'stripe_price_id',
+        'stripe_customer_id', 'stripe_subscription_id', 'stripe_price_id', 'stripe_checkout_session_id',
+        'platform', 'platform_transaction_id',
         'trial_ends_at', 'current_period_start', 'current_period_end',
         'cancelled_at', 'ends_at', 'metadata',
     ];

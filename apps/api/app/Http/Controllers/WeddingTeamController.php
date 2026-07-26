@@ -48,6 +48,7 @@ class WeddingTeamController extends Controller
             'data' => collect([$owner])->merge($collaborators)->values(),
             'roles' => $access->roleOptions(),
             'permissions' => WeddingAccessService::PERMISSIONS,
+            'approval_categories' => WeddingAccessService::APPROVAL_CATEGORIES,
         ]);
     }
 
@@ -63,6 +64,9 @@ class WeddingTeamController extends Controller
             'role' => ['required', 'string', Rule::in(collect($access->roleOptions())->pluck('role')->all())],
             'permissions' => 'nullable|array',
             'permissions.*' => ['string', Rule::in(WeddingAccessService::PERMISSIONS)],
+            'is_decision_maker' => 'nullable|boolean',
+            'approval_categories' => 'nullable|array',
+            'approval_categories.*' => ['string', Rule::in(WeddingAccessService::APPROVAL_CATEGORIES)],
         ]);
 
         $user = User::where('email', $data['email'])->firstOrFail();
@@ -84,6 +88,8 @@ class WeddingTeamController extends Controller
             [
                 'role' => $data['role'],
                 'permissions' => $access->normalizePermissions($data['role'], $data['permissions'] ?? null),
+                'is_decision_maker' => $data['is_decision_maker'] ?? false,
+                'approval_categories' => $data['approval_categories'] ?? null,
                 'invited_by' => $request->user()->id,
                 'accepted_at' => now(),
             ]
@@ -123,20 +129,25 @@ class WeddingTeamController extends Controller
             'role' => ['sometimes', 'string', Rule::in(collect($access->roleOptions())->pluck('role')->all())],
             'permissions' => 'nullable|array',
             'permissions.*' => ['string', Rule::in(WeddingAccessService::PERMISSIONS)],
+            'is_decision_maker' => 'sometimes|boolean',
+            'approval_categories' => 'nullable|array',
+            'approval_categories.*' => ['string', Rule::in(WeddingAccessService::APPROVAL_CATEGORIES)],
         ]);
 
         $role = $data['role'] ?? $collaborator->role;
         $permissions = array_key_exists('permissions', $data)
             ? $data['permissions']
             : ($role === $collaborator->role ? $collaborator->permissions : null);
-        $before = $collaborator->only(['role', 'permissions']);
+        $before = $collaborator->only(['role', 'permissions', 'is_decision_maker', 'approval_categories']);
 
         $collaborator->update([
             'role' => $role,
             'permissions' => $access->normalizePermissions($role, $permissions),
+            'is_decision_maker' => $data['is_decision_maker'] ?? $collaborator->is_decision_maker,
+            'approval_categories' => array_key_exists('approval_categories', $data) ? $data['approval_categories'] : $collaborator->approval_categories,
         ]);
         $fresh = $collaborator->fresh();
-        [$beforeChanged, $afterChanged] = app(AuditLogService::class)->changes($before, $fresh->only(['role', 'permissions']), ['role', 'permissions']);
+        [$beforeChanged, $afterChanged] = app(AuditLogService::class)->changes($before, $fresh->only(['role', 'permissions', 'is_decision_maker', 'approval_categories']), ['role', 'permissions', 'is_decision_maker', 'approval_categories']);
 
         if ($afterChanged) {
             app(AuditLogService::class)->record('team.member_updated', $wedding, $request->user(), $fresh, $beforeChanged, $afterChanged, request: $request);
@@ -179,6 +190,8 @@ class WeddingTeamController extends Controller
             'role' => $role,
             'permissions' => $permissions,
             'is_owner' => $isOwner,
+            'is_decision_maker' => $collaborator?->is_decision_maker ?? false,
+            'approval_categories' => $collaborator?->approval_categories ?? [],
             'accepted_at' => $collaborator?->accepted_at?->toJSON(),
         ];
     }

@@ -57,6 +57,9 @@ class WeddingController extends Controller
             'country'               => 'nullable|string|max:255',
             'primary_venue_name'    => 'nullable|string|max:255',
             'primary_venue_address' => 'nullable|string',
+            'cover_photo_path'      => 'nullable|string|max:2048',
+            'couple_photo_path'     => 'nullable|string|max:2048',
+            'hashtag'               => 'nullable|string|max:100',
             'rsvp_deadline'         => 'nullable|date',
             'settings'              => 'nullable|array',
         ]);
@@ -104,8 +107,13 @@ class WeddingController extends Controller
             'country'               => 'nullable|string|max:255',
             'primary_venue_name'    => 'nullable|string|max:255',
             'primary_venue_address' => 'nullable|string',
+            'cover_photo_path'      => 'nullable|string|max:2048',
+            'couple_photo_path'     => 'nullable|string|max:2048',
+            'hashtag'               => 'nullable|string|max:100',
             'rsvp_deadline'         => 'nullable|date',
+            'timezone'              => 'nullable|timezone',
             'settings'              => 'nullable|array',
+            'vision_style'          => 'nullable|array',
         ]);
 
         $before = $wedding->only(array_keys($data));

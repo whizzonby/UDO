@@ -66,8 +66,12 @@ class LiveController extends Controller
             ->orderByDesc('created_at')
             ->limit(10)
             ->get();
+        $todayTimelineItems = $wedding->timelineItems->filter(
+            fn ($item) => $item->event_date && $item->event_date->isToday()
+        )->values();
         $travellingGuests = $wedding->guests()->where('travel_required', true)->get();
         $todayArrivals = $travellingGuests->filter(fn ($guest) => $guest->arrival_date && $guest->arrival_date->isToday())->values();
+        $confirmedVendors = $wedding->vendors()->where('booking_status', 'confirmed')->get();
         $vipGuests = $wedding->guests()->where('vip_flag', true)->get();
         $vipAttention = $vipGuests
             ->filter(fn ($guest) => $guest->attending_status !== 'no' && (
@@ -107,12 +111,30 @@ class LiveController extends Controller
                 'arriving_today' => $todayArrivals->count(),
                 'missing_arrival_info' => $travellingGuests->filter(fn ($guest) => ! $guest->arrival_date || ! $guest->arrival_time)->count(),
                 'vip_attention_count' => $vipAttention->count(),
+                'checked_in_count' => $todayArrivals->filter(fn ($guest) => $guest->checked_in_at)->count(),
+                'arriving_today_guests' => $todayArrivals->map(fn ($guest) => [
+                    'id' => $guest->id,
+                    'name' => $guest->full_name,
+                    'arrival_time' => $guest->arrival_time,
+                    'checked_in_at' => $guest->checked_in_at,
+                ])->values(),
             ],
             'vip_attention' => $vipAttention,
             'incidents' => $unresolvedIncidents,
             'vendors' => [
-                'confirmed' => $wedding->vendors()->where('booking_status', 'confirmed')->count(),
+                'confirmed' => $confirmedVendors->count(),
                 'total'     => $wedding->vendors()->count(),
+                'checked_in_count' => $confirmedVendors->filter(fn ($vendor) => $vendor->checked_in_at)->count(),
+                'roster' => $confirmedVendors->map(fn ($vendor) => [
+                    'id' => $vendor->id,
+                    'name' => $vendor->name,
+                    'category' => $vendor->category,
+                    'checked_in_at' => $vendor->checked_in_at,
+                ])->values(),
+            ],
+            'transport' => [
+                'arranged' => $travellingGuests->filter(fn ($guest) => $guest->transport_assignment_id)->count(),
+                'total_requiring' => $travellingGuests->count(),
             ],
             'gallery' => [
                 'photos' => $wedding->galleryAssets()->count(),
@@ -120,6 +142,7 @@ class LiveController extends Controller
             'timeline' => [
                 'current' => $current,
                 'next'    => $next,
+                'today_items' => $todayTimelineItems,
             ],
             'recent_updates'     => $wedding->liveUpdates()->orderByDesc('created_at')->limit(5)->get(),
             'emergency_contacts' => $wedding->weddingPartyEmergencyContacts,

@@ -12,12 +12,16 @@ class WeddingCollaborator extends Model
         'user_id',
         'role',
         'permissions',
+        'is_decision_maker',
+        'approval_categories',
         'invited_by',
         'accepted_at',
     ];
 
     protected $casts = [
         'permissions' => 'array',
+        'is_decision_maker' => 'boolean',
+        'approval_categories' => 'array',
         'accepted_at' => 'datetime',
     ];
 

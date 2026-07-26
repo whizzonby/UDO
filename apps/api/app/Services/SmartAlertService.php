@@ -18,6 +18,8 @@ class SmartAlertService
             $this->vendorPaymentAlert($wedding),
             $this->guestReadinessAlert($wedding),
             $this->postWeddingThankYouAlert($wedding),
+            $this->anniversaryAlert($wedding),
+            $this->unviewedVowsAlert($wedding),
         ])->filter();
 
         $activeKeys = $payloads->pluck('key')->all();
@@ -248,6 +250,71 @@ class SmartAlertService
             'action_url' => '/dashboard/registry',
             'trigger_at' => now(),
             'metadata' => ['pending_thank_yous' => $pendingThanks],
+        ];
+    }
+
+    private function anniversaryAlert(Wedding $wedding): ?array
+    {
+        if (! $wedding->event_date || $wedding->event_date->copy()->addYear()->isFuture()) {
+            // Not yet a full year married — "this year's anniversary" would
+            // otherwise be indistinguishable from the wedding day itself.
+            return null;
+        }
+
+        $today = now()->startOfDay();
+        $eventDate = $wedding->event_date->copy()->startOfDay();
+        $thisYearAnniversary = $eventDate->copy()->year($today->year);
+        $daysUntil = (int) $today->diffInDays($thisYearAnniversary, false);
+
+        if (abs($daysUntil) > 3) {
+            return null;
+        }
+
+        $yearsMarried = $eventDate->diffInYears($thisYearAnniversary);
+
+        return [
+            'key' => "anniversary-{$today->year}",
+            'alert_type' => 'anniversary',
+            'severity' => 'low',
+            'target' => 'wedding_story',
+            'title' => $daysUntil === 0
+                ? "Happy Anniversary, {$wedding->couple_name_primary}!"
+                : ($daysUntil > 0 ? "Your anniversary is in {$daysUntil} day(s)" : "You've been married {$yearsMarried} year(s)"),
+            'body' => "Here's your Wedding Story — everything from your engagement through today.",
+            'action_label' => 'View Wedding Story',
+            'action_url' => '/wedding-story',
+            'trigger_at' => $thisYearAnniversary,
+            'metadata' => ['years_married' => $yearsMarried, 'days_until' => $daysUntil],
+        ];
+    }
+
+    private function unviewedVowsAlert(Wedding $wedding): ?array
+    {
+        if (! $wedding->event_date || $wedding->event_date->copy()->addDays(90)->isFuture()) {
+            return null;
+        }
+
+        $vow = $wedding->memoryVows()
+            ->whereNull('viewed_at')
+            ->whereNotNull('draft_text')
+            ->where('draft_text', '!=', '')
+            ->first();
+
+        if (! $vow) {
+            return null;
+        }
+
+        return [
+            'key' => 'unviewed-vows',
+            'alert_type' => 'anniversary',
+            'severity' => 'low',
+            'target' => 'memories',
+            'title' => "You've never revisited your vows",
+            'body' => "\"{$vow->title}\" has been saved since your wedding day — would you like to read it again?",
+            'action_label' => 'Revisit vows',
+            'action_url' => '/memories',
+            'trigger_at' => now(),
+            'metadata' => ['memory_vow_id' => $vow->id],
         ];
     }
 }

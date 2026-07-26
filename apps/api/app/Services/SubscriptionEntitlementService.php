@@ -2,12 +2,16 @@
 
 namespace App\Services;
 
+use App\Mail\TemplatedMail;
 use App\Models\Subscription;
 use App\Models\User;
 use App\Models\Wedding;
+use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Storage;
 
 class SubscriptionEntitlementService
 {
+    private const LIFETIME_PRICE = 45;
     public const PLANS = [
         'free' => [
             'label' => 'Free',
@@ -87,7 +91,32 @@ class SubscriptionEntitlementService
                 'weddings' => null,
             ],
         ],
+        // Only ever granted by CheckoutController after a real, confirmed
+        // Stripe payment (see the webhook handler) — deliberately excluded
+        // from BillingController::changePlan()'s free self-service switch.
+        'lifetime' => [
+            'label' => 'Lifetime',
+            'description' => 'One payment, full access, no subscriptions.',
+            'monthly_price' => 0,
+            'annual_price' => 0,
+            'one_time_price' => 45,
+            'features' => [
+                'Everything in every plan above',
+                'Unlimited guests',
+                'No monthly fees, ever',
+            ],
+            'limits' => [
+                'guests' => null,
+                'team_members' => null,
+                'messages_per_month' => null,
+                'gallery_assets' => null,
+                'weddings' => null,
+            ],
+        ],
     ];
+
+    /** Plans a wedding owner can freely self-select via changePlan() without paying. */
+    public const SELF_SERVICE_PLANS = ['free', 'starter', 'pro', 'elite'];
 
     public function payloadFor(Wedding $wedding): array
     {
@@ -125,6 +154,7 @@ class SubscriptionEntitlementService
                 'description' => $definition['description'],
                 'monthly_price' => $definition['monthly_price'],
                 'annual_price' => $definition['annual_price'],
+                'one_time_price' => $definition['one_time_price'] ?? null,
                 'features' => $definition['features'],
                 'limits' => $definition['limits'],
                 'recommended' => (bool) ($definition['recommended'] ?? false),
@@ -181,6 +211,52 @@ class SubscriptionEntitlementService
             ->whereIn('status', ['active', 'trialing'])
             ->latest()
             ->first();
+    }
+
+    /**
+     * The one real place any successful lifetime purchase, from any
+     * platform (Stripe checkout, Apple IAP, Google Play Billing), ends up.
+     * Sends a real receipt email with an attached invoice PDF.
+     */
+    public function grantLifetime(User $user, string $platform, string $transactionId): Subscription
+    {
+        $subscription = $user->subscriptions()->latest()->first() ?? new Subscription(['user_id' => $user->id]);
+        $subscription->fill([
+            'plan' => 'lifetime',
+            'status' => 'active',
+            'billing_cycle' => 'one_time',
+            'amount' => self::LIFETIME_PRICE,
+            'currency' => 'USD',
+            'current_period_start' => now(),
+            'current_period_end' => null,
+            'ends_at' => null,
+            'platform' => $platform,
+            'platform_transaction_id' => $transactionId,
+            'metadata' => [
+                ...($subscription->metadata ?? []),
+                'lifetime_purchase_at' => now()->toISOString(),
+            ],
+        ]);
+        $subscription->save();
+
+        $this->sendReceipt($subscription);
+
+        return $subscription;
+    }
+
+    private function sendReceipt(Subscription $subscription): void
+    {
+        $subscription->loadMissing('user');
+        $invoicePath = app(InvoiceService::class)->generate($subscription);
+
+        Mail::to($subscription->user)->send(
+            (new TemplatedMail('purchase_receipt', [
+                'first_name' => $subscription->user->first_name ?? $subscription->user->full_name,
+                'plan_label' => self::PLANS[$subscription->plan]['label'] ?? $subscription->plan,
+                'amount' => '$' . number_format((float) $subscription->amount, 2),
+                'date' => $subscription->current_period_start?->format('M j, Y') ?? now()->format('M j, Y'),
+            ]))->attach(Storage::disk('local')->path($invoicePath), ['as' => 'udo-invoice.pdf', 'mime' => 'application/pdf'])
+        );
     }
 
     private function usageFor(Wedding $wedding): array

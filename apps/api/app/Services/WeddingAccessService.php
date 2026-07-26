@@ -55,9 +55,37 @@ class WeddingAccessService
         'vendor' => [
             'manage_plan',
         ],
+        'bridal_assistant' => [
+            'manage_guests',
+            'manage_plan',
+            'manage_messages',
+        ],
+        'maid_of_honour' => [
+            'manage_guests',
+            'manage_messages',
+        ],
+        'best_man' => [
+            'manage_guests',
+            'manage_messages',
+        ],
+        'parent' => [
+            'view_reports',
+            'manage_plan',
+        ],
         'viewer' => [
             'view_reports',
         ],
+    ];
+
+    public const APPROVAL_CATEGORIES = [
+        'budget',
+        'vendors',
+        'honeymoon',
+        'invitations',
+        'attire',
+        'seating',
+        'logistics',
+        'timeline',
     ];
 
     public function roleOptions(): array
@@ -110,6 +138,22 @@ class WeddingAccessService
     {
         return $wedding->owner_user_id === $user->id
             || $this->collaboratorFor($user, $wedding) !== null;
+    }
+
+    /**
+     * The owner and their 'partner' collaborator are the only two people
+     * treated as the core couple — used to gate sensitive content (e.g.
+     * vows) that should stay private from other collaborators by default.
+     */
+    public function isCoreCouple(User $user, Wedding $wedding): bool
+    {
+        if ($wedding->owner_user_id === $user->id) {
+            return true;
+        }
+
+        $collaborator = $this->collaboratorFor($user, $wedding);
+
+        return $collaborator !== null && $collaborator->role === 'partner';
     }
 
     public function can(User $user, Wedding $wedding, string $permission): bool

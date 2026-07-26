@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Plan;
 use App\Http\Controllers\Controller;
 use App\Models\BudgetItem;
 use App\Models\BudgetPaymentSchedule;
+use App\Services\ApprovalGatingService;
 use App\Services\WeddingAccessService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -109,9 +110,41 @@ class BudgetController extends Controller
             $data['vendor_id'] = $this->authorizedVendorId($request, $data['vendor_id']);
         }
 
+        $wedding = $budgetItem->wedding;
+        $currentAmount = (float) ($budgetItem->estimated_amount ?? 0);
+        $newAmount = array_key_exists('estimated_amount', $data) ? (float) $data['estimated_amount'] : null;
+        $isIncrease = $newAmount !== null && $newAmount > $currentAmount;
+
+        if ($isIncrease) {
+            $threshold = ($wedding->settings ?? [])['approval_auto_threshold'] ?? null;
+            $increaseBy = $newAmount - $currentAmount;
+
+            if ($threshold === null || $increaseBy >= (float) $threshold) {
+                $result = app(ApprovalGatingService::class)->requestOrApply(
+                    $wedding,
+                    'budget',
+                    $budgetItem,
+                    $data,
+                    $request->user(),
+                    "Budget increase: {$budgetItem->name}",
+                    sprintf('Estimated amount increasing from $%s to $%s.', number_format($currentAmount, 2), number_format($newAmount, 2)),
+                );
+
+                if ($result['gated']) {
+                    return response()->json([
+                        'data' => $budgetItem->fresh()->load(['vendor', 'paymentSchedules']),
+                        'gated' => true,
+                        'approval_request_id' => $result['request']->id,
+                    ]);
+                }
+
+                return response()->json(['data' => $result['subject']->load(['vendor', 'paymentSchedules']), 'gated' => false]);
+            }
+        }
+
         $budgetItem->update($data);
 
-        return response()->json(['data' => $budgetItem->fresh()->load(['vendor', 'paymentSchedules'])]);
+        return response()->json(['data' => $budgetItem->fresh()->load(['vendor', 'paymentSchedules']), 'gated' => false]);
     }
 
     public function destroy(Request $request, BudgetItem $budgetItem): JsonResponse
@@ -230,6 +263,12 @@ class BudgetController extends Controller
         $schedules = $wedding->budgetPaymentSchedules()->with(['budgetItem', 'vendor'])->get();
         $openSchedules = $schedules->filter(fn (BudgetPaymentSchedule $schedule) => $schedule->status !== 'paid');
 
+        $categoryTotals = $items
+            ->groupBy(fn (BudgetItem $item) => $item->category ?: 'Uncategorized')
+            ->map(fn ($categoryItems) => $categoryItems->sum('actual_amount'));
+        $largestCategoryName = $categoryTotals->isEmpty() ? null : $categoryTotals->sortDesc()->keys()->first();
+        $largestCategoryAmount = $largestCategoryName !== null ? (float) $categoryTotals[$largestCategoryName] : 0.0;
+
         return [
             'total_budget'    => (float) $totalBudget,
             'total_estimated' => (float) $totalEstimated,
@@ -243,6 +282,11 @@ class BudgetController extends Controller
             'overdue_amount' => (float) $openSchedules
                 ->filter(fn (BudgetPaymentSchedule $schedule) => $schedule->due_date && $schedule->due_date->isPast())
                 ->sum('amount'),
+            'largest_expense' => $largestCategoryName !== null ? [
+                'category' => $largestCategoryName,
+                'amount' => $largestCategoryAmount,
+                'percentage' => $totalActual > 0 ? (int) round(($largestCategoryAmount / $totalActual) * 100) : 0,
+            ] : null,
             'categories' => $items->groupBy(fn (BudgetItem $item) => $item->category ?: 'Uncategorized')->map(fn ($categoryItems, $category) => [
                 'category' => $category,
                 'estimated' => (float) $categoryItems->sum('estimated_amount'),

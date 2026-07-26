@@ -7,9 +7,29 @@ use App\Services\WeddingAccessService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Validation\Rule;
 
 class GalleryController extends Controller
 {
+    /**
+     * The doc's fixed inspiration-image taxonomy — a real, filterable
+     * category tag, distinct from a user-named "board".
+     */
+    public const INSPIRATION_CATEGORIES = [
+        'flowers', 'cake', 'tables', 'ceremony', 'dresses', 'suits',
+        'lighting', 'stationery', 'photography', 'hair', 'makeup',
+    ];
+
+    /**
+     * Real life-milestone tags a couple can attach to any asset (regardless
+     * of album) to build the "Archive – Our Journey" timeline — distinct
+     * from `album`, which tracks moderation state (moments/guest_uploads/
+     * inspiration/archive-as-rejected), not chronology.
+     */
+    public const JOURNEY_STAGES = [
+        'engagement', 'planning', 'wedding_weekend', 'honeymoon', 'anniversary', 'other',
+    ];
+
     private function wedding(Request $request)
     {
         $wedding = $request->user()->activeWedding;
@@ -27,7 +47,7 @@ class GalleryController extends Controller
     {
         $assets = $this->wedding($request)
             ->galleryAssets()
-            ->with('uploadedByGuest:id,first_name,last_name')
+            ->with('uploadedByGuest:id,first_name,last_name,wedding_party_role,guest_group,vip_flag')
             ->orderByDesc('created_at')
             ->get()
             ->map(fn (GalleryAsset $asset) => $this->assetPayload($asset));
@@ -39,7 +59,7 @@ class GalleryController extends Controller
     {
         $wedding = $this->wedding($request);
         $assets = $wedding->galleryAssets()
-            ->with('uploadedByGuest:id,first_name,last_name')
+            ->with('uploadedByGuest:id,first_name,last_name,wedding_party_role,guest_group,vip_flag')
             ->latest()
             ->get()
             ->map(fn (GalleryAsset $asset) => $this->assetPayload($asset));
@@ -60,6 +80,42 @@ class GalleryController extends Controller
                 'featured' => $assets->where('is_featured', true)->where('approved', true)->values(),
                 'archive' => $assets->where('album', 'archive')->values(),
             ],
+            'boards' => $assets->where('album', 'inspiration')
+                ->groupBy(fn (array $asset) => $asset['board_name'] ?: 'Unsorted')
+                ->map(function ($group, $name) {
+                    $sorted = $group->sortByDesc('created_at')->values();
+                    return [
+                        'name' => $name,
+                        'count' => $sorted->count(),
+                        'last_updated_at' => $sorted->first()['created_at'],
+                        'cover_thumbnail_url' => $sorted->first()['thumbnail_url'] ?? $sorted->first()['url'],
+                    ];
+                })
+                ->values(),
+            'journey' => $assets->whereNotNull('journey_stage')
+                ->groupBy(fn (array $asset) => $asset['journey_stage'])
+                ->map(function ($group, $stage) {
+                    $sorted = $group->sortByDesc('created_at')->values();
+                    return [
+                        'stage' => $stage,
+                        'count' => $sorted->count(),
+                        'last_updated_at' => $sorted->first()['created_at'],
+                        'cover_thumbnail_url' => $sorted->first()['thumbnail_url'] ?? $sorted->first()['url'],
+                    ];
+                })
+                ->values(),
+        ]]);
+    }
+
+    public function uploadLink(Request $request): JsonResponse
+    {
+        $wedding = $this->wedding($request);
+        $token = $wedding->ensureGalleryUploadToken();
+        $frontendUrl = rtrim(config('app.frontend_url'), '/');
+
+        return response()->json(['data' => [
+            'token' => $token,
+            'url' => "{$frontendUrl}/upload/{$token}",
         ]]);
     }
 
@@ -69,30 +125,39 @@ class GalleryController extends Controller
         $this->ensureCanManageGallery($request);
 
         $request->validate([
-            'file'  => 'required_without:url|file|mimes:jpg,jpeg,png,gif,webp,mp4,mov|max:51200',
+            'file'  => 'required_without:url|file|mimes:jpg,jpeg,png,gif,webp,mp4,mov,webm,mp3,wav,m4a,aac,ogg|max:51200',
             'url'   => 'required_without:file|nullable|url',
-            'type'  => 'nullable|in:photo,video',
+            'type'  => 'nullable|in:photo,video,voice',
             'album' => 'nullable|in:moments,inspiration,guest_uploads,archive',
+            'category' => ['nullable', 'string', Rule::in(self::INSPIRATION_CATEGORIES)],
+            'journey_stage' => ['nullable', 'string', Rule::in(self::JOURNEY_STAGES)],
             'source' => 'nullable|in:upload,guest_upload,pinterest,instagram',
             'title' => 'nullable|string|max:255',
         ]);
 
         $url = null;
         $thumbnailUrl = null;
+        $resolvedType = $request->input('type');
 
         if ($request->hasFile('file')) {
             $path = $request->file('file')->store("weddings/{$wedding->id}/gallery", 'public');
             $url  = Storage::url($path);
+            // A real file was uploaded — trust its actual mimetype over any
+            // client-sent `type`, which the mobile app has never sent.
+            $resolvedType = GalleryAsset::resolveTypeFromMime((string) $request->file('file')->getMimeType());
         } else {
             $url = $request->input('url');
+            $resolvedType = $resolvedType ?? 'photo';
         }
 
         $asset = $wedding->galleryAssets()->create([
-            'type'         => $request->input('type', 'photo'),
+            'type'         => $resolvedType,
             'source'       => $request->input('source', 'upload'),
             'url'          => $url,
             'thumbnail_url' => $thumbnailUrl ?? $url,
             'album'        => $request->input('album', 'moments'),
+            'category'     => $request->input('category'),
+            'journey_stage' => $request->input('journey_stage'),
             'caption'      => $request->input('title'),
             'uploaded_by_user_id' => $request->user()->id,
             'approved'     => true,
@@ -114,6 +179,9 @@ class GalleryController extends Controller
 
         $data = $request->validate([
             'album'    => 'nullable|in:moments,inspiration,guest_uploads,archive',
+            'board_name' => 'nullable|string|max:100',
+            'category' => ['nullable', 'string', Rule::in(self::INSPIRATION_CATEGORIES)],
+            'journey_stage' => ['nullable', 'string', Rule::in(self::JOURNEY_STAGES)],
             'title'    => 'nullable|string|max:255',
             'approved' => 'nullable|boolean',
             'is_featured' => 'nullable|boolean',
@@ -208,9 +276,18 @@ class GalleryController extends Controller
 
     private function assetPayload(GalleryAsset $asset): array
     {
-        $asset->loadMissing('uploadedByGuest:id,first_name,last_name');
+        $asset->loadMissing('uploadedByGuest:id,first_name,last_name,wedding_party_role,guest_group,vip_flag');
+        $guest = $asset->uploadedByGuest;
         $payload = $asset->toArray();
-        $payload['uploaded_by_guest_name'] = $asset->uploadedByGuest?->full_name;
+        $payload['uploaded_by_guest_name'] = $guest?->full_name;
+        $payload['uploaded_by_role'] = match (true) {
+            $guest !== null && ! empty($guest->wedding_party_role) => $guest->wedding_party_role,
+            $guest !== null && $guest->vip_flag => 'VIP Guest',
+            $guest !== null => 'Guest',
+            ! empty($asset->uploaded_by_name) => $asset->uploaded_by_name,
+            $asset->uploaded_by_guest_id !== null || $asset->album === 'guest_uploads' => 'Guest',
+            default => null,
+        };
         return $payload;
     }
 }

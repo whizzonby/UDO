@@ -3,8 +3,10 @@
 namespace App\Http\Controllers;
 
 use App\Models\Guest;
+use App\Models\GuestPairing;
 use App\Models\SeatingTable;
 use App\Models\SeatingSeat;
+use App\Services\SeatingSuggestionService;
 use App\Services\WeddingAccessService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -55,11 +57,88 @@ class SeatingController extends Controller
                         'name' => $guest->full_name,
                         'guest_group' => $guest->guest_group,
                         'vip_flag' => $guest->vip_flag,
+                        'is_elderly' => $guest->is_elderly,
+                        'accessibility_needs' => $guest->accessibility_needs,
                     ])
                     ->values()
                     ->all(),
+                'couples_seated_together' => $wedding->guestPairings()
+                    ->where('type', 'couple')
+                    ->get()
+                    ->filter(function (GuestPairing $pair) {
+                        $a = Guest::find($pair->guest_id);
+                        $b = Guest::find($pair->related_guest_id);
+                        return $a && $b && $a->seating_assignment_id && $b->seating_assignment_id
+                            && SeatingSeat::find($a->seating_assignment_id)?->seating_table_id
+                                === SeatingSeat::find($b->seating_assignment_id)?->seating_table_id;
+                    })
+                    ->count(),
+                'dietary_needs_count' => $wedding->guests()
+                    ->where(fn ($q) => $q->whereNotNull('allergies')->where('allergies', '!=', '')
+                        ->orWhere(fn ($q2) => $q2->whereNotNull('dietary_note')->where('dietary_note', '!=', '')))
+                    ->count(),
+                'accessibility_count' => $wedding->guests()->where('accessibility_needs', true)->count(),
             ],
         ]);
+    }
+
+    public function pairings(Request $request): JsonResponse
+    {
+        $wedding = $this->wedding($request);
+        $pairings = $wedding->guestPairings()->with(['guest', 'relatedGuest'])->get();
+        return response()->json(['data' => $pairings]);
+    }
+
+    public function storePairing(Request $request): JsonResponse
+    {
+        $wedding = $this->wedding($request);
+
+        $data = $request->validate([
+            'guest_id'         => 'required|integer|exists:guests,id|different:related_guest_id',
+            'related_guest_id' => 'required|integer|exists:guests,id',
+            'type'             => 'required|in:couple,do_not_seat',
+        ]);
+
+        $guest = Guest::findOrFail($data['guest_id']);
+        $related = Guest::findOrFail($data['related_guest_id']);
+        abort_unless($guest->wedding_id === $wedding->id && $related->wedding_id === $wedding->id, 403);
+
+        $exists = $wedding->guestPairings()
+            ->where('type', $data['type'])
+            ->where(function ($q) use ($data) {
+                $q->where(['guest_id' => $data['guest_id'], 'related_guest_id' => $data['related_guest_id']])
+                  ->orWhere(['guest_id' => $data['related_guest_id'], 'related_guest_id' => $data['guest_id']]);
+            })
+            ->exists();
+        abort_if($exists, 422, 'This pairing already exists.');
+
+        $pairing = $wedding->guestPairings()->create($data);
+
+        return response()->json(['data' => $pairing->load(['guest', 'relatedGuest'])], 201);
+    }
+
+    public function destroyPairing(Request $request, GuestPairing $guestPairing): JsonResponse
+    {
+        abort_unless($guestPairing->wedding_id === $this->wedding($request)->id, 403);
+        $guestPairing->delete();
+        return response()->json(null, 204);
+    }
+
+    public function autoAssign(Request $request): JsonResponse
+    {
+        $wedding = $this->wedding($request);
+
+        $rules = $request->validate([
+            'keep_couples'          => 'nullable|boolean',
+            'avoid_do_not_seat'     => 'nullable|boolean',
+            'seat_elderly_together' => 'nullable|boolean',
+            'balance_groups'        => 'nullable|boolean',
+            'randomise'             => 'nullable|boolean',
+        ]);
+
+        $result = app(SeatingSuggestionService::class)->generate($wedding, $rules);
+
+        return response()->json(['data' => $result]);
     }
 
     public function index(Request $request): JsonResponse

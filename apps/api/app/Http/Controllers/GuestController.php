@@ -3,7 +3,9 @@
 namespace App\Http\Controllers;
 
 use App\Jobs\SendGuestInviteJob;
+use App\Models\AuditLog;
 use App\Models\Guest;
+use App\Models\GuestMessageDelivery;
 use App\Models\GuestToken;
 use App\Services\AuditLogService;
 use App\Services\SubscriptionEntitlementService;
@@ -34,6 +36,88 @@ class GuestController extends Controller
             ->get();
 
         return response()->json(['data' => $guests]);
+    }
+
+    private const ACTIVITY_LABELS = [
+        'guest.created' => 'was added as a guest',
+        'guest.updated' => 'details were updated',
+        'guest.deleted' => 'was removed',
+        'guest.invite_queued' => 'was sent an invitation',
+        'guest.invite_failed' => "invitation couldn't be delivered",
+        'guest.bulk_imported' => 'was imported',
+        'guest.rsvp_submitted' => 'submitted their RSVP',
+        'guest.hotel_assigned' => 'was assigned a hotel room',
+        'guest.hotel_unassigned' => 'was unassigned from a hotel room',
+        'guest.transport_assigned' => 'was assigned to a transport group',
+        'guest.transport_unassigned' => 'was unassigned from a transport group',
+    ];
+
+    private function activityPayload(AuditLog $log): array
+    {
+        $guest = $log->auditable;
+        return [
+            'id' => $log->id,
+            'guest_id' => $log->auditable_id,
+            'guest_name' => $guest?->full_name ?? 'A guest',
+            'action' => $log->action,
+            'label' => self::ACTIVITY_LABELS[$log->action] ?? $log->action,
+            'created_at' => $log->created_at?->toISOString(),
+        ];
+    }
+
+    public function activity(Request $request): JsonResponse
+    {
+        $wedding = $this->wedding($request);
+
+        $logs = AuditLog::query()
+            ->where('wedding_id', $wedding->id)
+            ->where('auditable_type', Guest::class)
+            ->whereIn('action', array_keys(self::ACTIVITY_LABELS))
+            ->with('auditable:id,wedding_id,first_name,last_name')
+            ->latest()
+            ->limit(20)
+            ->get();
+
+        return response()->json(['data' => $logs->map(fn ($log) => $this->activityPayload($log))->values()]);
+    }
+
+    public function guestActivity(Request $request, Guest $guest): JsonResponse
+    {
+        $wedding = $this->wedding($request);
+        abort_unless($guest->wedding_id === $wedding->id, 403);
+
+        $logs = AuditLog::query()
+            ->where('wedding_id', $wedding->id)
+            ->where('auditable_type', Guest::class)
+            ->where('auditable_id', $guest->id)
+            ->whereIn('action', array_keys(self::ACTIVITY_LABELS))
+            ->with('auditable:id,wedding_id,first_name,last_name')
+            ->latest()
+            ->limit(50)
+            ->get();
+
+        $communications = GuestMessageDelivery::query()
+            ->where('guest_id', $guest->id)
+            ->with('message:id,subject,channel')
+            ->latest('sent_at')
+            ->limit(20)
+            ->get()
+            ->map(fn ($delivery) => [
+                'id' => $delivery->id,
+                'subject' => $delivery->message?->subject,
+                'channel' => $delivery->channel,
+                'status' => $delivery->status,
+                'sent_at' => $delivery->sent_at?->toISOString(),
+                'delivered_at' => $delivery->delivered_at?->toISOString(),
+                'opened_at' => $delivery->opened_at?->toISOString(),
+            ]);
+
+        return response()->json([
+            'data' => [
+                'activity' => $logs->map(fn ($log) => $this->activityPayload($log))->values(),
+                'communications' => $communications->values(),
+            ],
+        ]);
     }
 
     public function export(Request $request)
@@ -134,6 +218,8 @@ class GuestController extends Controller
             'guest_group' => 'nullable|string',
             'custom_tags' => 'nullable|array',
             'vip_flag' => 'boolean',
+            'is_elderly' => 'boolean',
+            'accessibility_needs' => 'boolean',
             'attending_status' => 'nullable|in:pending,yes,no',
             'invite_status' => 'nullable|string',
             'plus_one_allowed' => 'boolean',
@@ -144,6 +230,7 @@ class GuestController extends Controller
             'travel_required' => 'boolean',
             'arrival_date' => 'nullable|date',
             'departure_date' => 'nullable|date',
+            'checked_in_at' => 'nullable|date',
             'arrival_airport' => 'nullable|string',
             'notes' => 'nullable|string',
             'wedding_party_role' => 'nullable|string|max:100',

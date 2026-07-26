@@ -12,7 +12,7 @@ class Vendor extends Model
     protected $fillable = [
         'wedding_id', 'name', 'contact_person', 'category', 'email', 'phone',
         'website', 'instagram', 'quoted_price', 'deposit_paid', 'balance_due',
-        'deposit_due_date', 'balance_due_date', 'booking_status',
+        'deposit_due_date', 'balance_due_date', 'booking_status', 'checked_in_at',
         'contract_signed', 'contract_file_url', 'on_timeline', 'priority', 'notes',
     ];
 
@@ -22,6 +22,7 @@ class Vendor extends Model
         'balance_due' => 'decimal:2',
         'deposit_due_date' => 'date',
         'balance_due_date' => 'date',
+        'checked_in_at' => 'datetime',
         'contract_signed' => 'boolean',
         'on_timeline' => 'boolean',
     ];

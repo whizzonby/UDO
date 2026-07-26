@@ -4,13 +4,14 @@ namespace App\Http\Controllers;
 
 use App\Services\SmartAlertService;
 use App\Services\OperationalHealthService;
+use App\Services\WeatherService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 
 class HomeController extends Controller
 {
-    public function index(Request $request, SmartAlertService $smartAlerts, OperationalHealthService $health): JsonResponse
+    public function index(Request $request, SmartAlertService $smartAlerts, OperationalHealthService $health, WeatherService $weather): JsonResponse
     {
         $user    = $request->user();
         $wedding = $user->activeWedding;
@@ -125,6 +126,10 @@ class HomeController extends Controller
         $smartAlertSummary = $smartAlerts->summary($wedding);
         $platformHealth = $health->snapshot($wedding);
 
+        $weatherSnapshot = ($wedding->venue_lat !== null && $wedding->venue_lng !== null)
+            ? $weather->forecast((float) $wedding->venue_lat, (float) $wedding->venue_lng, $wedding->event_date)
+            : null;
+
         return response()->json([
             'wedding' => [
                 'id'           => $wedding->id,
@@ -135,6 +140,12 @@ class HomeController extends Controller
                 'event_date'   => $wedding->event_date?->toDateString(),
                 'venue_name'   => $wedding->primary_venue_name,
                 'venue_city'   => $wedding->city,
+                'venue_lat'    => $wedding->venue_lat,
+                'venue_lng'    => $wedding->venue_lng,
+                'destination'  => implode(', ', array_filter([$wedding->city, $wedding->country])) ?: null,
+                'cover_photo_path' => $wedding->cover_photo_path,
+                'couple_photo_path' => $wedding->couple_photo_path,
+                'hashtag'      => $wedding->hashtag,
                 'days_until'   => $daysUntil,
                 'status'       => $wedding->status,
             ],
@@ -185,6 +196,7 @@ class HomeController extends Controller
                 'platform_health' => $platformHealth,
             ],
             'upcoming_tasks' => $upcomingTasks,
+            'weather' => $weatherSnapshot,
         ]);
     }
 

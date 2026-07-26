@@ -7,6 +7,7 @@
     "license": "MIT",
     "require": {
         "php": "^8.2",
+        "barryvdh/laravel-dompdf": "^3.1",
         "filament/filament": "4.0",
         "firebase/php-jwt": "^7.1",
         "laravel/framework": "^12.0",
@@ -15,7 +16,8 @@
         "laravel/tinker": "^2.10.1",
         "sentry/sentry-laravel": "^4.26",
         "socialiteproviders/apple": "*",
-        "spatie/laravel-permission": "^6.25"
+        "spatie/laravel-permission": "^6.25",
+        "stripe/stripe-php": "^21.0"
     },
     "require-dev": {
         "fakerphp/faker": "^1.23",

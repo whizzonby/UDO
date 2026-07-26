@@ -6,6 +6,7 @@ use App\Models\AccommodationOption;
 use App\Models\Guest;
 use App\Models\TransportGroup;
 use App\Models\GuestTransportAssignment;
+use App\Services\AuditLogService;
 use App\Services\WeddingAccessService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -157,7 +158,8 @@ class LogisticsController extends Controller
 
     public function assignAccommodation(Request $request, AccommodationOption $accommodationOption): JsonResponse
     {
-        abort_unless($accommodationOption->wedding_id === $this->wedding($request)->id, 403);
+        $wedding = $this->wedding($request);
+        abort_unless($accommodationOption->wedding_id === $wedding->id, 403);
 
         $data = $request->validate([
             'guest_id' => 'required|integer|exists:guests,id',
@@ -175,14 +177,17 @@ class LogisticsController extends Controller
 
         $guest->update(['hotel_assignment_id' => $accommodationOption->id]);
         $this->refreshAccommodationCount($accommodationOption);
+        app(AuditLogService::class)->record('guest.hotel_assigned', $wedding, $request->user(), $guest->fresh(), null, ['hotel_assignment_id' => $accommodationOption->id, 'hotel_name' => $accommodationOption->name], request: $request);
 
         return response()->json(['data' => $accommodationOption->fresh()]);
     }
 
     public function removeAccommodation(Request $request, AccommodationOption $accommodationOption, int $guestId): JsonResponse
     {
-        abort_unless($accommodationOption->wedding_id === $this->wedding($request)->id, 403);
+        $wedding = $this->wedding($request);
+        abort_unless($accommodationOption->wedding_id === $wedding->id, 403);
 
+        $guest = Guest::find($guestId);
         Guest::query()
             ->where('wedding_id', $accommodationOption->wedding_id)
             ->where('id', $guestId)
@@ -190,6 +195,9 @@ class LogisticsController extends Controller
             ->update(['hotel_assignment_id' => null]);
 
         $this->refreshAccommodationCount($accommodationOption);
+        if ($guest) {
+            app(AuditLogService::class)->record('guest.hotel_unassigned', $wedding, $request->user(), $guest, ['hotel_assignment_id' => $accommodationOption->id], null, request: $request);
+        }
 
         return response()->json(null, 204);
     }
@@ -252,7 +260,8 @@ class LogisticsController extends Controller
 
     public function assignTransport(Request $request, TransportGroup $transportGroup): JsonResponse
     {
-        abort_unless($transportGroup->wedding_id === $this->wedding($request)->id, 403);
+        $wedding = $this->wedding($request);
+        abort_unless($transportGroup->wedding_id === $wedding->id, 403);
 
         $data = $request->validate([
             'guest_id' => 'required|integer|exists:guests,id',
@@ -273,24 +282,30 @@ class LogisticsController extends Controller
         );
         $guest->update(['transport_assignment_id' => $transportGroup->id]);
         $this->refreshTransportCount($transportGroup);
+        app(AuditLogService::class)->record('guest.transport_assigned', $wedding, $request->user(), $guest->fresh(), null, ['transport_assignment_id' => $transportGroup->id, 'transport_name' => $transportGroup->name], request: $request);
 
         return response()->json(['data' => $transportGroup->fresh()->load('assignments.guest')]);
     }
 
     public function removeTransport(Request $request, TransportGroup $transportGroup, int $guestId): JsonResponse
     {
-        abort_unless($transportGroup->wedding_id === $this->wedding($request)->id, 403);
+        $wedding = $this->wedding($request);
+        abort_unless($transportGroup->wedding_id === $wedding->id, 403);
 
         GuestTransportAssignment::where([
             'transport_group_id' => $transportGroup->id,
             'guest_id'           => $guestId,
         ])->delete();
+        $guest = Guest::find($guestId);
         Guest::query()
             ->where('wedding_id', $transportGroup->wedding_id)
             ->where('id', $guestId)
             ->where('transport_assignment_id', $transportGroup->id)
             ->update(['transport_assignment_id' => null]);
         $this->refreshTransportCount($transportGroup);
+        if ($guest) {
+            app(AuditLogService::class)->record('guest.transport_unassigned', $wedding, $request->user(), $guest, ['transport_assignment_id' => $transportGroup->id], null, request: $request);
+        }
 
         return response()->json(null, 204);
     }
