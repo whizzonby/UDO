@@ -8,13 +8,42 @@ use App\Models\GuestExperienceConfig;
 use App\Models\RegistryContribution;
 use App\Models\RegistryItem;
 use App\Models\ThankYouRecord;
+use App\Models\Wedding;
 use App\Services\AuditLogService;
+use App\Services\SmartAlertService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 
 class GuestPortalController extends Controller
 {
+    public function wedding(string $slug): JsonResponse
+    {
+        $wedding = Wedding::where('slug', $slug)->with('experienceConfig')->firstOrFail();
+        $config = $this->experienceConfig($wedding);
+        $isPublished = $config->publish_state === 'published';
+
+        return response()->json([
+            'view_type' => 'wedding',
+            'portal_url' => rtrim((string) config('app.frontend_url', config('app.url')), '/') . '/w/' . $wedding->slug,
+            'experience' => $this->experiencePayload($config),
+            'wedding' => $this->weddingPayload($wedding),
+            'portal_alerts' => $isPublished ? $this->portalAlerts($wedding) : [],
+            'portal_messages' => $isPublished ? $this->portalMessages($wedding) : [],
+            'sections' => $isPublished ? $this->sectionPayload($wedding, $config) : [
+                'schedule' => [],
+                'accommodation' => [],
+                'transport' => [],
+                'seating' => null,
+                'registry' => [],
+                'gallery' => [],
+                'live_updates' => [],
+                'guestbook' => [],
+            ],
+        ]);
+    }
+
     public function show(string $token): JsonResponse
     {
         $guestToken = GuestToken::where('token', $token)->with(['guest', 'wedding.experienceConfig'])->firstOrFail();
@@ -50,17 +79,9 @@ class GuestPortalController extends Controller
                     'updated_at' => $guest->communication_preferences_updated_at?->toISOString(),
                 ],
             ],
-            'wedding' => [
-                'title'                => $wedding->title,
-                'couple_name_primary'  => $wedding->couple_name_primary,
-                'couple_name_secondary' => $wedding->couple_name_secondary,
-                'event_date'           => $wedding->event_date?->toDateString(),
-                'city'                 => $wedding->city,
-                'country'              => $wedding->country,
-                'venue'                => $wedding->primary_venue_name,
-                'venue_address'        => $wedding->primary_venue_address,
-                'rsvp_deadline'        => $wedding->rsvp_deadline?->toDateString(),
-            ],
+            'wedding' => $this->weddingPayload($wedding),
+            'portal_alerts' => $isPublished ? $this->portalAlerts($wedding) : [],
+            'portal_messages' => $isPublished ? $this->portalMessages($wedding) : [],
             'sections' => $isPublished ? $this->sectionPayload($wedding, $config, $guest) : [
                 'schedule' => [],
                 'accommodation' => [],
@@ -302,7 +323,123 @@ class GuestPortalController extends Controller
         ];
     }
 
-    private function sectionPayload($wedding, GuestExperienceConfig $config, $guest): array
+    private function weddingPayload($wedding): array
+    {
+        return [
+            'id' => $wedding->id,
+            'slug' => $wedding->slug,
+            'title' => $wedding->title,
+            'couple_name_primary' => $wedding->couple_name_primary,
+            'couple_name_secondary' => $wedding->couple_name_secondary,
+            'event_date' => $wedding->event_date?->toDateString(),
+            'city' => $wedding->city,
+            'country' => $wedding->country,
+            'venue' => $wedding->primary_venue_name,
+            'venue_address' => $wedding->primary_venue_address,
+            'rsvp_deadline' => $wedding->rsvp_deadline?->toDateString(),
+            'hashtag' => $wedding->hashtag,
+        ];
+    }
+
+    private function portalAlerts($wedding): array
+    {
+        $smartAlerts = app(SmartAlertService::class)
+            ->summary($wedding)['alerts'] ?? [];
+
+        $guestSafeAlerts = collect($smartAlerts)
+            ->filter(fn ($alert) => in_array($alert['alert_type'] ?? '', [
+                'rsvp',
+                'logistics',
+                'guest',
+                'post_wedding',
+                'anniversary',
+            ], true))
+            ->map(fn ($alert) => [
+                'id' => 'smart-' . $alert['id'],
+                'type' => $alert['alert_type'] ?? 'alert',
+                'title' => $this->guestAlertTitle($alert),
+                'body' => $alert['body'] ?? null,
+                'target' => $alert['target'] ?? null,
+                'trigger_at' => $alert['trigger_at'] ?? null,
+            ]);
+
+        $liveAlerts = $wedding->liveUpdates()
+            ->where('visible_to_guests', true)
+            ->where('bride_only', false)
+            ->whereIn('type', ['alert', 'incident'])
+            ->orderByDesc('pinned')
+            ->orderByDesc('event_time')
+            ->limit(5)
+            ->get(['id', 'type', 'title', 'body', 'event_time', 'created_at'])
+            ->map(fn ($update) => [
+                'id' => 'live-' . $update->id,
+                'type' => $update->type,
+                'title' => $update->title,
+                'body' => $update->body,
+                'target' => 'live',
+                'trigger_at' => ($update->event_time ?? $update->created_at)?->toISOString(),
+            ]);
+
+        return $guestSafeAlerts
+            ->concat($liveAlerts)
+            ->take(6)
+            ->values()
+            ->all();
+    }
+
+    private function portalMessages($wedding): array
+    {
+        $sentMessages = $wedding->messages()
+            ->whereIn('status', ['sent', 'sending'])
+            ->orderByDesc('sent_at')
+            ->orderByDesc('created_at')
+            ->limit(5)
+            ->get(['id', 'subject', 'body', 'message_type', 'sent_at', 'created_at'])
+            ->map(fn ($message) => [
+                'id' => 'message-' . $message->id,
+                'sender' => $message->message_type === 'thank_you' ? 'Gift Registry' : 'Wedding Team',
+                'title' => $message->subject ?: ucfirst(str_replace('_', ' ', $message->message_type)),
+                'body' => Str::limit(strip_tags((string) $message->body), 96),
+                'sent_at' => ($message->sent_at ?? $message->created_at)?->toISOString(),
+            ]);
+
+        $liveMessages = $wedding->liveUpdates()
+            ->where('visible_to_guests', true)
+            ->where('bride_only', false)
+            ->whereNotIn('type', ['alert', 'incident'])
+            ->orderByDesc('pinned')
+            ->orderByDesc('event_time')
+            ->limit(5)
+            ->get(['id', 'title', 'body', 'type', 'event_time', 'created_at'])
+            ->map(fn ($update) => [
+                'id' => 'live-' . $update->id,
+                'sender' => $update->type === 'registry' ? 'Gift Registry' : 'Wedding Team',
+                'title' => $update->title,
+                'body' => Str::limit((string) ($update->body ?: $update->title), 96),
+                'sent_at' => ($update->event_time ?? $update->created_at)?->toISOString(),
+            ]);
+
+        return $sentMessages
+            ->concat($liveMessages)
+            ->sortByDesc('sent_at')
+            ->take(6)
+            ->values()
+            ->all();
+    }
+
+    private function guestAlertTitle(array $alert): string
+    {
+        return match ($alert['alert_type'] ?? null) {
+            'rsvp' => 'RSVP reminder',
+            'logistics' => 'Transportation update',
+            'guest' => 'Guest details needed',
+            'post_wedding' => 'Thank-you reminder',
+            'anniversary' => 'Anniversary note',
+            default => $alert['title'] ?? 'Wedding alert',
+        };
+    }
+
+    private function sectionPayload($wedding, GuestExperienceConfig $config, $guest = null): array
     {
         return [
             'schedule' => $config->show_schedule
@@ -318,20 +455,20 @@ class GuestPortalController extends Controller
                     ->get(['id', 'name', 'type', 'address', 'city', 'country', 'price_per_night', 'currency', 'booking_code', 'website', 'distance_from_venue_km', 'check_in_date', 'check_out_date', 'notes'])
                     ->map(fn ($option) => [
                         ...$option->toArray(),
-                        'assigned_to_guest' => (int) $guest->hotel_assignment_id === (int) $option->id,
+                        'assigned_to_guest' => $guest ? (int) $guest->hotel_assignment_id === (int) $option->id : false,
                     ])
                 : [],
             'transport' => $config->show_transport
                 ? $wedding->transportGroups()
-                    ->where(function ($query) use ($guest) {
-                        $query
+                    ->when($guest, fn ($query) => $query->where(function ($transportQuery) use ($guest) {
+                        $transportQuery
                             ->where('id', $guest->transport_assignment_id)
                             ->orWhereHas('assignments', fn ($assignmentQuery) => $assignmentQuery->where('guest_id', $guest->id));
-                    })
+                    }))
                     ->orderBy('departure_time')
                     ->get(['id', 'name', 'type', 'pickup_location', 'dropoff_location', 'departure_time', 'driver_name', 'driver_phone', 'notes'])
                 : [],
-            'seating' => $config->show_seating && $guest->seating_assignment_id
+            'seating' => $config->show_seating && $guest?->seating_assignment_id
                 ? $this->seatingPayload($guest)
                 : null,
             'registry' => $config->show_registry

@@ -61,9 +61,12 @@ class WeatherService
                         ? \Carbon\Carbon::createFromTimestampUTC($c['sys']['sunset'])->addSeconds($tzOffsetSeconds)->format('g:i A')
                         : null,
                     'hourly' => collect($f['list'] ?? [])->take(5)->map(fn ($item) => [
+                        'at'        => $item['dt_txt'] ?? null,
                         'time'      => \Carbon\Carbon::parse($item['dt_txt'])->format('g:i A'),
                         'temp'      => round($item['main']['temp']),
                         'condition' => $item['weather'][0]['main'] ?? 'Clear',
+                        'rain_chance_pct' => round(($item['pop'] ?? 0) * 100),
+                        'wind_mph' => round($item['wind']['speed'] ?? 0),
                     ])->values()->all(),
                     // Kept raw so wedding-day matching can run outside the cached closure
                     // (the closure only re-executes every 30 minutes; the wedding date match
@@ -85,7 +88,10 @@ class WeatherService
 
         $base['wedding_day'] = $weddingDate
             ? $this->matchWeddingDayForecast($forecastList, $weddingDate)
-            : null;
+            : [
+                'forecast_available' => false,
+                'reason' => 'Add your wedding date to see the wedding-day forecast.',
+            ];
 
         return $base;
     }
@@ -98,13 +104,18 @@ class WeatherService
     private function matchWeddingDayForecast(array $forecastList, \DateTimeInterface $weddingDate): array
     {
         $targetDate = \Carbon\Carbon::instance($weddingDate)->startOfDay();
+        $targetDateString = $targetDate->toDateString();
 
         $dayEntries = collect($forecastList)->filter(function ($item) use ($targetDate) {
             return \Carbon\Carbon::parse($item['dt_txt'])->isSameDay($targetDate);
         });
 
         if ($dayEntries->isEmpty()) {
-            return ['forecast_available' => false];
+            return [
+                'forecast_available' => false,
+                'date' => $targetDateString,
+                'reason' => 'Forecast available closer to the wedding date.',
+            ];
         }
 
         // Prefer the entry closest to midday for a representative "wedding day" reading.
@@ -112,12 +123,32 @@ class WeatherService
             return abs(\Carbon\Carbon::parse($item['dt_txt'])->diffInMinutes($targetDate->copy()->setTime(12, 0)));
         })->first();
 
+        $temps = $dayEntries->map(fn ($item) => $item['main']['temp'] ?? null)->filter();
+        $rainChance = $dayEntries->max(fn ($item) => $item['pop'] ?? 0);
+        $wind = $dayEntries->max(fn ($item) => $item['wind']['speed'] ?? 0);
+        $humidity = (int) round($dayEntries->avg(fn ($item) => $item['main']['humidity'] ?? 0));
+        $clouds = (int) round($dayEntries->avg(fn ($item) => $item['clouds']['all'] ?? 0));
+
         return [
             'forecast_available' => true,
+            'date' => $targetDateString,
             'temp'        => round($midday['main']['temp']),
+            'temp_min'    => $temps->isNotEmpty() ? round($temps->min()) : null,
+            'temp_max'    => $temps->isNotEmpty() ? round($temps->max()) : null,
             'condition'   => $midday['weather'][0]['main'] ?? 'Clear',
             'description' => $midday['weather'][0]['description'] ?? '',
-            'rain_chance_pct' => round(($midday['pop'] ?? 0) * 100),
+            'rain_chance_pct' => round($rainChance * 100),
+            'wind_mph' => round($wind),
+            'humidity' => $humidity,
+            'clouds_pct' => $clouds,
+            'hourly' => $dayEntries->map(fn ($item) => [
+                'at'        => $item['dt_txt'] ?? null,
+                'time'      => \Carbon\Carbon::parse($item['dt_txt'])->format('g:i A'),
+                'temp'      => round($item['main']['temp']),
+                'condition' => $item['weather'][0]['main'] ?? 'Clear',
+                'rain_chance_pct' => round(($item['pop'] ?? 0) * 100),
+                'wind_mph' => round($item['wind']['speed'] ?? 0),
+            ])->values()->all(),
         ];
     }
 }

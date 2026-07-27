@@ -11,7 +11,8 @@ class LiveUpdate extends Model
     protected $fillable = [
         'wedding_id', 'created_by', 'type', 'title', 'body',
         'severity', 'audience', 'status', 'image_url', 'pinned',
-        'visible_to_guests', 'bride_only', 'requires_action', 'event_time', 'resolved_at',
+        'visible_to_guests', 'bride_only', 'requires_action', 'delivery_channels',
+        'event_time', 'resolved_at',
     ];
 
     protected $casts = [
@@ -19,6 +20,7 @@ class LiveUpdate extends Model
         'visible_to_guests' => 'boolean',
         'bride_only' => 'boolean',
         'requires_action' => 'boolean',
+        'delivery_channels' => 'array',
         'event_time' => 'datetime',
         'resolved_at' => 'datetime',
     ];

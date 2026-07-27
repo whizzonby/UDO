@@ -94,6 +94,10 @@ Route::prefix('g')->group(function () {
     Route::post('{token}/registry/{registryItem}/contribute', [GuestPortalController::class, 'contributeRegistry'])->middleware('throttle:10,1');
 });
 
+Route::prefix('w')->group(function () {
+    Route::get('{slug}', [GuestPortalController::class, 'wedding'])->middleware('throttle:120,1');
+});
+
 // Wedding-wide QR upload link — not tied to any one guest's invite token.
 Route::prefix('upload')->group(function () {
     Route::get('{token}', [GalleryUploadController::class, 'show'])->middleware('throttle:120,1');

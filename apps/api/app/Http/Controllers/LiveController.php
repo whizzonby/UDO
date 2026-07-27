@@ -71,6 +71,8 @@ class LiveController extends Controller
         )->values();
         $travellingGuests = $wedding->guests()->where('travel_required', true)->get();
         $todayArrivals = $travellingGuests->filter(fn ($guest) => $guest->arrival_date && $guest->arrival_date->isToday())->values();
+        $confirmedGuests = $wedding->guests()->where('attending_status', 'yes')->get();
+        $checkedInGuests = $confirmedGuests->filter(fn ($guest) => $guest->checked_in_at)->values();
         $confirmedVendors = $wedding->vendors()->where('booking_status', 'confirmed')->get();
         $vipGuests = $wedding->guests()->where('vip_flag', true)->get();
         $vipAttention = $vipGuests
@@ -103,7 +105,7 @@ class LiveController extends Controller
                 'unresolved_incidents' => $unresolvedIncidents->count(),
             ],
             'guests' => [
-                'confirmed' => $wedding->guests()->where('attending_status', 'yes')->count(),
+                'confirmed' => $confirmedGuests->count(),
                 'invited'   => $wedding->guests()->count(),
             ],
             'arrivals' => [
@@ -111,7 +113,12 @@ class LiveController extends Controller
                 'arriving_today' => $todayArrivals->count(),
                 'missing_arrival_info' => $travellingGuests->filter(fn ($guest) => ! $guest->arrival_date || ! $guest->arrival_time)->count(),
                 'vip_attention_count' => $vipAttention->count(),
-                'checked_in_count' => $todayArrivals->filter(fn ($guest) => $guest->checked_in_at)->count(),
+                'checked_in_count' => $checkedInGuests->count(),
+                'checked_in_guests' => $checkedInGuests->map(fn ($guest) => [
+                    'id' => $guest->id,
+                    'name' => $guest->full_name,
+                    'checked_in_at' => $guest->checked_in_at,
+                ])->values(),
                 'arriving_today_guests' => $todayArrivals->map(fn ($guest) => [
                     'id' => $guest->id,
                     'name' => $guest->full_name,
@@ -157,10 +164,12 @@ class LiveController extends Controller
         $data = $request->validate([
             'type'              => 'nullable|in:general,schedule,venue,announcement,incident,alert,vip,arrival,logistics',
             'severity'          => 'nullable|in:info,low,medium,high,critical',
-            'audience'          => 'nullable|in:all,guests,team,vip,private',
+            'audience'          => 'nullable|in:all,guests,team,vip,vendors,private',
             'status'            => 'nullable|in:open,monitoring,resolved',
             'title'             => 'required|string|max:255',
             'body'              => 'nullable|string',
+            'delivery_channels' => 'nullable|array',
+            'delivery_channels.*' => 'in:sms,whatsapp,email',
             'image_url'         => 'nullable|url',
             'pinned'            => 'nullable|boolean',
             'visible_to_guests' => 'nullable|boolean',
@@ -192,10 +201,12 @@ class LiveController extends Controller
         $data = $request->validate([
             'type'              => 'nullable|in:general,schedule,venue,announcement,incident,alert,vip,arrival,logistics',
             'severity'          => 'nullable|in:info,low,medium,high,critical',
-            'audience'          => 'nullable|in:all,guests,team,vip,private',
+            'audience'          => 'nullable|in:all,guests,team,vip,vendors,private',
             'status'            => 'nullable|in:open,monitoring,resolved',
             'title'             => 'sometimes|string|max:255',
             'body'              => 'nullable|string',
+            'delivery_channels' => 'nullable|array',
+            'delivery_channels.*' => 'in:sms,whatsapp,email',
             'image_url'         => 'nullable|url',
             'pinned'            => 'nullable|boolean',
             'visible_to_guests' => 'nullable|boolean',
