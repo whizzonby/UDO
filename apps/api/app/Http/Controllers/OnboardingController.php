@@ -104,12 +104,22 @@ class OnboardingController extends Controller
 
         $user = $request->user();
 
-        // Wedding.settings only holds the handful of keys other parts of the
-        // app read directly (e.g. HomeController/BudgetController read
-        // total_budget). The full questionnaire is preserved verbatim in
-        // onboarding_responses for support/debugging and future "edit your
-        // answers" flows, rather than being narrowed to a fixed whitelist.
-        $settings = ['total_budget' => $data['total_budget'] ?? null];
+        // Wedding.settings only holds the keys other parts of the app read
+        // directly (HomeController/BudgetController read total_budget; the
+        // Plan "Wedding Details" screen reads wedding_type/guest_count/
+        // venue_status/planning_approach). The full questionnaire is
+        // preserved verbatim in onboarding_responses for support/debugging
+        // and future "edit your answers" flows, rather than being narrowed
+        // to a fixed whitelist. array_filter drops unanswered questions so a
+        // repeat/partial onboarding submission can't null out values that
+        // were already set.
+        $settings = array_filter([
+            'total_budget'      => $data['total_budget'] ?? null,
+            'wedding_type'      => $data['wedding_type'] ?? null,
+            'guest_count'       => $data['guest_count'] ?? null,
+            'venue_status'      => $data['venue_status'] ?? null,
+            'planning_approach' => $data['planning_approach'] ?? null,
+        ], fn ($value) => $value !== null);
 
         if (! $user->active_wedding_id) {
             $wedding = Wedding::create([

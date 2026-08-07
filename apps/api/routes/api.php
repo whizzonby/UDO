@@ -5,10 +5,12 @@ use App\Http\Controllers\Auth\EmailVerificationController;
 use App\Http\Controllers\Auth\MobileSocialAuthController;
 use App\Http\Controllers\Auth\SocialAuthController;
 use App\Http\Controllers\Auth\PasswordResetController;
+use App\Http\Controllers\AiAssistantController;
 use App\Http\Controllers\ApprovalController;
 use App\Http\Controllers\AuditLogController;
 use App\Http\Controllers\BillingController;
 use App\Http\Controllers\CheckoutController;
+use App\Http\Controllers\ContentPageController;
 use App\Http\Controllers\GuestController;
 use App\Http\Controllers\IapController;
 use App\Http\Controllers\MoodController;
@@ -26,7 +28,9 @@ use App\Http\Controllers\MessagesController;
 use App\Http\Controllers\OnboardingController;
 use App\Http\Controllers\OperationalHealthController;
 use App\Http\Controllers\PinterestController;
+use App\Http\Controllers\PlaceSearchController;
 use App\Http\Controllers\RegistryController;
+use App\Http\Controllers\ReleaseNoteController;
 use App\Http\Controllers\SeatingController;
 use App\Http\Controllers\SavedFilterController;
 use App\Http\Controllers\SmartAlertController;
@@ -37,9 +41,13 @@ use App\Http\Controllers\WeddingController;
 use App\Http\Controllers\WeddingStoryController;
 use App\Http\Controllers\Plan\BudgetController;
 use App\Http\Controllers\Plan\FoodController;
+use App\Http\Controllers\Plan\FoodServiceItemController;
 use App\Http\Controllers\Plan\HoneymoonController;
 use App\Http\Controllers\Plan\HoneymoonItemController;
+use App\Http\Controllers\Plan\HoneymoonTravelerController;
 use App\Http\Controllers\Plan\InsuranceController;
+use App\Http\Controllers\Plan\InsuranceDocumentController;
+use App\Http\Controllers\Plan\WeddingDocumentController;
 use App\Http\Controllers\Plan\MemoryGuestbookController;
 use App\Http\Controllers\Plan\MemoryGuestbookEntryController;
 use App\Http\Controllers\Plan\MemoryMusicController;
@@ -47,6 +55,8 @@ use App\Http\Controllers\Plan\MemoryPhotoBoothController;
 use App\Http\Controllers\Plan\MemorySpeechController;
 use App\Http\Controllers\Plan\MemoryTraditionController;
 use App\Http\Controllers\Plan\MemoryVowController;
+use App\Http\Controllers\Plan\RecipeSearchController;
+use App\Http\Controllers\Plan\RehearsalController;
 use App\Http\Controllers\Plan\ReminderController;
 use App\Http\Controllers\Plan\TaskController;
 use App\Http\Controllers\Plan\TimelineController;
@@ -68,6 +78,8 @@ Route::prefix('auth')->group(function () {
     Route::post('login', [AuthController::class, 'login'])->middleware('throttle:10,1');
     Route::post('forgot-password', [PasswordResetController::class, 'sendLink'])->middleware('throttle:5,1');
     Route::post('reset-password', [PasswordResetController::class, 'reset'])->middleware('throttle:10,1');
+    Route::post('two-factor/verify', [AuthController::class, 'twoFactorVerify'])->middleware('throttle:10,1');
+    Route::post('two-factor/resend', [AuthController::class, 'twoFactorResend'])->middleware('throttle:3,1');
     // Web OAuth redirect flow (for Next.js)
     Route::get('{provider}/redirect', [SocialAuthController::class, 'redirect']);
     Route::get('{provider}/callback', [SocialAuthController::class, 'callback']);
@@ -128,6 +140,8 @@ Route::middleware(['auth:sanctum', 'idempotency'])->group(function () {
     Route::patch('auth/me', [AuthController::class, 'update']);
     Route::patch('auth/preferences', [AuthController::class, 'updatePreferences']);
     Route::post('auth/change-password', [AuthController::class, 'changePassword']);
+    Route::post('auth/two-factor/enable', [AuthController::class, 'twoFactorEnable']);
+    Route::post('auth/two-factor/disable', [AuthController::class, 'twoFactorDisable']);
     Route::post('auth/logout', [AuthController::class, 'logout']);
     Route::post('auth/logout-all', [AuthController::class, 'logoutAll']);
     Route::get('auth/privacy/export', [AuthController::class, 'privacyExport']);
@@ -136,6 +150,10 @@ Route::middleware(['auth:sanctum', 'idempotency'])->group(function () {
 
     // Onboarding
     Route::post('onboarding', [OnboardingController::class, 'store']);
+
+    // About / static content
+    Route::get('content-pages/{slug}', [ContentPageController::class, 'show']);
+    Route::get('release-notes', [ReleaseNoteController::class, 'index']);
 
     // Dashboard
     Route::get('dashboard', [HomeController::class, 'index']);
@@ -165,11 +183,16 @@ Route::middleware(['auth:sanctum', 'idempotency'])->group(function () {
     Route::prefix('wedding')->group(function () {
         Route::get('/', [WeddingController::class, 'show']);
         Route::patch('/', [WeddingController::class, 'update']);
+        Route::post('cover-photo', [WeddingController::class, 'uploadCoverPhoto']);
         Route::get('team', [WeddingTeamController::class, 'index']);
         Route::post('team', [WeddingTeamController::class, 'store']);
         Route::patch('team/{collaborator}', [WeddingTeamController::class, 'update']);
         Route::delete('team/{collaborator}', [WeddingTeamController::class, 'destroy']);
     });
+
+    // AI Wedding Assistant
+    Route::get('ai-assistant', [AiAssistantController::class, 'index']);
+    Route::post('ai-assistant/chat', [AiAssistantController::class, 'chat']);
 
     // Guests
     Route::get('guests/export', [GuestController::class, 'export']);
@@ -203,7 +226,10 @@ Route::middleware(['auth:sanctum', 'idempotency'])->group(function () {
         Route::post('reminders/refresh', [ReminderController::class, 'refresh']);
         Route::apiResource('reminders', ReminderController::class)->only(['index', 'store', 'update', 'destroy']);
         Route::apiResource('insurance', InsuranceController::class)->only(['index', 'store', 'update', 'destroy'])->parameters(['insurance' => 'insurancePolicy']);
+        Route::apiResource('insurance/documents', InsuranceDocumentController::class)->only(['index', 'store', 'destroy'])->parameters(['documents' => 'insuranceDocument']);
+        Route::apiResource('documents', WeddingDocumentController::class)->only(['index', 'store', 'destroy'])->parameters(['documents' => 'weddingDocument']);
         Route::apiResource('wedding-weekend', WeddingWeekendController::class)->only(['index', 'store', 'update', 'destroy'])->parameters(['wedding-weekend' => 'weddingWeekendEvent']);
+        Route::apiResource('rehearsals', RehearsalController::class)->only(['index', 'store', 'update', 'destroy'])->parameters(['rehearsals' => 'rehearsal']);
         Route::get('food', [FoodController::class, 'index']);
         Route::post('food/courses', [FoodController::class, 'storeCourse']);
         Route::patch('food/courses/{menuCourse}', [FoodController::class, 'updateCourse']);
@@ -213,9 +239,14 @@ Route::middleware(['auth:sanctum', 'idempotency'])->group(function () {
         Route::delete('food/options/{menuCourseOption}', [FoodController::class, 'destroyOption']);
         Route::post('food/options/{menuCourseOption}/select', [FoodController::class, 'selectForGuest']);
         Route::delete('food/guests/{guest}/courses/{menuCourse}', [FoodController::class, 'removeSelection']);
+        Route::apiResource('food-service-items', FoodServiceItemController::class)->only(['index', 'store', 'update', 'destroy'])->parameters(['food-service-items' => 'foodServiceItem']);
+        Route::get('food/recipe-search', [RecipeSearchController::class, 'search']);
+        Route::get('food/recipes/{recipeId}', [RecipeSearchController::class, 'show']);
         Route::get('honeymoon', [HoneymoonController::class, 'show']);
         Route::patch('honeymoon', [HoneymoonController::class, 'update']);
+        Route::post('honeymoon/cover-photo', [HoneymoonController::class, 'uploadCoverPhoto']);
         Route::apiResource('honeymoon/items', HoneymoonItemController::class)->only(['store', 'update', 'destroy'])->parameters(['items' => 'honeymoonItem']);
+        Route::apiResource('honeymoon/travelers', HoneymoonTravelerController::class)->only(['store', 'update', 'destroy'])->parameters(['travelers' => 'honeymoonTraveler']);
 
         Route::apiResource('memories/speeches', MemorySpeechController::class)->only(['index', 'store', 'update', 'destroy'])->parameters(['speeches' => 'memorySpeech']);
         Route::apiResource('memories/vows', MemoryVowController::class)->only(['index', 'store', 'update', 'destroy'])->parameters(['vows' => 'memoryVow']);
@@ -236,6 +267,8 @@ Route::middleware(['auth:sanctum', 'idempotency'])->group(function () {
         Route::post('/', [InvitationController::class, 'store']);
         Route::patch('/', [InvitationController::class, 'update']);
         Route::post('publish', [InvitationController::class, 'publish']);
+        Route::post('import', [InvitationController::class, 'importAsset']);
+        Route::delete('import', [InvitationController::class, 'removeImportedAsset']);
         Route::get('campaigns', [InvitationCampaignController::class, 'index']);
         Route::post('campaigns', [InvitationCampaignController::class, 'store']);
         Route::post('campaigns/preview', [InvitationCampaignController::class, 'preview']);
@@ -303,6 +336,10 @@ Route::middleware(['auth:sanctum', 'idempotency'])->group(function () {
     Route::delete('seating/tables/{seatingTable}', [SeatingController::class, 'destroyTable']);
     Route::post('seating/tables/{seatingTable}/assign', [SeatingController::class, 'assignSeat']);
     Route::delete('seating/tables/{seatingTable}/seats/{seatingSeat}', [SeatingController::class, 'clearSeat']);
+
+    // Places (Google Places Autocomplete — hotel/lodging name search)
+    Route::get('places/search', [PlaceSearchController::class, 'search']);
+    Route::get('places/{placeId}', [PlaceSearchController::class, 'show']);
 
     // Logistics
     Route::get('logistics/summary', [LogisticsController::class, 'summary']);

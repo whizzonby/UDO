@@ -7,6 +7,7 @@ use App\Filament\Resources\AuditLogResource;
 use App\Filament\Resources\BlogPostResource;
 use App\Filament\Resources\BudgetItemResource;
 use App\Filament\Resources\BudgetPaymentScheduleResource;
+use App\Filament\Resources\ContentPageResource;
 use App\Filament\Resources\EmailTemplateResource;
 use App\Filament\Resources\FailedJobResource;
 use App\Filament\Resources\FaqResource;
@@ -20,6 +21,7 @@ use App\Filament\Resources\InvitationCampaignResource;
 use App\Filament\Resources\LiveUpdateResource;
 use App\Filament\Resources\MessageResource;
 use App\Filament\Resources\RegistryContributionResource;
+use App\Filament\Resources\ReleaseNoteResource;
 use App\Filament\Resources\SavedFilterResource;
 use App\Filament\Resources\SeatingTableResource;
 use App\Filament\Resources\SmartAlertResource;
@@ -115,6 +117,8 @@ class AdminPanelProvider extends PanelProvider
                 TestimonialResource::class,
                 FaqResource::class,
                 EmailTemplateResource::class,
+                ContentPageResource::class,
+                ReleaseNoteResource::class,
             ])
             ->pages([
                 Pages\Dashboard::class,

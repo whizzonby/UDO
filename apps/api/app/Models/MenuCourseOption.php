@@ -8,10 +8,11 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class MenuCourseOption extends Model
 {
-    protected $fillable = ['menu_course_id', 'wedding_id', 'name', 'description', 'dietary_tags', 'confirmed', 'sort_order'];
+    protected $fillable = ['menu_course_id', 'wedding_id', 'name', 'description', 'dietary_tags', 'metadata', 'confirmed', 'sort_order'];
 
     protected $casts = [
         'dietary_tags' => 'array',
+        'metadata' => 'array',
         'confirmed' => 'boolean',
     ];
 

@@ -16,6 +16,8 @@ class Invitation extends Model
         'optional_quote',
         'rsvp_deadline_text',
         'cover_image_url',
+        'imported_asset_url',
+        'imported_asset_type',
         'template_id',
         'theme_id',
         'published_at',

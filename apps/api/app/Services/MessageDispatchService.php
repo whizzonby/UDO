@@ -44,10 +44,27 @@ class MessageDispatchService
         ]);
 
         foreach ($deliveryIds as $deliveryId) {
-            SendGuestMessageDeliveryJob::dispatch($deliveryId);
+            $this->runSync($deliveryId);
         }
 
         return $guests->count();
+    }
+
+    /**
+     * Runs a delivery job inline (no queue worker dependency) without letting
+     * one recipient's failure (e.g. missing email, opted out) abort delivery
+     * to the rest of the batch. SendGuestMessageDeliveryJob already records
+     * the failure on the delivery row before rethrowing; the rethrow only
+     * matters for real queue-worker retry bookkeeping, which dispatchSync
+     * bypasses anyway.
+     */
+    private function runSync(int $deliveryId): void
+    {
+        try {
+            SendGuestMessageDeliveryJob::dispatchSync($deliveryId);
+        } catch (\Throwable $e) {
+            // Failure already recorded on the delivery by the job itself.
+        }
     }
 
     public function ensureGuestTokens(int $weddingId, $guests): void
@@ -94,7 +111,7 @@ class MessageDispatchService
         }
 
         foreach ($deliveries as $delivery) {
-            SendGuestMessageDeliveryJob::dispatch($delivery->id);
+            $this->runSync($delivery->id);
         }
 
         return $deliveries->count();

@@ -163,17 +163,32 @@ class BudgetController extends Controller
             'amount' => 'required|numeric|min:0',
             'due_date' => 'nullable|date',
             'status' => 'nullable|in:pending,scheduled,paid,overdue',
+            'payment_method' => 'nullable|string|max:100',
+            'reference' => 'nullable|string|max:255',
+            'receipt' => 'nullable|file|image|max:10240',
             'paid_at' => 'nullable|date',
             'reminder_at' => 'nullable|date',
             'notes' => 'nullable|string',
         ]);
 
+        $receipt = $data['receipt'] ?? null;
+        unset($data['receipt']);
+        if ($receipt) {
+            $data['receipt_path'] = $receipt->store("weddings/{$budgetItem->wedding_id}/payment-receipts", 'public');
+        }
+
+        $status = $this->normalizedPaymentStatus($data['status'] ?? 'pending', $data['due_date'] ?? null);
         $schedule = $budgetItem->paymentSchedules()->create([
             ...$data,
             'wedding_id' => $budgetItem->wedding_id,
             'vendor_id' => $budgetItem->vendor_id,
-            'status' => $this->normalizedPaymentStatus($data['status'] ?? 'pending', $data['due_date'] ?? null),
+            'status' => $status,
+            'paid_at' => $status === 'paid' ? ($data['paid_at'] ?? now()) : ($data['paid_at'] ?? null),
         ]);
+
+        if ($status === 'paid') {
+            $this->syncBudgetItemPaidAmount($budgetItem);
+        }
 
         return response()->json(['data' => $schedule->load(['budgetItem', 'vendor'])], 201);
     }
@@ -187,6 +202,8 @@ class BudgetController extends Controller
             'amount' => 'nullable|numeric|min:0',
             'due_date' => 'nullable|date',
             'status' => 'nullable|in:pending,scheduled,paid,overdue',
+            'payment_method' => 'nullable|string|max:100',
+            'reference' => 'nullable|string|max:255',
             'paid_at' => 'nullable|date',
             'reminder_at' => 'nullable|date',
             'notes' => 'nullable|string',
@@ -198,6 +215,10 @@ class BudgetController extends Controller
 
         $budgetPaymentSchedule->update($data);
 
+        if (($data['status'] ?? null) === 'paid') {
+            $this->syncBudgetItemPaidAmount($budgetPaymentSchedule->budgetItem);
+        }
+
         return response()->json(['data' => $budgetPaymentSchedule->fresh()->load(['budgetItem', 'vendor'])]);
     }
 
@@ -205,20 +226,39 @@ class BudgetController extends Controller
     {
         $this->authorizeSchedule($request, $budgetPaymentSchedule);
 
+        $data = $request->validate([
+            'amount' => 'nullable|numeric|min:0',
+            'payment_method' => 'nullable|string|max:100',
+            'reference' => 'nullable|string|max:255',
+            'notes' => 'nullable|string',
+            'receipt' => 'nullable|file|image|max:10240',
+        ]);
+
+        $receipt = $data['receipt'] ?? null;
+        unset($data['receipt']);
+        if ($receipt) {
+            $data['receipt_path'] = $receipt->store("weddings/{$budgetPaymentSchedule->wedding_id}/payment-receipts", 'public');
+        }
+
         $budgetPaymentSchedule->update([
+            ...$data,
             'status' => 'paid',
             'paid_at' => now(),
         ]);
 
-        $item = $budgetPaymentSchedule->budgetItem;
+        $this->syncBudgetItemPaidAmount($budgetPaymentSchedule->budgetItem);
+
+        return response()->json(['data' => $budgetPaymentSchedule->fresh()->load(['budgetItem', 'vendor'])]);
+    }
+
+    private function syncBudgetItemPaidAmount(BudgetItem $item): void
+    {
         $paidAmount = $item->paymentSchedules()->where('status', 'paid')->sum('amount');
         $actualAmount = max((float) $item->actual_amount, (float) $item->estimated_amount);
         $item->update([
             'paid_amount' => $paidAmount,
             'payment_status' => $paidAmount >= $actualAmount ? 'paid' : ($paidAmount > 0 ? 'partial' : 'pending'),
         ]);
-
-        return response()->json(['data' => $budgetPaymentSchedule->fresh()->load(['budgetItem', 'vendor'])]);
     }
 
     private function authorize(Request $request, BudgetItem $budgetItem): void
@@ -244,13 +284,21 @@ class BudgetController extends Controller
 
     private function syncCreatedSchedules($wedding, BudgetItem $item, array $schedule): void
     {
+        $hasPaid = false;
         foreach ($schedule as $payment) {
+            $status = $this->normalizedPaymentStatus($payment['status'] ?? 'pending', $payment['due_date'] ?? null);
             $item->paymentSchedules()->create([
                 ...$payment,
                 'wedding_id' => $wedding->id,
                 'vendor_id' => $item->vendor_id,
-                'status' => $this->normalizedPaymentStatus($payment['status'] ?? 'pending', $payment['due_date'] ?? null),
+                'status' => $status,
+                'paid_at' => $status === 'paid' ? now() : null,
             ]);
+            $hasPaid = $hasPaid || $status === 'paid';
+        }
+
+        if ($hasPaid) {
+            $this->syncBudgetItemPaidAmount($item);
         }
     }
 
@@ -322,6 +370,10 @@ class BudgetController extends Controller
             'amount' => (float) $schedule->amount,
             'due_date' => optional($schedule->due_date)->toDateString(),
             'status' => $this->normalizedPaymentStatus($schedule->status, optional($schedule->due_date)->toDateString()),
+            'payment_method' => $schedule->payment_method,
+            'reference' => $schedule->reference,
+            'receipt_url' => $schedule->receipt_path ? \Illuminate\Support\Facades\Storage::url($schedule->receipt_path) : null,
+            'paid_at' => optional($schedule->paid_at)->toISOString(),
             'reminder_at' => optional($schedule->reminder_at)->toISOString(),
         ];
     }

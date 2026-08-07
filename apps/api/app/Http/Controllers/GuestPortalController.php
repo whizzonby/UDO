@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\GalleryAsset;
+use App\Models\Guest;
 use App\Models\GuestToken;
 use App\Models\GuestExperienceConfig;
 use App\Models\RegistryContribution;
@@ -10,6 +11,7 @@ use App\Models\RegistryItem;
 use App\Models\ThankYouRecord;
 use App\Models\Wedding;
 use App\Services\AuditLogService;
+use App\Services\MessageDispatchService;
 use App\Services\SmartAlertService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -110,6 +112,7 @@ class GuestPortalController extends Controller
         ]);
 
         $guest = $guestToken->guest;
+        $wasFirstResponse = in_array($guest->attending_status, [null, 'pending'], true);
 
         $update = ['attending_status' => $data['attending_status']];
 
@@ -136,6 +139,20 @@ class GuestPortalController extends Controller
             ['attending_status' => $data['attending_status']],
             request: $request,
         );
+
+        if ($wasFirstResponse && $config->auto_thank_you_enabled) {
+            $this->sendAutomatedMessage(
+                $guestToken->wedding,
+                $guest->fresh(),
+                'thank_you',
+                $data['attending_status'] === 'yes'
+                    ? "Thank you for RSVPing — we can't wait to celebrate with you!"
+                    : 'Thank you for letting us know',
+                $data['attending_status'] === 'yes'
+                    ? "Thank you so much for RSVPing! We can't wait to celebrate with you."
+                    : "Thank you for letting us know. We'll miss you, but we appreciate you telling us."
+            );
+        }
 
         return response()->json(['message' => 'RSVP saved.', 'status' => $data['attending_status']]);
     }
@@ -280,6 +297,36 @@ class GuestPortalController extends Controller
             'meal_selection_enabled' => true,
             'plus_one_enabled' => true,
         ]);
+    }
+
+    /**
+     * Sends a one-off automated message (thank-you, reminder, etc.) to a
+     * single guest, reusing the same Message/delivery pipeline as manual
+     * campaigns — so it shows up in the couple's message history and
+     * respects the guest's existing channel opt-outs.
+     */
+    private function sendAutomatedMessage(Wedding $wedding, Guest $guest, string $type, string $subject, string $body): void
+    {
+        $channel = $guest->email && ! $guest->email_opt_out
+            ? 'email'
+            : (($guest->phone && ! $guest->sms_opt_out) ? 'sms' : null);
+
+        if (! $channel || ! $wedding->owner_user_id) {
+            return;
+        }
+
+        $message = $wedding->messages()->create([
+            'campaign_name' => $subject,
+            'subject' => $subject,
+            'body' => $body,
+            'channel' => $channel,
+            'message_type' => $type,
+            'audience_filter' => ['guest_ids' => [$guest->id]],
+            'status' => 'draft',
+            'created_by' => $wedding->owner_user_id,
+        ]);
+
+        app(MessageDispatchService::class)->dispatch($message->load('wedding'));
     }
 
     private function experiencePayload(GuestExperienceConfig $config): array

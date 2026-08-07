@@ -7,6 +7,7 @@ use App\Services\AuditLogService;
 use App\Services\WeddingAccessService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 
 class WeddingController extends Controller
@@ -114,6 +115,11 @@ class WeddingController extends Controller
             'timezone'              => 'nullable|timezone',
             'settings'              => 'nullable|array',
             'vision_style'          => 'nullable|array',
+            'slug'                  => [
+                'nullable', 'string', 'min:3', 'max:60',
+                'regex:/^[a-z0-9]+(-[a-z0-9]+)*$/',
+                Rule::unique('weddings', 'slug')->ignore($wedding->id),
+            ],
         ]);
 
         $before = $wedding->only(array_keys($data));
@@ -125,6 +131,28 @@ class WeddingController extends Controller
         if ($afterChanged) {
             app(AuditLogService::class)->record('wedding.updated', $fresh, $request->user(), $fresh, $beforeChanged, $afterChanged, request: $request);
         }
+
+        return response()->json(array_merge(
+            $fresh->toArray(),
+            ['access' => app(WeddingAccessService::class)->payloadFor($request->user(), $fresh)]
+        ));
+    }
+
+    public function uploadCoverPhoto(Request $request): JsonResponse
+    {
+        $wedding = $request->user()->activeWedding;
+
+        abort_unless($wedding, 404, 'No wedding found.');
+        abort_unless(app(WeddingAccessService::class)->can($request->user(), $wedding, 'manage_wedding'), 403);
+
+        $request->validate([
+            'photo' => 'required|file|image|max:10240',
+        ]);
+
+        $path = $request->file('photo')->store("weddings/{$wedding->id}/cover", 'public');
+        $wedding->update(['cover_photo_path' => Storage::url($path)]);
+
+        $fresh = $wedding->fresh();
 
         return response()->json(array_merge(
             $fresh->toArray(),

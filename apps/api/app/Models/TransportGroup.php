@@ -10,7 +10,7 @@ use Illuminate\Database\Eloquent\Relations\MorphMany;
 class TransportGroup extends Model
 {
     protected $fillable = [
-        'wedding_id', 'name', 'type', 'pickup_location', 'dropoff_location',
+        'wedding_id', 'name', 'type', 'company_name', 'pickup_location', 'dropoff_location',
         'departure_time', 'capacity', 'assigned_count',
         'driver_name', 'driver_phone', 'vehicle_registration', 'notes',
     ];

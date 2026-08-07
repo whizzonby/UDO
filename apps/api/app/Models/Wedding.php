@@ -55,11 +55,13 @@ class Wedding extends Model
     public function tasks(): HasMany { return $this->hasMany(Task::class); }
     public function timelineItems(): HasMany { return $this->hasMany(TimelineItem::class)->orderBy('event_date')->orderBy('start_time'); }
     public function budgetItems(): HasMany { return $this->hasMany(BudgetItem::class); }
+    public function aiAssistantLogs(): HasMany { return $this->hasMany(AiAssistantLog::class); }
     public function budgetPaymentSchedules(): HasMany { return $this->hasMany(BudgetPaymentSchedule::class)->orderBy('due_date'); }
     public function vendors(): HasMany { return $this->hasMany(Vendor::class); }
     public function messages(): HasMany { return $this->hasMany(Message::class); }
     public function moodCheckins(): HasMany { return $this->hasMany(MoodCheckin::class); }
     public function menuCourses(): HasMany { return $this->hasMany(MenuCourse::class)->orderBy('sort_order'); }
+    public function foodServiceItems(): HasMany { return $this->hasMany(FoodServiceItem::class)->orderBy('event_date')->orderBy('start_time'); }
     public function accommodationOptions(): HasMany { return $this->hasMany(AccommodationOption::class); }
     public function transportGroups(): HasMany { return $this->hasMany(TransportGroup::class); }
     public function seatingTables(): HasMany { return $this->hasMany(SeatingTable::class)->orderBy('sort_order'); }
@@ -78,7 +80,10 @@ class Wedding extends Model
     public function supportTickets(): HasMany { return $this->hasMany(SupportTicket::class)->latest(); }
     public function reminders(): HasMany { return $this->hasMany(Reminder::class)->orderBy('due_date'); }
     public function insurancePolicies(): HasMany { return $this->hasMany(InsurancePolicy::class); }
+    public function insuranceDocuments(): HasMany { return $this->hasMany(InsuranceDocument::class)->latest(); }
+    public function weddingDocuments(): HasMany { return $this->hasMany(WeddingDocument::class)->latest(); }
     public function weddingWeekendEvents(): HasMany { return $this->hasMany(WeddingWeekendEvent::class)->orderBy('event_date')->orderBy('start_time'); }
+    public function rehearsals(): HasMany { return $this->hasMany(Rehearsal::class)->orderBy('event_date')->orderBy('start_time'); }
     public function honeymoonTrip(): HasOne { return $this->hasOne(HoneymoonTrip::class); }
     public function memorySpeeches(): HasMany { return $this->hasMany(MemorySpeech::class)->orderBy('speaking_order'); }
     public function memoryVows(): HasMany { return $this->hasMany(MemoryVow::class); }

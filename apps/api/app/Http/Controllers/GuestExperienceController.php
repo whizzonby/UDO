@@ -57,6 +57,9 @@ class GuestExperienceController extends Controller
             'dress_code_details'     => 'nullable|string',
             'cover_image_url'        => 'nullable|url',
             'theme_color'            => 'nullable|string|max:20',
+            'auto_rsvp_reminder_enabled' => 'nullable|boolean',
+            'auto_rsvp_reminder_days'    => 'nullable|integer|min:1|max:30',
+            'auto_thank_you_enabled'     => 'nullable|boolean',
         ]);
 
         if (($data['publish_state'] ?? null) === 'published') {

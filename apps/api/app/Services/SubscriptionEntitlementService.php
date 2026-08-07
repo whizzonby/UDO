@@ -29,6 +29,7 @@ class SubscriptionEntitlementService
                 'messages_per_month' => 100,
                 'gallery_assets' => 100,
                 'weddings' => 1,
+                'ai_assistant_calls_per_month' => 20,
             ],
         ],
         'starter' => [
@@ -48,6 +49,7 @@ class SubscriptionEntitlementService
                 'messages_per_month' => 500,
                 'gallery_assets' => 500,
                 'weddings' => 1,
+                'ai_assistant_calls_per_month' => 50,
             ],
         ],
         'pro' => [
@@ -69,6 +71,7 @@ class SubscriptionEntitlementService
                 'messages_per_month' => 2500,
                 'gallery_assets' => 2500,
                 'weddings' => 5,
+                'ai_assistant_calls_per_month' => 150,
             ],
         ],
         'elite' => [
@@ -89,6 +92,7 @@ class SubscriptionEntitlementService
                 'messages_per_month' => null,
                 'gallery_assets' => null,
                 'weddings' => null,
+                'ai_assistant_calls_per_month' => null,
             ],
         ],
         // Only ever granted by CheckoutController after a real, confirmed
@@ -111,6 +115,7 @@ class SubscriptionEntitlementService
                 'messages_per_month' => null,
                 'gallery_assets' => null,
                 'weddings' => null,
+                'ai_assistant_calls_per_month' => null,
             ],
         ],
     ];
@@ -271,6 +276,9 @@ class SubscriptionEntitlementService
             'weddings' => $wedding->owner
                 ? $wedding->owner->ownedWeddings()->count()
                 : 1,
+            'ai_assistant_calls_per_month' => $wedding->aiAssistantLogs()
+                ->where('created_at', '>=', now()->startOfMonth())
+                ->count(),
         ];
     }
 }

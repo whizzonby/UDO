@@ -13,6 +13,19 @@ use Illuminate\Http\Request;
 
 class FoodController extends Controller
 {
+    /**
+     * Mirrors the "Allergies" section of the guest dietary tag picker
+     * (mobile `_dietaryAllergyOptions`) so the allergy stat tile doesn't
+     * count a purely dietary-preference tag (e.g. "Vegetarian") as an allergy.
+     * A custom "Other" entry is saved as "Other (Allergy): {text}" by the
+     * picker, so it's matched by prefix rather than exact string.
+     */
+    private const ALLERGY_TAGS = [
+        'Peanuts', 'Tree Nuts', 'Dairy (Milk)', 'Eggs', 'Fish', 'Shellfish',
+        'Wheat', 'Soy', 'Sesame', 'Mustard', 'Celery', 'Lupin', 'Sulphites',
+        'Corn', 'Coconut', 'Garlic', 'Onion', 'Mushroom', 'Chocolate', 'Citrus',
+    ];
+
     private function wedding(Request $request)
     {
         $wedding = $request->user()->activeWedding;
@@ -42,10 +55,25 @@ class FoodController extends Controller
             ->count();
         $dietaryNeeds = $wedding->guests()
             ->where(function ($query) {
-                $query->whereNotNull('dietary_note')->orWhereNotNull('allergies');
+                $query->whereNotNull('dietary_note')
+                    ->orWhereNotNull('allergies')
+                    ->orWhereNotNull('dietary_tags');
             })
             ->count();
-        $allergyCount = $wedding->guests()->whereNotNull('allergies')->count();
+        $allergyCount = $wedding->guests()
+            ->where(function ($query) {
+                $query->whereNotNull('allergies')->orWhereNotNull('dietary_tags');
+            })
+            ->get(['id', 'allergies', 'dietary_tags'])
+            ->filter(function (Guest $guest) {
+                if (!empty($guest->allergies)) {
+                    return true;
+                }
+                return collect($guest->dietary_tags ?? [])
+                    ->contains(fn ($tag) => in_array($tag, self::ALLERGY_TAGS, true)
+                        || str_starts_with((string) $tag, 'Other (Allergy):'));
+            })
+            ->count();
         $itemsToReview = MenuCourseOption::where('wedding_id', $wedding->id)->where('confirmed', false)->count();
 
         return response()->json([
@@ -114,6 +142,7 @@ class FoodController extends Controller
             'name' => 'required|string|max:255',
             'description' => 'nullable|string',
             'dietary_tags' => 'nullable|array',
+            'metadata' => 'nullable|array',
             'sort_order' => 'nullable|integer',
         ]);
 
@@ -136,6 +165,7 @@ class FoodController extends Controller
             'name' => 'sometimes|string|max:255',
             'description' => 'nullable|string',
             'dietary_tags' => 'nullable|array',
+            'metadata' => 'nullable|array',
             'confirmed' => 'nullable|boolean',
             'sort_order' => 'nullable|integer',
         ]);

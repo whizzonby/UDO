@@ -64,6 +64,10 @@ class AuthController extends Controller
             ]);
         }
 
+        if ($user->two_factor_enabled) {
+            return response()->json($this->issueTwoFactorChallenge($user));
+        }
+
         $user->tokens()->where('name', 'api')->delete();
         $token = $user->createToken('api')->plainTextToken;
 
@@ -71,6 +75,170 @@ class AuthController extends Controller
             'token' => $token,
             'user'  => $this->userPayload($user),
         ]);
+    }
+
+    public function twoFactorVerify(Request $request): JsonResponse
+    {
+        $data = $request->validate([
+            'email' => 'required|email',
+            'two_factor_token' => 'required|string',
+            'code' => 'required|string',
+        ]);
+
+        $user = User::where('email', $data['email'])->first();
+
+        $invalidChallenge = ! $user
+            || ! $user->two_factor_challenge_token
+            || ! hash_equals($user->two_factor_challenge_token, $data['two_factor_token']);
+
+        if ($invalidChallenge) {
+            throw ValidationException::withMessages([
+                'code' => ['This verification session has expired. Please sign in again.'],
+            ]);
+        }
+
+        if ($user->two_factor_expires_at && $user->two_factor_expires_at->isPast()) {
+            $this->clearTwoFactorChallenge($user);
+            throw ValidationException::withMessages([
+                'code' => ['This code has expired. Please sign in again to get a new one.'],
+            ]);
+        }
+
+        if ($user->two_factor_attempts >= 5) {
+            $this->clearTwoFactorChallenge($user);
+            throw ValidationException::withMessages([
+                'code' => ['Too many incorrect attempts. Please sign in again to get a new code.'],
+            ]);
+        }
+
+        if (! Hash::check($data['code'], (string) $user->two_factor_code)) {
+            $user->increment('two_factor_attempts');
+
+            if ($user->fresh()->two_factor_attempts >= 5) {
+                $this->clearTwoFactorChallenge($user);
+                throw ValidationException::withMessages([
+                    'code' => ['Too many incorrect attempts. Please sign in again to get a new code.'],
+                ]);
+            }
+
+            throw ValidationException::withMessages([
+                'code' => ['Incorrect code. Please try again.'],
+            ]);
+        }
+
+        $this->clearTwoFactorChallenge($user);
+        $user->tokens()->where('name', 'api')->delete();
+        $token = $user->createToken('api')->plainTextToken;
+
+        return response()->json([
+            'token' => $token,
+            'user'  => $this->userPayload($user),
+        ]);
+    }
+
+    public function twoFactorResend(Request $request): JsonResponse
+    {
+        $data = $request->validate([
+            'email' => 'required|email',
+            'two_factor_token' => 'required|string',
+        ]);
+
+        $user = User::where('email', $data['email'])->first();
+
+        $invalidChallenge = ! $user
+            || ! $user->two_factor_challenge_token
+            || ! hash_equals($user->two_factor_challenge_token, $data['two_factor_token']);
+
+        if ($invalidChallenge) {
+            throw ValidationException::withMessages([
+                'code' => ['This verification session has expired. Please sign in again.'],
+            ]);
+        }
+
+        return response()->json($this->issueTwoFactorChallenge($user));
+    }
+
+    public function twoFactorEnable(Request $request): JsonResponse
+    {
+        $user = $request->user();
+        $data = $request->validate(['current_password' => 'nullable|string']);
+
+        if (! $user->auth_provider && ! Hash::check((string) ($data['current_password'] ?? ''), $user->password)) {
+            throw ValidationException::withMessages([
+                'current_password' => ['The current password is incorrect.'],
+            ]);
+        }
+
+        $user->update(['two_factor_enabled' => true]);
+
+        return response()->json([
+            'message' => 'Two-factor authentication turned on.',
+            'user' => $this->userPayload($user->fresh()),
+        ]);
+    }
+
+    public function twoFactorDisable(Request $request): JsonResponse
+    {
+        $user = $request->user();
+        $data = $request->validate(['current_password' => 'nullable|string']);
+
+        if (! $user->auth_provider && ! Hash::check((string) ($data['current_password'] ?? ''), $user->password)) {
+            throw ValidationException::withMessages([
+                'current_password' => ['The current password is incorrect.'],
+            ]);
+        }
+
+        $user->update(['two_factor_enabled' => false]);
+
+        return response()->json([
+            'message' => 'Two-factor authentication turned off.',
+            'user' => $this->userPayload($user->fresh()),
+        ]);
+    }
+
+    /**
+     * Issues a fresh emailed login code, replacing any previous pending
+     * challenge for this user (only the most recent one is ever valid).
+     */
+    private function issueTwoFactorChallenge(User $user): array
+    {
+        $code = (string) random_int(100000, 999999);
+
+        $user->forceFill([
+            'two_factor_code' => Hash::make($code),
+            'two_factor_challenge_token' => Str::random(48),
+            'two_factor_expires_at' => now()->addMinutes(10),
+            'two_factor_attempts' => 0,
+        ])->save();
+
+        Mail::to($user)->send(new TemplatedMail('two_factor_code', [
+            'first_name' => $user->first_name ?: 'there',
+            'code' => $code,
+        ]));
+
+        return [
+            'two_factor_required' => true,
+            'two_factor_token' => $user->two_factor_challenge_token,
+            'message' => 'We emailed a 6-digit code to ' . $this->maskEmail($user->email) . '.',
+        ];
+    }
+
+    private function clearTwoFactorChallenge(User $user): void
+    {
+        $user->forceFill([
+            'two_factor_code' => null,
+            'two_factor_challenge_token' => null,
+            'two_factor_expires_at' => null,
+            'two_factor_attempts' => 0,
+        ])->save();
+    }
+
+    private function maskEmail(string $email): string
+    {
+        [$name, $domain] = array_pad(explode('@', $email, 2), 2, '');
+        $visible = mb_substr($name, 0, 1);
+
+        return $visible . str_repeat('*', max(mb_strlen($name) - 1, 1)) . '@' . $domain;
     }
 
     public function me(Request $request): JsonResponse
@@ -285,6 +453,7 @@ class AuthController extends Controller
             'is_wedding_owner'     => $access['is_owner'],
             'subscription'         => $subscription,
             'onboarding_completed' => $user->onboarding_completed,
+            'two_factor_enabled'   => (bool) $user->two_factor_enabled,
             'email_verified'       => $user->hasVerifiedEmail(),
             'roles'                => $user->getRoleNames()->values(),
             'is_admin'             => $user->hasRole(['super_admin', 'admin']),

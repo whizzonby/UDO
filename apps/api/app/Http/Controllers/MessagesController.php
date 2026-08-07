@@ -37,7 +37,7 @@ class MessagesController extends Controller
             'subject'         => 'required|string|max:255',
             'body'            => 'required|string',
             'channel'         => 'required|in:email,sms,whatsapp,in_app',
-            'message_type'    => 'nullable|in:general,invitation,rsvp_reminder,logistics,day_of,thank_you',
+            'message_type'    => 'nullable|in:general,invitation,rsvp_reminder,logistics,day_of,thank_you,emergency',
             'audience_filter' => 'nullable|array',
             'scheduled_at'    => 'nullable|date',
         ]);
@@ -66,7 +66,7 @@ class MessagesController extends Controller
             'subject'         => 'sometimes|string|max:255',
             'body'            => 'sometimes|string',
             'channel'         => 'nullable|in:email,sms,whatsapp,in_app',
-            'message_type'    => 'nullable|in:general,invitation,rsvp_reminder,logistics,day_of,thank_you',
+            'message_type'    => 'nullable|in:general,invitation,rsvp_reminder,logistics,day_of,thank_you,emergency',
             'audience_filter' => 'nullable|array',
             'scheduled_at'    => 'nullable|date',
         ]);

@@ -67,6 +67,8 @@ class WeddingTeamController extends Controller
             'is_decision_maker' => 'nullable|boolean',
             'approval_categories' => 'nullable|array',
             'approval_categories.*' => ['string', Rule::in(WeddingAccessService::APPROVAL_CATEGORIES)],
+        ], [
+            'email.exists' => "No Udo account exists with that email yet. They'll need to sign up first — then you can add them as a collaborator.",
         ]);
 
         $user = User::where('email', $data['email'])->firstOrFail();

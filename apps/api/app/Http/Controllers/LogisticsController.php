@@ -76,6 +76,7 @@ class LogisticsController extends Controller
     public function storeAccommodation(Request $request): JsonResponse
     {
         $wedding = $this->wedding($request);
+        $this->normalizeBookingUrl($request);
 
         $data = $request->validate([
             'name'              => 'required|string|max:255',
@@ -93,6 +94,8 @@ class LogisticsController extends Controller
             'check_in_date'     => 'nullable|date',
             'check_out_date'    => 'nullable|date|after_or_equal:check_in_date',
             'notes'             => 'nullable|string',
+            'room_labels'       => 'nullable|array',
+            'room_labels.*'     => 'nullable|string|max:50',
         ]);
 
         $accommodation = $wedding->accommodationOptions()->create($this->mapAccommodationFields($data));
@@ -102,6 +105,7 @@ class LogisticsController extends Controller
     public function updateAccommodation(Request $request, AccommodationOption $accommodationOption): JsonResponse
     {
         abort_unless($accommodationOption->wedding_id === $this->wedding($request)->id, 403);
+        $this->normalizeBookingUrl($request);
 
         $data = $request->validate([
             'name'              => 'sometimes|string|max:255',
@@ -119,10 +123,26 @@ class LogisticsController extends Controller
             'check_in_date'     => 'nullable|date',
             'check_out_date'    => 'nullable|date',
             'notes'             => 'nullable|string',
+            'room_labels'       => 'nullable|array',
+            'room_labels.*'     => 'nullable|string|max:50',
         ]);
 
         $accommodationOption->update($this->mapAccommodationFields($data));
         return response()->json(['data' => $accommodationOption->fresh()]);
+    }
+
+    /**
+     * People naturally type booking links without a scheme (e.g.
+     * "marriott.com/booking" instead of "https://marriott.com/booking"),
+     * which fails the strict `url` validation rule and silently blocks the
+     * whole form. Prepend https:// so a bare domain still validates.
+     */
+    private function normalizeBookingUrl(Request $request): void
+    {
+        $url = $request->input('booking_url');
+        if (is_string($url) && $url !== '' && ! preg_match('#^https?://#i', $url)) {
+            $request->merge(['booking_url' => "https://{$url}"]);
+        }
     }
 
     /**
@@ -218,6 +238,7 @@ class LogisticsController extends Controller
         $data = $request->validate([
             'name'           => 'required|string|max:255',
             'type'           => 'nullable|string|max:100',
+            'company_name'   => 'nullable|string|max:255',
             'capacity'       => 'nullable|integer|min:1',
             'departure_time' => 'nullable|date',
             'pickup_location' => 'nullable|string|max:255',
@@ -238,6 +259,7 @@ class LogisticsController extends Controller
         $data = $request->validate([
             'name'           => 'sometimes|string|max:255',
             'type'           => 'nullable|string|max:100',
+            'company_name'   => 'nullable|string|max:255',
             'capacity'       => 'nullable|integer|min:1',
             'departure_time' => 'nullable|date',
             'pickup_location' => 'nullable|string|max:255',

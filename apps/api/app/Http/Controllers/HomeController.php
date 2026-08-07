@@ -146,8 +146,20 @@ class HomeController extends Controller
                 ->whereDate('event_date', $wedding->event_date->toDateString())
                 ->get(['title', 'event_type', 'start_time'])
             : collect();
-        $ceremonyTime = optional($timelineItems->first(fn ($item) => str_contains(strtolower(($item->event_type ?? '') . ' ' . ($item->title ?? '')), 'ceremony')))->start_time;
-        $receptionTime = optional($timelineItems->first(fn ($item) => str_contains(strtolower(($item->event_type ?? '') . ' ' . ($item->title ?? '')), 'reception')))->start_time;
+        $ceremonyTime = optional($timelineItems->first(fn ($item) => str_contains(strtolower(($item->event_type ?? '') . ' ' . ($item->title ?? '')), 'ceremony')))->start_time
+            ?: ($settings['ceremony_time'] ?? null);
+        $receptionTime = optional($timelineItems->first(fn ($item) => str_contains(strtolower(($item->event_type ?? '') . ' ' . ($item->title ?? '')), 'reception')))->start_time
+            ?: ($settings['reception_time'] ?? null);
+        $galleryPreview = $wedding->galleryAssets()
+            ->where('type', 'photo')
+            ->where('album', '!=', 'archive')
+            ->orderByDesc('is_featured')
+            ->latest()
+            ->first(['url', 'thumbnail_url']);
+        $galleryPreviewCount = $wedding->galleryAssets()
+            ->where('type', 'photo')
+            ->where('album', '!=', 'archive')
+            ->count();
 
         return response()->json([
             'wedding' => [
@@ -170,6 +182,8 @@ class HomeController extends Controller
                 'destination'  => implode(', ', array_filter([$wedding->city, $wedding->country])) ?: null,
                 'cover_photo_path' => $wedding->cover_photo_path,
                 'couple_photo_path' => $wedding->couple_photo_path,
+                'gallery_preview_photo_path' => $galleryPreview?->thumbnail_url ?: $galleryPreview?->url,
+                'gallery_photo_count' => $galleryPreviewCount,
                 'hashtag'      => $wedding->hashtag,
                 'days_until'   => $daysUntil,
                 'status'       => $wedding->status,
@@ -429,10 +443,10 @@ class HomeController extends Controller
 
         foreach ($upcomingTasks->take(3) as $task) {
             $actions[] = [
-                'id' => "task-{$task->id}",
-                'title' => $task->title,
-                'reason' => $task->due_date ? 'Due ' . $task->due_date->toDateString() : 'Planning task',
-                'priority' => $task->priority,
+                'id' => "task-{$task['id']}",
+                'title' => $task['title'],
+                'reason' => $task['due_date'] ? 'Due ' . $task['due_date']->toDateString() : 'Planning task',
+                'priority' => $task['priority'],
                 'target' => 'plan',
             ];
         }

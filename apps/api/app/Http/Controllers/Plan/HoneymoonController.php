@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Services\WeddingAccessService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
 
 class HoneymoonController extends Controller
 {
@@ -25,7 +26,7 @@ class HoneymoonController extends Controller
     public function show(Request $request): JsonResponse
     {
         $trip = $this->wedding($request)->honeymoonTrip;
-        return response()->json(['data' => $trip?->load('items')]);
+        return response()->json(['data' => $trip?->load(['items', 'travelers'])]);
     }
 
     public function update(Request $request): JsonResponse
@@ -37,6 +38,7 @@ class HoneymoonController extends Controller
             'destination' => 'nullable|string|max:255',
             'departure_date' => 'nullable|date',
             'return_date' => 'nullable|date',
+            'total_budget' => 'nullable|numeric|min:0',
             'status' => 'nullable|string|max:100',
             'notes' => 'nullable|string',
             'checklist' => 'nullable|array',
@@ -45,6 +47,22 @@ class HoneymoonController extends Controller
         $trip = $wedding->honeymoonTrip()->firstOrCreate([]);
         $trip->update($data);
 
-        return response()->json(['data' => $trip->fresh()->load('items')]);
+        return response()->json(['data' => $trip->fresh()->load(['items', 'travelers'])]);
+    }
+
+    public function uploadCoverPhoto(Request $request): JsonResponse
+    {
+        $wedding = $this->wedding($request);
+        $this->ensureCanManagePlan($request);
+
+        $request->validate([
+            'photo' => 'required|file|image|max:10240',
+        ]);
+
+        $trip = $wedding->honeymoonTrip()->firstOrCreate([]);
+        $path = $request->file('photo')->store("weddings/{$wedding->id}/honeymoon", 'public');
+        $trip->update(['cover_photo_path' => Storage::url($path)]);
+
+        return response()->json(['data' => $trip->fresh()->load(['items', 'travelers'])]);
     }
 }

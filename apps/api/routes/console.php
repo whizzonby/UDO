@@ -9,3 +9,4 @@ Artisan::command('inspire', function () {
 })->purpose('Display an inspiring quote');
 
 Schedule::command('messages:dispatch-scheduled')->everyMinute();
+Schedule::command('automations:send-rsvp-reminders')->daily();

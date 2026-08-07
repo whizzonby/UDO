@@ -38,6 +38,11 @@ class User extends Authenticatable implements FilamentUser, MustVerifyEmail
         'auth_provider_id',
         'active_wedding_id',
         'onboarding_completed',
+        'two_factor_enabled',
+        'two_factor_code',
+        'two_factor_challenge_token',
+        'two_factor_expires_at',
+        'two_factor_attempts',
     ];
 
     protected $hidden = [
@@ -53,6 +58,8 @@ class User extends Authenticatable implements FilamentUser, MustVerifyEmail
             'onboarding_completed' => 'boolean',
             'notification_preferences' => 'array',
             'support_preferences' => 'array',
+            'two_factor_enabled' => 'boolean',
+            'two_factor_expires_at' => 'datetime',
         ];
     }
 

@@ -54,6 +54,19 @@ return [
         'key' => env('OPENWEATHER_API_KEY'),
     ],
 
+    'spoonacular' => [
+        'key' => env('SPOONACULAR_API_KEY'),
+    ],
+
+    'google_places' => [
+        'key' => env('GOOGLE_PLACES_API_KEY'),
+    ],
+
+    'openai' => [
+        'key' => env('OPENAI_API_KEY'),
+        'model' => env('OPENAI_MODEL', 'gpt-4o-mini'),
+    ],
+
     'twilio' => [
         'account_sid' => env('TWILIO_ACCOUNT_SID'),
         'auth_token' => env('TWILIO_AUTH_TOKEN'),

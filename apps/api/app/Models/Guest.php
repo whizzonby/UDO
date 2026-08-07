@@ -31,6 +31,7 @@ class Guest extends Model
         'meal_preference',
         'allergies',
         'dietary_note',
+        'dietary_tags',
         'travel_required',
         'arrival_date',
         'arrival_time',
@@ -46,10 +47,12 @@ class Guest extends Model
         'wedding_party_role',
         'attire_status',
         'rehearsal_status',
+        'last_auto_reminder_at',
     ];
 
     protected $casts = [
         'custom_tags' => 'array',
+        'dietary_tags' => 'array',
         'vip_flag' => 'boolean',
         'is_elderly' => 'boolean',
         'accessibility_needs' => 'boolean',
@@ -62,6 +65,7 @@ class Guest extends Model
         'departure_date' => 'date',
         'checked_in_at' => 'datetime',
         'communication_preferences_updated_at' => 'datetime',
+        'last_auto_reminder_at' => 'datetime',
     ];
 
     public function getFullNameAttribute(): string

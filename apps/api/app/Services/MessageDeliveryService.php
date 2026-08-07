@@ -17,8 +17,23 @@ class MessageDeliveryService
             'email' => $this->sendEmail($delivery),
             'sms' => $this->sendTwilioMessage($delivery, false),
             'whatsapp' => $this->sendTwilioMessage($delivery, true),
+            'in_app' => $this->sendInApp($delivery),
             default => throw new RuntimeException("Channel {$delivery->channel} is not configured yet."),
         };
+    }
+
+    /**
+     * In-app has no external transport (no native guest inbox yet — that's
+     * a v2 feature). "Delivery" here means the message becomes visible on
+     * the guest's wedding portal page: once this delivery succeeds, the
+     * parent Message reaches status `sent`, and the portal's messages feed
+     * (GuestPortalController::portalMessages()) already queries `messages`
+     * by that status with no channel filter, so it picks this up with no
+     * further plumbing needed.
+     */
+    private function sendInApp(GuestMessageDelivery $delivery): array
+    {
+        return ['external_id' => null];
     }
 
     private function sendEmail(GuestMessageDelivery $delivery): array
