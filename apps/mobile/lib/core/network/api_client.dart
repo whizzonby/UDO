@@ -1,10 +1,25 @@
+import 'dart:convert';
+
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../constants/app_constants.dart';
 import '../errors/app_exception.dart';
 
 final apiClientProvider = Provider<ApiClient>((ref) => ApiClient());
+
+class CachedApiResponse {
+  final dynamic data;
+  final bool fromCache;
+  final DateTime? cachedAt;
+
+  const CachedApiResponse({
+    required this.data,
+    required this.fromCache,
+    this.cachedAt,
+  });
+}
 
 class ApiClient {
   late final Dio _dio;
@@ -18,11 +33,16 @@ class ApiClient {
   void Function()? onUnauthorized;
 
   ApiClient() {
+    final hostHeader = AppConstants.apiHostHeader;
     _dio = Dio(BaseOptions(
       baseUrl: AppConstants.apiBaseUrl,
-      connectTimeout: const Duration(seconds: 15),
+      connectTimeout: const Duration(seconds: 30),
       receiveTimeout: const Duration(seconds: 30),
-      headers: {'Accept': 'application/json', 'Content-Type': 'application/json'},
+      headers: {
+        'Accept': 'application/json',
+        'Content-Type': 'application/json',
+        if (hostHeader.isNotEmpty) 'Host': hostHeader,
+      },
     ));
 
     _dio.interceptors.add(InterceptorsWrapper(
@@ -52,6 +72,21 @@ class ApiClient {
     return _request(() => _dio.get(path, queryParameters: query));
   }
 
+  Future<CachedApiResponse> getCached(String path,
+      {Map<String, dynamic>? query, String? cacheKey}) async {
+    final key = cacheKey ?? _cacheKey(path, query);
+    try {
+      final data = await get(path, query: query);
+      await _writeCache(key, data);
+      return CachedApiResponse(
+          data: data, fromCache: false, cachedAt: DateTime.now());
+    } catch (_) {
+      final cached = await _readCache(key);
+      if (cached != null) return cached;
+      rethrow;
+    }
+  }
+
   Future<dynamic> post(String path, {dynamic data}) async {
     return _request(() => _dio.post(path, data: data));
   }
@@ -64,8 +99,8 @@ class ApiClient {
     return _request(() => _dio.put(path, data: data));
   }
 
-  Future<dynamic> delete(String path) async {
-    return _request(() => _dio.delete(path));
+  Future<dynamic> delete(String path, {dynamic data}) async {
+    return _request(() => _dio.delete(path, data: data));
   }
 
   Future<dynamic> _request(Future<Response> Function() call) async {
@@ -75,9 +110,22 @@ class ApiClient {
     } on DioException catch (e) {
       if (e.error is AppException) rethrow;
       final statusCode = e.response?.statusCode;
-      final message = _extractMessage(e.response?.data) ?? e.message ?? 'Something went wrong.';
+      final message = _extractMessage(e.response?.data) ??
+          _networkMessage(e) ??
+          e.message ??
+          'Something went wrong.';
       throw ServerException(message, statusCode: statusCode);
     }
+  }
+
+  String? _networkMessage(DioException error) {
+    if (error.type == DioExceptionType.connectionTimeout ||
+        error.type == DioExceptionType.connectionError ||
+        error.type == DioExceptionType.receiveTimeout ||
+        error.type == DioExceptionType.sendTimeout) {
+      return 'Cannot reach the Udo server at ${AppConstants.apiBaseUrl}. Check your internet connection or confirm the live API is online.';
+    }
+    return null;
   }
 
   String? _extractMessage(dynamic data) {
@@ -91,5 +139,40 @@ class ApiClient {
       }
     }
     return null;
+  }
+
+  String _cacheKey(String path, Map<String, dynamic>? query) {
+    final entries = (query ?? {}).entries.toList()
+      ..sort((a, b) => a.key.compareTo(b.key));
+    final queryString =
+        entries.map((entry) => '${entry.key}=${entry.value}').join('&');
+    return 'api-cache:$path?$queryString';
+  }
+
+  Future<void> _writeCache(String key, dynamic data) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(
+        key,
+        jsonEncode({
+          'cached_at': DateTime.now().toIso8601String(),
+          'data': data,
+        }));
+  }
+
+  Future<CachedApiResponse?> _readCache(String key) async {
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.getString(key);
+    if (raw == null) return null;
+    try {
+      final decoded = jsonDecode(raw) as Map<String, dynamic>;
+      return CachedApiResponse(
+        data: decoded['data'],
+        fromCache: true,
+        cachedAt: DateTime.tryParse(decoded['cached_at'] as String? ?? ''),
+      );
+    } catch (_) {
+      await prefs.remove(key);
+      return null;
+    }
   }
 }

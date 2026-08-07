@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "563593264357",
+    "project_id": "udoapp-64663",
+    "storage_bucket": "udoapp-64663.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:563593264357:android:31daaf06e76f1e699ea80c",
+        "android_client_info": {
+          "package_name": "com.udowedding.udo_mobile"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCoWQ_-XvY55zuXcqmd4OrXhlmkCFIBBvk"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

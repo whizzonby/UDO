@@ -12,6 +12,7 @@ class WeddingPartyState {
   final List<Map<String, dynamic>> transportGroups;
   final List<Map<String, dynamic>> emergencyContacts;
   final List<Map<String, dynamic>> files;
+  final List<Map<String, dynamic>> rehearsals;
   final String? membersError;
   final String? responsibilitiesError;
   final String? buzzesError;
@@ -19,6 +20,7 @@ class WeddingPartyState {
   final String? travelError;
   final String? emergencyError;
   final String? filesError;
+  final String? rehearsalsError;
 
   const WeddingPartyState({
     this.isLoading = false,
@@ -30,6 +32,7 @@ class WeddingPartyState {
     this.transportGroups = const [],
     this.emergencyContacts = const [],
     this.files = const [],
+    this.rehearsals = const [],
     this.membersError,
     this.responsibilitiesError,
     this.buzzesError,
@@ -37,6 +40,7 @@ class WeddingPartyState {
     this.travelError,
     this.emergencyError,
     this.filesError,
+    this.rehearsalsError,
   });
 
   WeddingPartyState copyWith({
@@ -49,6 +53,7 @@ class WeddingPartyState {
     List<Map<String, dynamic>>? transportGroups,
     List<Map<String, dynamic>>? emergencyContacts,
     List<Map<String, dynamic>>? files,
+    List<Map<String, dynamic>>? rehearsals,
     String? membersError,
     String? responsibilitiesError,
     String? buzzesError,
@@ -56,6 +61,7 @@ class WeddingPartyState {
     String? travelError,
     String? emergencyError,
     String? filesError,
+    String? rehearsalsError,
   }) =>
       WeddingPartyState(
         isLoading: isLoading ?? this.isLoading,
@@ -67,6 +73,7 @@ class WeddingPartyState {
         transportGroups: transportGroups ?? this.transportGroups,
         emergencyContacts: emergencyContacts ?? this.emergencyContacts,
         files: files ?? this.files,
+        rehearsals: rehearsals ?? this.rehearsals,
         membersError: membersError,
         responsibilitiesError: responsibilitiesError,
         buzzesError: buzzesError,
@@ -74,6 +81,7 @@ class WeddingPartyState {
         travelError: travelError,
         emergencyError: emergencyError,
         filesError: filesError,
+        rehearsalsError: rehearsalsError,
       );
 }
 
@@ -109,6 +117,7 @@ class WeddingPartyNotifier extends StateNotifier<WeddingPartyState> {
     final transportFuture = _fetch('/logistics/transport');
     final emergencyFuture = _fetch('/wedding-party/emergency-contacts');
     final filesFuture = _fetch('/wedding-party/files');
+    final rehearsalsFuture = _fetch('/plan/rehearsals');
 
     final members = await membersFuture;
     final responsibilities = await responsibilitiesFuture;
@@ -118,6 +127,7 @@ class WeddingPartyNotifier extends StateNotifier<WeddingPartyState> {
     final transport = await transportFuture;
     final emergency = await emergencyFuture;
     final files = await filesFuture;
+    final rehearsals = await rehearsalsFuture;
 
     state = state.copyWith(
       isLoading: false,
@@ -139,6 +149,8 @@ class WeddingPartyNotifier extends StateNotifier<WeddingPartyState> {
       emergencyError: emergency.error,
       files: files.data,
       filesError: files.error,
+      rehearsals: rehearsals.data,
+      rehearsalsError: rehearsals.error,
     );
   }
 
@@ -161,8 +173,8 @@ class WeddingPartyNotifier extends StateNotifier<WeddingPartyState> {
         if (phone != null && phone.isNotEmpty) 'phone': phone,
         'guest_group': 'wedding_party',
         'wedding_party_role': role,
-      });
-      final newMember = res as Map<String, dynamic>;
+      }) as Map<String, dynamic>;
+      final newMember = res['data'] as Map<String, dynamic>;
       state = state.copyWith(members: [...state.members, newMember]);
       return true;
     } catch (_) {
@@ -172,8 +184,8 @@ class WeddingPartyNotifier extends StateNotifier<WeddingPartyState> {
 
   Future<bool> updateMember(int id, Map<String, dynamic> data) async {
     try {
-      final res = await _api.patch('/guests/$id', data: data);
-      final updated = res as Map<String, dynamic>;
+      final res = await _api.patch('/guests/$id', data: data) as Map<String, dynamic>;
+      final updated = res['data'] as Map<String, dynamic>;
       state = state.copyWith(
         members: state.members.map((m) => m['id'] == id ? updated : m).toList(),
       );
@@ -190,6 +202,29 @@ class WeddingPartyNotifier extends StateNotifier<WeddingPartyState> {
     } catch (_) {}
   }
 
+  /// Tags an existing guest as a wedding-party member instead of creating a
+  /// duplicate guest record — the guest may not already be in `state.members`
+  /// (that list is filtered to guest_group == 'wedding_party'), so this
+  /// appends rather than only updating in place.
+  Future<bool> linkExistingGuest(int guestId, {required String role}) async {
+    try {
+      final res = await _api.patch('/guests/$guestId', data: {
+        'guest_group': 'wedding_party',
+        'wedding_party_role': role,
+      }) as Map<String, dynamic>;
+      final updated = res['data'] as Map<String, dynamic>;
+      final exists = state.members.any((m) => m['id'] == guestId);
+      state = state.copyWith(
+        members: exists
+            ? state.members.map((m) => m['id'] == guestId ? updated : m).toList()
+            : [...state.members, updated],
+      );
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
   // ── Responsibilities ──────────────────────────────────────────────────────
 
   Future<bool> createResponsibility({
@@ -197,6 +232,7 @@ class WeddingPartyNotifier extends StateNotifier<WeddingPartyState> {
     String? description,
     int? guestId,
     String status = 'pending',
+    String priority = 'medium',
     DateTime? dueDate,
   }) async {
     try {
@@ -205,6 +241,7 @@ class WeddingPartyNotifier extends StateNotifier<WeddingPartyState> {
         if (description != null && description.isNotEmpty) 'description': description,
         if (guestId != null) 'guest_id': guestId,
         'status': status,
+        'priority': priority,
         if (dueDate != null) 'due_date': dueDate.toIso8601String().split('T').first,
       });
       final created = (res as Map<String, dynamic>)['data'] as Map<String, dynamic>;
@@ -235,15 +272,28 @@ class WeddingPartyNotifier extends StateNotifier<WeddingPartyState> {
     } catch (_) {}
   }
 
+  Future<int> bulkUpdateResponsibilities(List<int> ids, Map<String, dynamic> updates) async {
+    if (ids.isEmpty || updates.isEmpty) return 0;
+    try {
+      final res = await _api.post('/wedding-party/responsibilities/bulk-update', data: {'ids': ids, 'updates': updates, 'confirm': true}) as Map<String, dynamic>;
+      final updated = (res['data'] as List? ?? []).cast<Map<String, dynamic>>();
+      final updatedById = {for (final item in updated) item['id']: item};
+      state = state.copyWith(responsibilities: state.responsibilities.map((r) => updatedById[r['id']] ?? r).toList());
+      return res['updated'] as int? ?? updated.length;
+    } catch (_) {
+      return 0;
+    }
+  }
+
   // ── Buzzes ─────────────────────────────────────────────────────────────────
 
-  Future<bool> sendBuzz({required String body, required String channel}) async {
+  Future<bool> sendBuzz({required String body, required String channel, bool urgent = false}) async {
     try {
       final createRes = await _api.post('/messages', data: {
         'subject': body.length > 60 ? '${body.substring(0, 57)}...' : body,
         'body': body,
         'channel': channel,
-        'message_type': 'general',
+        'message_type': urgent ? 'emergency' : 'general',
         'audience_filter': {'guest_group': 'wedding_party'},
       });
       final created = (createRes as Map<String, dynamic>)['data'] as Map<String, dynamic>;
@@ -280,16 +330,6 @@ class WeddingPartyNotifier extends StateNotifier<WeddingPartyState> {
     } catch (_) {}
   }
 
-  Future<({bool ok, int recipients})> broadcastEmergency(String message) async {
-    try {
-      final res = await _api.post('/wedding-party/emergency-contacts/broadcast', data: {'message': message});
-      final recipients = (res as Map<String, dynamic>)['recipients'] as int? ?? 0;
-      return (ok: true, recipients: recipients);
-    } catch (_) {
-      return (ok: false, recipients: 0);
-    }
-  }
-
   // ── Files ──────────────────────────────────────────────────────────────────
 
   Future<bool> uploadFile(List<int> bytes, String filename, {String category = 'file', int? guestId}) async {
@@ -313,6 +353,63 @@ class WeddingPartyNotifier extends StateNotifier<WeddingPartyState> {
       await _api.delete('/wedding-party/files/$id');
       state = state.copyWith(files: state.files.where((f) => f['id'] != id).toList());
     } catch (_) {}
+  }
+
+  // ── Rehearsal ──────────────────────────────────────────────────────────────
+
+  Future<bool> createRehearsal(Map<String, dynamic> data) async {
+    try {
+      final res = await _api.post('/plan/rehearsals', data: data) as Map<String, dynamic>;
+      final created = res['data'] as Map<String, dynamic>;
+      state = state.copyWith(rehearsals: [...state.rehearsals, created]);
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<bool> updateRehearsal(int id, Map<String, dynamic> data) async {
+    try {
+      final res = await _api.patch('/plan/rehearsals/$id', data: data) as Map<String, dynamic>;
+      final updated = res['data'] as Map<String, dynamic>;
+      state = state.copyWith(rehearsals: state.rehearsals.map((r) => r['id'] == id ? updated : r).toList());
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  // ── Places ─────────────────────────────────────────────────────────────────
+
+  /// Returns an empty list on any failure (missing API key, network error) —
+  /// the location search field is a nice-to-have and should silently fall
+  /// back to plain typing rather than surface an error.
+  Future<List<Map<String, dynamic>>> searchPlaces(String query, String sessionToken, {String? type}) async {
+    try {
+      final res = await _api.get('/places/search', query: {
+        'query': query,
+        'session_token': sessionToken,
+        if (type != null) 'type': type,
+      }) as Map<String, dynamic>;
+      return (res['data'] as List? ?? [])
+          .whereType<Map>()
+          .map((p) => Map<String, dynamic>.from(p))
+          .toList();
+    } catch (_) {
+      return const [];
+    }
+  }
+
+  Future<Map<String, dynamic>?> fetchPlaceDetails(String placeId, String sessionToken) async {
+    try {
+      final res = await _api.get('/places/$placeId', query: {
+        'session_token': sessionToken,
+      }) as Map<String, dynamic>;
+      final data = res['data'];
+      return data is Map ? Map<String, dynamic>.from(data) : null;
+    } catch (_) {
+      return null;
+    }
   }
 }
 

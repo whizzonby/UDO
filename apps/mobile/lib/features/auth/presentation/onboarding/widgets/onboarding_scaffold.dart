@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import '../../../../../core/theme/app_theme.dart';
 import '../../../../../shared/widgets/udo_button.dart';
+import '../../../../../shared/widgets/udo_design_system.dart';
 
 /// Mirrors the design system's `ScreenLayout` component: a title + preamble
 /// header, an optional quote nugget, a scrollable body, a progress bar, and
@@ -36,19 +36,20 @@ class OnboardingScaffold extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppTheme.udoBackground,
+      backgroundColor: UdoDesign.bg,
       body: SafeArea(
         child: Column(
           children: [
             Padding(
-              padding: const EdgeInsets.fromLTRB(24, 12, 24, 0),
+              padding: const EdgeInsets.fromLTRB(24, 16, 24, 0),
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(100),
                 child: LinearProgressIndicator(
                   value: currentStep / totalSteps,
                   minHeight: 4,
-                  backgroundColor: AppTheme.udoBorder,
-                  valueColor: const AlwaysStoppedAnimation<Color>(AppTheme.udoGreen),
+                  backgroundColor: UdoDesign.border,
+                  valueColor:
+                      const AlwaysStoppedAnimation<Color>(UdoDesign.plan),
                 ),
               ),
             ),
@@ -59,7 +60,15 @@ class OnboardingScaffold extends StatelessWidget {
                   if (onBack != null)
                     IconButton(
                       onPressed: onBack,
-                      icon: const Icon(Icons.arrow_back, color: AppTheme.udoTextPrimary),
+                      style: IconButton.styleFrom(
+                        backgroundColor: Colors.white,
+                        foregroundColor: UdoDesign.text,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16),
+                          side: const BorderSide(color: UdoDesign.border),
+                        ),
+                      ),
+                      icon: const Icon(Icons.arrow_back),
                     )
                   else
                     const SizedBox(width: 48),
@@ -67,7 +76,11 @@ class OnboardingScaffold extends StatelessWidget {
                   if (onSkip != null)
                     TextButton(
                       onPressed: onSkip,
-                      child: const Text('Skip', style: TextStyle(color: AppTheme.udoTextSecondary, fontSize: 14)),
+                      child: Text('Skip',
+                          style: UdoDesign.sans(
+                              size: 14,
+                              weight: FontWeight.w600,
+                              color: UdoDesign.muted)),
                     ),
                 ],
               ),
@@ -81,29 +94,31 @@ class OnboardingScaffold extends StatelessWidget {
                     if (title.isNotEmpty)
                       Text(
                         title,
-                        style: const TextStyle(
-                          fontFamily: 'Playfair', fontSize: 25, fontWeight: FontWeight.w600,
-                          color: AppTheme.udoGreen, height: 1.2,
-                        ),
+                        style: UdoDesign.serif(size: 34, height: 1.08),
                       ),
                     if (preamble != null && preamble!.isNotEmpty) ...[
                       const SizedBox(height: 10),
-                      Text(preamble!, style: const TextStyle(fontSize: 14, color: AppTheme.udoTextSecondary, height: 1.5)),
+                      Text(preamble!,
+                          style: UdoDesign.sans(
+                              size: 14, color: UdoDesign.sub, height: 1.5)),
                     ],
                     if (quote != null && quote!.isNotEmpty) ...[
                       const SizedBox(height: 16),
-                      Container(
-                        padding: const EdgeInsets.all(14),
-                        decoration: BoxDecoration(
-                          color: AppTheme.udoLightBlush,
-                          borderRadius: BorderRadius.circular(14),
-                        ),
+                      UdoCard(
+                        padding: const EdgeInsets.all(16),
+                        radius: 20,
+                        color: Colors.white,
                         child: Text(
                           quote!,
-                          style: const TextStyle(fontFamily: 'Playfair', fontStyle: FontStyle.italic, fontSize: 14, color: AppTheme.udoGreen),
+                          style: UdoDesign.serif(
+                            size: 18,
+                            color: UdoDesign.plan,
+                            height: 1.2,
+                          ).copyWith(fontStyle: FontStyle.italic),
                         ),
                       ),
                     ],
+                    const SizedBox(height: 6),
                     child,
                   ],
                 ),
@@ -111,7 +126,8 @@ class OnboardingScaffold extends StatelessWidget {
             ),
             Padding(
               padding: const EdgeInsets.fromLTRB(24, 0, 24, 20),
-              child: UdoButton(label: nextLabel, onPressed: nextEnabled ? onNext : null),
+              child: UdoButton(
+                  label: nextLabel, onPressed: nextEnabled ? onNext : null),
             ),
           ],
         ),

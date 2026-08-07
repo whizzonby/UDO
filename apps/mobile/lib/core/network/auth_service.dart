@@ -15,12 +15,56 @@ class AuthService {
 
   AuthService(this._api);
 
-  Future<AuthResponse> login(String email, String password) async {
+  Future<LoginResult> login(String email, String password) async {
     final data = await _api.post('/auth/login', data: {
       'email': email,
       'password': password,
     });
+    if (data is Map && data['two_factor_required'] == true) {
+      return LoginResult.twoFactorRequired(
+        data['two_factor_token'] as String,
+        data['message']?.toString() ?? 'Enter the 6-digit code we emailed you.',
+      );
+    }
+    return LoginResult.success(AuthResponse.fromJson(data));
+  }
+
+  Future<AuthResponse> verifyTwoFactor({
+    required String email,
+    required String twoFactorToken,
+    required String code,
+  }) async {
+    final data = await _api.post('/auth/two-factor/verify', data: {
+      'email': email,
+      'two_factor_token': twoFactorToken,
+      'code': code,
+    });
     return AuthResponse.fromJson(data);
+  }
+
+  Future<String> resendTwoFactor({
+    required String email,
+    required String twoFactorToken,
+  }) async {
+    final data = await _api.post('/auth/two-factor/resend', data: {
+      'email': email,
+      'two_factor_token': twoFactorToken,
+    });
+    return (data is Map ? data['message']?.toString() : null) ?? 'A new code is on its way.';
+  }
+
+  Future<AuthUser> enableTwoFactor(String currentPassword) async {
+    final data = await _api.post('/auth/two-factor/enable',
+        data: {'current_password': currentPassword});
+    final rawUser = data is Map && data['user'] is Map ? data['user'] as Map : data as Map;
+    return AuthUser.fromJson(Map<String, dynamic>.from(rawUser));
+  }
+
+  Future<AuthUser> disableTwoFactor(String currentPassword) async {
+    final data = await _api.post('/auth/two-factor/disable',
+        data: {'current_password': currentPassword});
+    final rawUser = data is Map && data['user'] is Map ? data['user'] as Map : data as Map;
+    return AuthUser.fromJson(Map<String, dynamic>.from(rawUser));
   }
 
   Future<AuthResponse> register({
@@ -57,7 +101,40 @@ class AuthService {
 
   Future<AuthUser> me() async {
     final data = await _api.get('/auth/me');
-    return AuthUser.fromJson(data);
+    final rawUser = data is Map && data['user'] is Map ? data['user'] as Map : data as Map;
+    return AuthUser.fromJson(Map<String, dynamic>.from(rawUser));
+  }
+
+  Future<void> switchWedding(int weddingId) async {
+    await _api.post('/weddings/switch', data: {'wedding_id': weddingId});
+  }
+
+  Future<AuthUser> updateProfile({
+    required String firstName,
+    required String email,
+    String? lastName,
+    String? avatarUrl,
+  }) async {
+    final data = await _api.patch('/auth/me', data: {
+      'first_name': firstName,
+      'last_name': lastName ?? '',
+      'email': email,
+      if (avatarUrl != null && avatarUrl.trim().isNotEmpty) 'avatar_url': avatarUrl.trim(),
+    });
+    final rawUser = data is Map && data['user'] is Map ? data['user'] as Map : data as Map;
+    return AuthUser.fromJson(Map<String, dynamic>.from(rawUser));
+  }
+
+  Future<AuthUser> updatePreferences({
+    Map<String, dynamic>? notificationPreferences,
+    Map<String, dynamic>? supportPreferences,
+  }) async {
+    final data = await _api.patch('/auth/preferences', data: {
+      if (notificationPreferences != null) 'notification_preferences': notificationPreferences,
+      if (supportPreferences != null) 'support_preferences': supportPreferences,
+    });
+    final rawUser = data is Map && data['user'] is Map ? data['user'] as Map : data as Map;
+    return AuthUser.fromJson(Map<String, dynamic>.from(rawUser));
   }
 
   Future<void> logout() async {
@@ -68,6 +145,25 @@ class AuthService {
   Future<String> forgotPassword(String email) async {
     final data = await _api.post('/auth/forgot-password', data: {'email': email});
     return (data is Map ? data['message']?.toString() : null) ?? 'If that email is registered, a reset link is on its way.';
+  }
+
+  Future<void> changePassword({
+    required String currentPassword,
+    required String newPassword,
+  }) async {
+    await _api.post('/auth/change-password', data: {
+      'current_password': currentPassword,
+      'password': newPassword,
+      'password_confirmation': newPassword,
+    });
+  }
+
+  Future<void> deleteAccount({String? currentPassword}) async {
+    await _api.delete('/auth/me', data: {
+      'confirmation': 'DELETE',
+      if (currentPassword != null && currentPassword.isNotEmpty)
+        'current_password': currentPassword,
+    });
   }
 
   Future<void> saveSession(String token, AuthUser user) async {

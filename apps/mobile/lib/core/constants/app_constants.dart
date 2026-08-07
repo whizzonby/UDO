@@ -1,13 +1,21 @@
-// ignore: depend_on_referenced_packages
-import 'package:flutter/foundation.dart' show kIsWeb;
-
 class AppConstants {
   static const String appName = 'Udo';
+
+  /// The lifetime-access product id registered in App Store Connect and
+  /// Google Play Console — must match IOS_LIFETIME_PRODUCT_ID /
+  /// ANDROID_LIFETIME_PRODUCT_ID in the API's .env.
+  static const String lifetimeProductId = 'udo_lifetime_access';
 
   static String get apiBaseUrl {
     const env = String.fromEnvironment('API_BASE_URL');
     if (env.isNotEmpty) return env;
-    return kIsWeb ? 'http://api.test/api' : 'http://10.0.2.2/api';
+    return 'https://admin.udowedding.com/api';
+  }
+
+  static String get apiHostHeader {
+    const env = String.fromEnvironment('API_HOST_HEADER');
+    if (env.isNotEmpty) return env;
+    return '';
   }
 
   /// Server origin without the `/api` suffix — for resolving relative

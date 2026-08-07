@@ -12,6 +12,8 @@ class LiveState {
   final String? updatesError;
   final String? timelineError;
   final String? todayError;
+  final bool isOffline;
+  final DateTime? cachedAt;
 
   const LiveState({
     this.isLoading = false,
@@ -24,6 +26,8 @@ class LiveState {
     this.updatesError,
     this.timelineError,
     this.todayError,
+    this.isOffline = false,
+    this.cachedAt,
   });
 
   LiveState copyWith({
@@ -37,6 +41,8 @@ class LiveState {
     String? updatesError,
     String? timelineError,
     String? todayError,
+    bool? isOffline,
+    DateTime? cachedAt,
   }) =>
       LiveState(
         isLoading: isLoading ?? this.isLoading,
@@ -49,6 +55,8 @@ class LiveState {
         updatesError: updatesError,
         timelineError: timelineError,
         todayError: todayError,
+        isOffline: isOffline ?? this.isOffline,
+        cachedAt: cachedAt ?? this.cachedAt,
       );
 }
 
@@ -58,22 +66,58 @@ class LiveNotifier extends StateNotifier<LiveState> {
     load();
   }
 
-  Future<({Map<String, dynamic>? data, String? error})> _fetchMap(String path) async {
+  Future<
+      ({
+        Map<String, dynamic>? data,
+        String? error,
+        bool fromCache,
+        DateTime? cachedAt
+      })> _fetchMap(String path) async {
     try {
-      final res = await _api.get(path) as Map<String, dynamic>;
-      return (data: res['data'] as Map<String, dynamic>?, error: null);
+      final cached = await _api.getCached(path);
+      final res = cached.data as Map<String, dynamic>;
+      return (
+        data: res['data'] as Map<String, dynamic>?,
+        error:
+            cached.fromCache ? 'Showing saved data. Connect to refresh.' : null,
+        fromCache: cached.fromCache,
+        cachedAt: cached.cachedAt,
+      );
     } catch (e) {
-      return (data: null, error: e.toString());
+      return (
+        data: null,
+        error: e.toString(),
+        fromCache: false,
+        cachedAt: null
+      );
     }
   }
 
-  Future<({List<Map<String, dynamic>> data, String? error})> _fetchList(String path) async {
+  Future<
+      ({
+        List<Map<String, dynamic>> data,
+        String? error,
+        bool fromCache,
+        DateTime? cachedAt
+      })> _fetchList(String path) async {
     try {
-      final res = await _api.get(path) as Map<String, dynamic>;
+      final cached = await _api.getCached(path);
+      final res = cached.data as Map<String, dynamic>;
       final list = (res['data'] as List? ?? []).cast<Map<String, dynamic>>();
-      return (data: list, error: null);
+      return (
+        data: list,
+        error:
+            cached.fromCache ? 'Showing saved data. Connect to refresh.' : null,
+        fromCache: cached.fromCache,
+        cachedAt: cached.cachedAt,
+      );
     } catch (e) {
-      return (data: <Map<String, dynamic>>[], error: e.toString());
+      return (
+        data: <Map<String, dynamic>>[],
+        error: e.toString(),
+        fromCache: false,
+        cachedAt: null
+      );
     }
   }
 
@@ -93,7 +137,9 @@ class LiveNotifier extends StateNotifier<LiveState> {
     final weather = await weatherFuture;
     final venue = await venueFuture;
 
-    timeline.data.sort((a, b) => (a['start_time'] ?? '').toString().compareTo((b['start_time'] ?? '').toString()));
+    timeline.data.sort((a, b) => (a['start_time'] ?? '')
+        .toString()
+        .compareTo((b['start_time'] ?? '').toString()));
 
     state = state.copyWith(
       isLoading: false,
@@ -106,24 +152,67 @@ class LiveNotifier extends StateNotifier<LiveState> {
       weather: weather.data,
       weatherMessage: weather.message,
       venue: venue.data,
+      isOffline: updates.fromCache ||
+          timeline.fromCache ||
+          today.fromCache ||
+          weather.fromCache ||
+          venue.fromCache,
+      cachedAt: updates.cachedAt ??
+          timeline.cachedAt ??
+          today.cachedAt ??
+          weather.cachedAt ??
+          venue.cachedAt,
     );
   }
 
-  Future<({Map<String, dynamic>? data, String? message})> _fetchWeather() async {
+  Future<
+      ({
+        Map<String, dynamic>? data,
+        String? message,
+        bool fromCache,
+        DateTime? cachedAt
+      })> _fetchWeather() async {
     try {
-      final res = await _api.get('/weather') as Map<String, dynamic>;
-      return (data: res['data'] as Map<String, dynamic>?, message: res['message'] as String?);
+      final cached = await _api.getCached('/weather');
+      final res = cached.data as Map<String, dynamic>;
+      return (
+        data: res['data'] as Map<String, dynamic>?,
+        message: cached.fromCache
+            ? 'Showing saved weather.'
+            : res['message'] as String?,
+        fromCache: cached.fromCache,
+        cachedAt: cached.cachedAt,
+      );
     } catch (e) {
-      return (data: null, message: "Couldn't load weather.");
+      return (
+        data: null,
+        message: "Couldn't load weather.",
+        fromCache: false,
+        cachedAt: null
+      );
     }
   }
 
-  Future<bool> post({required String title, String? body, bool pinned = false}) async {
+  Future<bool> post({
+    required String title,
+    String? body,
+    bool pinned = false,
+    String type = 'announcement',
+    String severity = 'info',
+    String audience = 'all',
+    List<String> deliveryChannels = const ['sms', 'whatsapp', 'email'],
+    bool requiresAction = false,
+  }) async {
     try {
       final res = await _api.post('/live', data: {
         'title': title,
         if (body != null && body.isNotEmpty) 'body': body,
         'pinned': pinned,
+        'type': type,
+        'severity': severity,
+        'audience': audience,
+        'delivery_channels': deliveryChannels,
+        'requires_action': requiresAction,
       }) as Map<String, dynamic>;
       final newUpdate = res['data'] as Map<String, dynamic>;
       state = state.copyWith(updates: [newUpdate, ...state.updates]);
@@ -134,6 +223,37 @@ class LiveNotifier extends StateNotifier<LiveState> {
   }
 
   Future<void> refresh() => load();
+
+  Future<bool> checkInGuest(int id) => _checkIn('/guests/$id');
+
+  Future<bool> checkInVendor(int id) => _checkIn('/plan/vendors/$id');
+
+  Future<bool> updateTimelineLocationStatuses(
+      List<int> itemIds, String status) async {
+    if (itemIds.isEmpty) return false;
+    try {
+      for (final id in itemIds) {
+        await _api
+            .patch('/plan/timeline/$id', data: {'location_status': status});
+      }
+      await load();
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<bool> _checkIn(String path) async {
+    try {
+      await _api.patch(path,
+          data: {'checked_in_at': DateTime.now().toIso8601String()});
+      final today = await _fetchMap('/live/today');
+      state = state.copyWith(today: today.data, todayError: today.error);
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
 }
 
 final liveProvider = StateNotifierProvider<LiveNotifier, LiveState>((ref) {

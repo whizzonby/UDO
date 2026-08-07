@@ -84,6 +84,38 @@ class ExperienceNotifier extends StateNotifier<ExperienceState> {
     }
   }
 
+  Future<bool> saveThemeColor(String themeColor) async {
+    state = state.copyWith(isSaving: true, error: null);
+    try {
+      final res = await _api.patch('/experience', data: {'theme_color': themeColor}) as Map<String, dynamic>;
+      state = state.copyWith(isSaving: false, config: res['data'] as Map<String, dynamic>? ?? state.config);
+      return true;
+    } catch (e) {
+      state = state.copyWith(isSaving: false, error: e.toString());
+      return false;
+    }
+  }
+
+  Future<bool> saveAutomations({
+    bool? rsvpReminderEnabled,
+    int? rsvpReminderDays,
+    bool? thankYouEnabled,
+  }) async {
+    state = state.copyWith(isSaving: true, error: null);
+    try {
+      final res = await _api.patch('/experience', data: {
+        if (rsvpReminderEnabled != null) 'auto_rsvp_reminder_enabled': rsvpReminderEnabled,
+        if (rsvpReminderDays != null) 'auto_rsvp_reminder_days': rsvpReminderDays,
+        if (thankYouEnabled != null) 'auto_thank_you_enabled': thankYouEnabled,
+      }) as Map<String, dynamic>;
+      state = state.copyWith(isSaving: false, config: res['data'] as Map<String, dynamic>? ?? state.config);
+      return true;
+    } catch (e) {
+      state = state.copyWith(isSaving: false, error: e.toString());
+      return false;
+    }
+  }
+
   Future<void> refresh() => _load();
 }
 

@@ -47,7 +47,9 @@ class MessagesNotifier extends StateNotifier<MessagesState> {
     try {
       final res = await _api.get('/messages') as Map<String, dynamic>;
       final history = (res['data'] as List? ?? []).cast<Map<String, dynamic>>();
-      history.sort((a, b) => (b['created_at'] ?? '').toString().compareTo((a['created_at'] ?? '').toString()));
+      history.sort((a, b) => (b['created_at'] ?? '')
+          .toString()
+          .compareTo((a['created_at'] ?? '').toString()));
       state = state.copyWith(isLoading: false, history: history);
     } catch (e) {
       state = state.copyWith(isLoading: false, error: e.toString());
@@ -58,11 +60,16 @@ class MessagesNotifier extends StateNotifier<MessagesState> {
   /// backend understands ({} means "everyone", no key filters).
   Map<String, dynamic> _filterFor(String audience) {
     switch (audience) {
-      case 'confirmed': return {'attending_status': 'yes'};
-      case 'pending': return {'attending_status': 'pending'};
-      case 'vip': return {'vip_flag': true};
-      case 'wedding_party': return {'guest_group': 'wedding_party'};
-      default: return {};
+      case 'confirmed':
+        return {'attending_status': 'yes'};
+      case 'pending':
+        return {'attending_status': 'pending'};
+      case 'vip':
+        return {'vip_flag': true};
+      case 'wedding_party':
+        return {'guest_group': 'wedding_party'};
+      default:
+        return {};
     }
   }
 
@@ -73,21 +80,29 @@ class MessagesNotifier extends StateNotifier<MessagesState> {
     required String body,
     required String audience,
     required String channel,
+    List<int>? guestIds,
+    Map<String, dynamic>? audienceFilter,
   }) async {
     state = state.copyWith(isSending: true, sendError: null);
     try {
+      final filter = audienceFilter ??
+          (guestIds != null && guestIds.isNotEmpty
+              ? {'guest_ids': guestIds}
+              : _filterFor(audience));
       final createRes = await _api.post('/messages', data: {
         'subject': subject,
         'body': body,
         'channel': channel,
-        'audience_filter': _filterFor(audience),
+        'audience_filter': filter,
       }) as Map<String, dynamic>;
       final created = createRes['data'] as Map<String, dynamic>;
 
-      final sendRes = await _api.post('/messages/${created['id']}/send') as Map<String, dynamic>;
+      final sendRes = await _api.post('/messages/${created['id']}/send')
+          as Map<String, dynamic>;
       final sent = sendRes['data'] as Map<String, dynamic>;
 
-      state = state.copyWith(isSending: false, history: [sent, ...state.history]);
+      state =
+          state.copyWith(isSending: false, history: [sent, ...state.history]);
       return true;
     } catch (e) {
       state = state.copyWith(isSending: false, sendError: e.toString());
@@ -100,6 +115,7 @@ class MessagesNotifier extends StateNotifier<MessagesState> {
 
 // ── PROVIDER ───────────────────────────────────────────────────────────────────
 
-final messagesProvider = StateNotifierProvider<MessagesNotifier, MessagesState>((ref) {
+final messagesProvider =
+    StateNotifierProvider<MessagesNotifier, MessagesState>((ref) {
   return MessagesNotifier(ref.read(apiClientProvider));
 });

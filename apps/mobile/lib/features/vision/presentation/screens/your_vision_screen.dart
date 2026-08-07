@@ -3,19 +3,26 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
-import '../../../../core/theme/app_theme.dart';
-import '../../../../core/network/api_client.dart';
 
-final _visionTimelineProvider = FutureProvider<List<Map<String, dynamic>>>((ref) async {
+import '../../../../core/network/api_client.dart';
+import '../../../../core/theme/app_theme.dart';
+import '../../../../shared/widgets/udo_design_system.dart';
+
+const _visionAccent = Color(0xFFC9867A);
+
+final _visionTimelineProvider =
+    FutureProvider<List<Map<String, dynamic>>>((ref) async {
   final client = ref.read(apiClientProvider);
   final res = await client.get('/plan/timeline') as Map<String, dynamic>;
   final items = (res['data'] as List? ?? []).cast<Map<String, dynamic>>();
-  items.sort((a, b) => (a['start_time'] ?? '').compareTo(b['start_time'] ?? ''));
+  items
+      .sort((a, b) => (a['start_time'] ?? '').compareTo(b['start_time'] ?? ''));
   return items;
 });
 
 class YourVisionScreen extends ConsumerStatefulWidget {
   const YourVisionScreen({super.key});
+
   @override
   ConsumerState<YourVisionScreen> createState() => _YourVisionScreenState();
 }
@@ -23,10 +30,10 @@ class YourVisionScreen extends ConsumerStatefulWidget {
 class _YourVisionScreenState extends ConsumerState<YourVisionScreen> {
   bool _generatingPdf = false;
 
-  String _formatTime(String? t) {
-    if (t == null || t.isEmpty) return '';
-    final parts = t.split(':');
-    if (parts.length < 2) return t;
+  String _formatTime(String? value) {
+    if (value == null || value.isEmpty) return '';
+    final parts = value.split(':');
+    if (parts.length < 2) return value;
     final h = int.tryParse(parts[0]) ?? 0;
     final m = int.tryParse(parts[1]) ?? 0;
     final suffix = h >= 12 ? 'PM' : 'AM';
@@ -39,26 +46,45 @@ class _YourVisionScreenState extends ConsumerState<YourVisionScreen> {
     final timelineAsync = ref.watch(_visionTimelineProvider);
 
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: UdoDesign.bg,
       body: RefreshIndicator(
+        color: _visionAccent,
         onRefresh: () => ref.refresh(_visionTimelineProvider.future),
-        child: CustomScrollView(
-          slivers: [
-            _buildHeader(context),
-            _buildTimelineBar(timelineAsync),
-            _buildSimulationSection(timelineAsync),
-            _buildFooterCTA(context, timelineAsync),
-            const SliverToBoxAdapter(child: SizedBox(height: 40)),
-          ],
+        child: timelineAsync.when(
+          loading: () => const _VisionLoading(),
+          error: (error, _) => _VisionError(
+            message: error.toString(),
+            onRetry: () => ref.invalidate(_visionTimelineProvider),
+          ),
+          data: (items) => ListView(
+            padding: const EdgeInsets.fromLTRB(20, 18, 20, 28),
+            children: [
+              const _VisionTopBar(),
+              const SizedBox(height: 24),
+              _VisionHero(items: items, formatTime: _formatTime),
+              const SizedBox(height: 20),
+              _TimelineSummary(items: items, formatTime: _formatTime),
+              const SizedBox(height: 22),
+              _DaySimulation(items: items, formatTime: _formatTime),
+              const SizedBox(height: 26),
+              _VisionExportCard(
+                generating: _generatingPdf,
+                onDownload: () => _downloadDayPlan(context, items),
+              ),
+            ],
+          ),
         ),
       ),
     );
   }
 
-  Future<void> _downloadDayPlan(BuildContext context, List<Map<String, dynamic>> items) async {
+  Future<void> _downloadDayPlan(
+      BuildContext context, List<Map<String, dynamic>> items) async {
     if (items.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Add events to your timeline first — nothing to export yet.')),
+        const SnackBar(
+            content: Text(
+                'Add events to your timeline first; nothing to export yet.')),
       );
       return;
     }
@@ -84,8 +110,10 @@ class _YourVisionScreenState extends ConsumerState<YourVisionScreen> {
                     _pdfCell(_formatTime(item['start_time'] as String?)),
                     _pdfCell([
                       item['title'] as String? ?? '',
-                      if ((item['description'] as String?)?.isNotEmpty == true) item['description'] as String,
-                      if ((item['location'] as String?)?.isNotEmpty == true) 'Location: ${item['location']}',
+                      if ((item['description'] as String?)?.isNotEmpty == true)
+                        item['description'] as String,
+                      if ((item['location'] as String?)?.isNotEmpty == true)
+                        'Location: ${item['location']}',
                     ].join('\n')),
                   ]),
               ],
@@ -93,11 +121,13 @@ class _YourVisionScreenState extends ConsumerState<YourVisionScreen> {
           ],
         ),
       );
-      await Printing.layoutPdf(onLayout: (_) => doc.save(), name: 'Wedding-Day-Plan.pdf');
+      await Printing.layoutPdf(
+          onLayout: (_) => doc.save(), name: 'Wedding-Day-Plan.pdf');
     } catch (_) {
-      if (mounted) {
+      if (mounted && context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Couldn't generate the PDF. Try again.")),
+          const SnackBar(
+              content: Text("Couldn't generate the PDF. Try again.")),
         );
       }
     } finally {
@@ -107,187 +137,406 @@ class _YourVisionScreenState extends ConsumerState<YourVisionScreen> {
 
   pw.Widget _pdfCell(String text, {bool bold = false}) => pw.Padding(
         padding: const pw.EdgeInsets.all(8),
-        child: pw.Text(text, style: pw.TextStyle(fontWeight: bold ? pw.FontWeight.bold : pw.FontWeight.normal, fontSize: 10)),
+        child: pw.Text(text,
+            style: pw.TextStyle(
+                fontWeight: bold ? pw.FontWeight.bold : pw.FontWeight.normal,
+                fontSize: 10)),
       );
+}
 
-  SliverToBoxAdapter _buildHeader(BuildContext context) => SliverToBoxAdapter(
-    child: Container(
-      decoration: BoxDecoration(
-        gradient: LinearGradient(colors: [AppTheme.udoLightBlush.withValues(alpha: 0.5), Colors.white], begin: Alignment.topCenter, end: Alignment.bottomCenter),
-        border: const Border(bottom: BorderSide(color: Color(0xFFF0EBEB))),
+class _VisionTopBar extends StatelessWidget {
+  const _VisionTopBar();
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(children: [
+      IconButton(
+        tooltip: 'Back',
+        onPressed: () => Navigator.maybePop(context),
+        style: IconButton.styleFrom(
+          backgroundColor: Colors.white,
+          foregroundColor: UdoDesign.text,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+            side: const BorderSide(color: UdoDesign.border),
+          ),
+        ),
+        icon: const Icon(Icons.arrow_back),
       ),
-      child: SafeArea(
-        bottom: false,
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(20, 8, 20, 28),
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Row(children: [
-              const BackButton(color: AppTheme.udoTextPrimary),
-              const Spacer(),
-            ]),
-            const SizedBox(height: 4),
-            const Center(child: Text('YOUR DAY PLAN', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, letterSpacing: 1.2, color: AppTheme.udoTextSecondary))),
-            const SizedBox(height: 12),
-            const Center(
-              child: Text('What your day looks like', textAlign: TextAlign.center, style: TextStyle(fontFamily: 'Playfair', fontSize: 30, fontWeight: FontWeight.w400, height: 1.25, color: AppTheme.udoTextPrimary)),
+      const Spacer(),
+      const UdoBadge(label: 'Day plan', color: _visionAccent),
+    ]);
+  }
+}
+
+class _VisionHero extends StatelessWidget {
+  final List<Map<String, dynamic>> items;
+  final String Function(String?) formatTime;
+
+  const _VisionHero({required this.items, required this.formatTime});
+
+  @override
+  Widget build(BuildContext context) {
+    final first = items.isEmpty ? null : items.first;
+    final last = items.isEmpty ? null : items.last;
+
+    return UdoCard(
+      padding: const EdgeInsets.all(20),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text('Your day, rehearsed before it happens',
+            style: UdoDesign.serif(size: 39, height: 1.02)),
+        const SizedBox(height: 10),
+        Text(
+          'A clean run-through of your wedding day from the first setup call to the last planned moment.',
+          style: UdoDesign.sans(size: 14, color: UdoDesign.sub, height: 1.45),
+        ),
+        const SizedBox(height: 18),
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: UdoDesign.bg,
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(color: UdoDesign.border),
+          ),
+          child: Row(children: [
+            Expanded(
+              child: _HeroMetric(
+                  value: '${items.length}',
+                  label: items.length == 1 ? 'event' : 'events'),
             ),
-            const SizedBox(height: 12),
-            const Center(
-              child: Text(
-                'A view of your wedding day from start to finish — every event and moment you have planned.',
-                textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 14, color: AppTheme.udoTextSecondary, height: 1.6),
+            Container(width: 1, height: 42, color: UdoDesign.border),
+            Expanded(
+              child: _HeroMetric(
+                value: first == null
+                    ? '--'
+                    : formatTime(first['start_time'] as String?),
+                label: 'first call',
+              ),
+            ),
+            Container(width: 1, height: 42, color: UdoDesign.border),
+            Expanded(
+              child: _HeroMetric(
+                value: last == null
+                    ? '--'
+                    : formatTime(last['start_time'] as String?),
+                label: 'last moment',
               ),
             ),
           ]),
         ),
-      ),
-    ),
-  );
+      ]),
+    );
+  }
+}
 
-  SliverToBoxAdapter _buildTimelineBar(AsyncValue<List<Map<String, dynamic>>> timelineAsync) => SliverToBoxAdapter(
-    child: Container(
-      color: AppTheme.udoBackground,
-      padding: const EdgeInsets.symmetric(vertical: 20),
-      child: timelineAsync.when(
-        loading: () => const SizedBox(height: 56, child: Center(child: CircularProgressIndicator(strokeWidth: 2))),
-        error: (_, __) => const Padding(
-          padding: EdgeInsets.symmetric(horizontal: 20),
-          child: Text("Couldn't load your timeline. Pull down to try again.", style: TextStyle(fontSize: 13, color: AppTheme.udoCrimson)),
-        ),
-        data: (items) {
-          if (items.isEmpty) {
-            return const Padding(
-              padding: EdgeInsets.symmetric(horizontal: 20),
-              child: Text('Add events in the Plan section to see your timeline here.', style: TextStyle(fontSize: 13, color: AppTheme.udoTextSecondary)),
-            );
-          }
-          return SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: Row(children: items.map((item) {
-              final title = item['title'] as String? ?? '';
-              final time = _formatTime(item['start_time'] as String?);
-              return Container(
-                margin: const EdgeInsets.only(right: 10),
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12), border: Border.all(color: AppTheme.udoBorder)),
-                child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-                  Text(title, style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w600, letterSpacing: 0.5, color: AppTheme.udoTextSecondary)),
-                  const SizedBox(height: 4),
-                  Text(time, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: AppTheme.udoTextPrimary)),
-                ]),
-              );
-            }).toList()),
+class _HeroMetric extends StatelessWidget {
+  final String value;
+  final String label;
+  const _HeroMetric({required this.value, required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(children: [
+      Text(value,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: UdoDesign.sans(size: 14, weight: FontWeight.w800)),
+      const SizedBox(height: 4),
+      Text(label,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: UdoDesign.sans(size: 10, color: UdoDesign.muted)),
+    ]);
+  }
+}
+
+class _TimelineSummary extends StatelessWidget {
+  final List<Map<String, dynamic>> items;
+  final String Function(String?) formatTime;
+
+  const _TimelineSummary({required this.items, required this.formatTime});
+
+  @override
+  Widget build(BuildContext context) {
+    if (items.isEmpty) {
+      return UdoCard(
+        padding: const EdgeInsets.all(18),
+        child: Row(children: [
+          const Icon(Icons.calendar_today_outlined,
+              color: UdoDesign.muted, size: 22),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              'Add events in Plan to preview your wedding day here.',
+              style: UdoDesign.sans(size: 13, color: UdoDesign.sub),
+            ),
+          ),
+        ]),
+      );
+    }
+
+    return SizedBox(
+      height: 92,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        itemCount: items.length,
+        separatorBuilder: (_, __) => const SizedBox(width: 10),
+        itemBuilder: (context, index) {
+          final item = items[index];
+          return Container(
+            width: 148,
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(color: UdoDesign.border),
+            ),
+            child:
+                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(formatTime(item['start_time'] as String?),
+                  style: UdoDesign.sans(
+                      size: 13, weight: FontWeight.w800, color: _visionAccent)),
+              const SizedBox(height: 7),
+              Text(item['title']?.toString() ?? 'Timeline event',
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: UdoDesign.sans(size: 12, weight: FontWeight.w700)),
+            ]),
           );
         },
       ),
-    ),
-  );
+    );
+  }
+}
 
-  SliverToBoxAdapter _buildSimulationSection(AsyncValue<List<Map<String, dynamic>>> timelineAsync) => SliverToBoxAdapter(
-    child: Padding(
-      padding: const EdgeInsets.fromLTRB(20, 28, 20, 0),
-      child: timelineAsync.when(
-        loading: () => const Center(child: CircularProgressIndicator(strokeWidth: 2)),
-        error: (_, __) => Container(
-          padding: const EdgeInsets.all(24),
-          decoration: BoxDecoration(color: AppTheme.udoCrimson.withValues(alpha: 0.05), borderRadius: BorderRadius.circular(16)),
-          child: const Column(mainAxisSize: MainAxisSize.min, children: [
-            Icon(Icons.error_outline, size: 40, color: AppTheme.udoCrimson),
-            SizedBox(height: 12),
-            Text("Couldn't load your day plan", style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: AppTheme.udoCrimson)),
-            SizedBox(height: 6),
-            Text('Check your connection and try again.', style: TextStyle(fontSize: 13, color: AppTheme.udoTextSecondary)),
+class _DaySimulation extends StatelessWidget {
+  final List<Map<String, dynamic>> items;
+  final String Function(String?) formatTime;
+
+  const _DaySimulation({required this.items, required this.formatTime});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      UdoSectionHeader(
+        title: 'Run of day',
+        subtitle: items.isEmpty
+            ? 'Your simulation will appear after timeline events are added.'
+            : 'Every planned event in the order the day unfolds.',
+      ),
+      if (items.isEmpty)
+        const _EmptyVisionCard()
+      else
+        UdoCard(
+          padding: const EdgeInsets.fromLTRB(16, 18, 16, 2),
+          child: Column(children: [
+            for (var index = 0; index < items.length; index++)
+              _TimelineEventRow(
+                item: items[index],
+                isLast: index == items.length - 1,
+                formatTime: formatTime,
+              ),
           ]),
         ),
-        data: (items) {
-          if (items.isEmpty) {
-            return Container(
-              padding: const EdgeInsets.all(24),
-              decoration: BoxDecoration(color: AppTheme.udoBackground, borderRadius: BorderRadius.circular(16)),
-              child: const Column(mainAxisSize: MainAxisSize.min, children: [
-                Icon(Icons.calendar_today_outlined, size: 48, color: AppTheme.udoTextSecondary),
-                SizedBox(height: 16),
-                Text('No events planned yet', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
-                SizedBox(height: 8),
-                Text(
-                  'Add events to your timeline in the Plan section and they will appear here as your day simulation.',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(fontSize: 13, color: AppTheme.udoTextSecondary, height: 1.5),
-                ),
-              ]),
-            );
-          }
-          return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            const Text('TIMELINE', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, letterSpacing: 1.2, color: AppTheme.udoTextSecondary)),
-            const SizedBox(height: 24),
-            ...items.asMap().entries.map((e) {
-              final i = e.key;
-              final item = e.value;
-              final isLast = i == items.length - 1;
-              final time = _formatTime(item['start_time'] as String?);
-              final title = item['title'] as String? ?? '';
-              final desc = item['description'] as String? ?? item['location'] as String? ?? '';
-              final tag = (item['event_type'] as String? ?? 'Event').toUpperCase();
-              return Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Column(children: [
-                  Container(width: 10, height: 10, margin: const EdgeInsets.only(top: 4), decoration: const BoxDecoration(color: AppTheme.udoGreen, shape: BoxShape.circle)),
-                  if (!isLast) Container(width: 1, height: 80, color: const Color(0xFFE5E7EB)),
-                ]),
-                const SizedBox(width: 16),
-                Expanded(child: Padding(
-                  padding: const EdgeInsets.only(bottom: 24),
-                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    Text(time, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: AppTheme.udoCrimson)),
-                    const SizedBox(height: 4),
-                    Text(title, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600, height: 1.3)),
-                    if (desc.isNotEmpty) ...[
-                      const SizedBox(height: 8),
-                      Text(desc, style: const TextStyle(fontSize: 14, color: Color(0xFF374151), height: 1.65)),
-                    ],
-                    const SizedBox(height: 8),
-                    Text(tag, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: AppTheme.udoGreen, letterSpacing: 0.3)),
-                  ]),
-                )),
-              ]);
-            }),
-          ]);
-        },
-      ),
-    ),
-  );
+    ]);
+  }
+}
 
-  SliverToBoxAdapter _buildFooterCTA(BuildContext context, AsyncValue<List<Map<String, dynamic>>> timelineAsync) => SliverToBoxAdapter(
-    child: Container(
-      margin: const EdgeInsets.only(top: 32),
-      padding: const EdgeInsets.fromLTRB(20, 40, 20, 40),
-      decoration: const BoxDecoration(
-        gradient: LinearGradient(colors: [Colors.white, Color(0xFFFFF0F3)], begin: Alignment.topCenter, end: Alignment.bottomCenter),
-        border: Border(top: BorderSide(color: Color(0xFFE5E7EB))),
-      ),
-      child: Column(children: [
-        const Text('Your wedding, your way', textAlign: TextAlign.center, style: TextStyle(fontFamily: 'Playfair', fontSize: 26, fontWeight: FontWeight.w400)),
-        const SizedBox(height: 12),
-        const Text(
-          'Keep adding events and details to your plan and watch your wedding day come to life here.',
-          textAlign: TextAlign.center,
-          style: TextStyle(fontSize: 14, color: AppTheme.udoTextSecondary, height: 1.65),
-        ),
-        const SizedBox(height: 24),
-        ElevatedButton(
-          onPressed: _generatingPdf ? null : () => _downloadDayPlan(context, timelineAsync.value ?? const []),
-          style: ElevatedButton.styleFrom(
-            minimumSize: const Size(double.infinity, 52),
-            backgroundColor: AppTheme.udoCrimson,
-            foregroundColor: Colors.white,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+class _TimelineEventRow extends StatelessWidget {
+  final Map<String, dynamic> item;
+  final bool isLast;
+  final String Function(String?) formatTime;
+
+  const _TimelineEventRow({
+    required this.item,
+    required this.isLast,
+    required this.formatTime,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final desc = item['description']?.toString();
+    final location = item['location']?.toString();
+    final tag = (item['event_type']?.toString() ?? 'Event').toUpperCase();
+
+    return IntrinsicHeight(
+      child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Column(children: [
+          Container(
+            width: 13,
+            height: 13,
+            margin: const EdgeInsets.only(top: 3),
+            decoration: const BoxDecoration(
+                color: _visionAccent, shape: BoxShape.circle),
           ),
-          child: _generatingPdf
-              ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-              : const Text('Download day plan', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w500)),
+          if (!isLast)
+            Expanded(
+              child: Container(
+                width: 1,
+                margin: const EdgeInsets.symmetric(vertical: 6),
+                color: UdoDesign.border,
+              ),
+            ),
+        ]),
+        const SizedBox(width: 14),
+        Expanded(
+          child: Padding(
+            padding: const EdgeInsets.only(bottom: 22),
+            child:
+                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(formatTime(item['start_time'] as String?),
+                  style: UdoDesign.sans(
+                      size: 13, weight: FontWeight.w800, color: _visionAccent)),
+              const SizedBox(height: 5),
+              Text(item['title']?.toString() ?? 'Timeline event',
+                  style: UdoDesign.serif(size: 25, height: 1.05)),
+              if (desc != null && desc.isNotEmpty) ...[
+                const SizedBox(height: 8),
+                Text(desc,
+                    style: UdoDesign.sans(
+                        size: 13, color: UdoDesign.sub, height: 1.5)),
+              ],
+              if (location != null && location.isNotEmpty) ...[
+                const SizedBox(height: 8),
+                Row(children: [
+                  const Icon(Icons.place_outlined,
+                      size: 15, color: UdoDesign.muted),
+                  const SizedBox(width: 5),
+                  Expanded(
+                    child: Text(location,
+                        style:
+                            UdoDesign.sans(size: 12, color: UdoDesign.muted)),
+                  ),
+                ]),
+              ],
+              const SizedBox(height: 10),
+              UdoBadge(label: tag, color: _visionAccent),
+            ]),
+          ),
         ),
       ]),
-    ),
-  );
+    );
+  }
+}
+
+class _EmptyVisionCard extends StatelessWidget {
+  const _EmptyVisionCard();
+
+  @override
+  Widget build(BuildContext context) {
+    return UdoCard(
+      padding: const EdgeInsets.all(24),
+      child: Column(children: [
+        const Icon(Icons.calendar_today_outlined,
+            size: 42, color: UdoDesign.muted),
+        const SizedBox(height: 14),
+        Text('No events planned yet',
+            textAlign: TextAlign.center,
+            style: UdoDesign.sans(size: 16, weight: FontWeight.w700)),
+        const SizedBox(height: 8),
+        Text(
+          'Add events to your timeline in Plan and they will appear here as a readable day simulation.',
+          textAlign: TextAlign.center,
+          style: UdoDesign.sans(size: 13, color: UdoDesign.muted, height: 1.45),
+        ),
+      ]),
+    );
+  }
+}
+
+class _VisionExportCard extends StatelessWidget {
+  final bool generating;
+  final VoidCallback onDownload;
+
+  const _VisionExportCard({required this.generating, required this.onDownload});
+
+  @override
+  Widget build(BuildContext context) {
+    return UdoCard(
+      padding: const EdgeInsets.all(18),
+      color: Colors.white,
+      child: Column(children: [
+        Text('Carry the plan offline',
+            textAlign: TextAlign.center, style: UdoDesign.serif(size: 30)),
+        const SizedBox(height: 8),
+        Text(
+          'Download a clean PDF for planners, family and anyone who needs the run of day.',
+          textAlign: TextAlign.center,
+          style: UdoDesign.sans(size: 13, color: UdoDesign.muted, height: 1.45),
+        ),
+        const SizedBox(height: 18),
+        ElevatedButton.icon(
+          onPressed: generating ? null : onDownload,
+          icon: generating
+              ? const SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(
+                      strokeWidth: 2, color: Colors.white),
+                )
+              : const Icon(Icons.download_outlined, size: 18),
+          label: Text(generating ? 'Preparing PDF' : 'Download day plan'),
+          style: ElevatedButton.styleFrom(
+            minimumSize: const Size(double.infinity, 52),
+            backgroundColor: _visionAccent,
+            foregroundColor: Colors.white,
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+          ),
+        ),
+      ]),
+    );
+  }
+}
+
+class _VisionLoading extends StatelessWidget {
+  const _VisionLoading();
+
+  @override
+  Widget build(BuildContext context) {
+    return const Center(
+      child: CircularProgressIndicator(color: _visionAccent, strokeWidth: 2),
+    );
+  }
+}
+
+class _VisionError extends StatelessWidget {
+  final String message;
+  final VoidCallback onRetry;
+
+  const _VisionError({required this.message, required this.onRetry});
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView(
+      padding: const EdgeInsets.all(24),
+      children: [
+        const SizedBox(height: 80),
+        UdoCard(
+          padding: const EdgeInsets.all(22),
+          child: Column(children: [
+            const Icon(Icons.error_outline,
+                size: 42, color: AppTheme.udoCrimson),
+            const SizedBox(height: 14),
+            Text("Couldn't load your day plan",
+                style: UdoDesign.sans(size: 16, weight: FontWeight.w700)),
+            const SizedBox(height: 8),
+            Text(message,
+                textAlign: TextAlign.center,
+                style: UdoDesign.sans(
+                    size: 12, color: UdoDesign.muted, height: 1.4)),
+            const SizedBox(height: 18),
+            ElevatedButton(
+              onPressed: onRetry,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppTheme.udoCrimson,
+                foregroundColor: Colors.white,
+              ),
+              child: const Text('Retry'),
+            ),
+          ]),
+        ),
+      ],
+    );
+  }
 }
