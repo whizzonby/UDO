@@ -165,7 +165,7 @@ class BudgetController extends Controller
             'status' => 'nullable|in:pending,scheduled,paid,overdue',
             'payment_method' => 'nullable|string|max:100',
             'reference' => 'nullable|string|max:255',
-            'receipt' => 'nullable|file|image|max:10240',
+            'receipt' => 'nullable|file|mimes:jpg,jpeg,png,webp,pdf|max:10240',
             'paid_at' => 'nullable|date',
             'reminder_at' => 'nullable|date',
             'notes' => 'nullable|string',
@@ -231,7 +231,7 @@ class BudgetController extends Controller
             'payment_method' => 'nullable|string|max:100',
             'reference' => 'nullable|string|max:255',
             'notes' => 'nullable|string',
-            'receipt' => 'nullable|file|image|max:10240',
+            'receipt' => 'nullable|file|mimes:jpg,jpeg,png,webp,pdf|max:10240',
         ]);
 
         $receipt = $data['receipt'] ?? null;

@@ -10,9 +10,10 @@ import {
   CalendarDays,
   Camera,
   Car,
+  ChevronDown,
   Gift,
-  Globe2,
   Heart,
+  HelpCircle,
   Mail,
   Map,
   MessageCircle,
@@ -72,6 +73,7 @@ type PortalData = {
     body: string;
     sent_at: string | null;
   }>;
+  faqs: Array<{ id: number; question: string; answer: string; category: string }>;
   sections: {
     schedule: Array<{ id: number; title: string; event_date: string | null; start_time: string | null; location: string | null }>;
     accommodation: Array<{ id: number; name: string; city: string | null; country: string | null; website: string | null }>;
@@ -98,16 +100,25 @@ export default function WeddingPortalLanding({ slug }: { slug: string }) {
       .finally(() => setLoading(false));
   }, [slug]);
 
+  const eventDateValue = data?.wedding.event_date ?? null;
+  const [now, setNow] = useState<number>(() => Date.now());
+
+  useEffect(() => {
+    if (!eventDateValue) return;
+    const interval = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(interval);
+  }, [eventDateValue]);
+
   const countdown = useMemo(() => {
-    if (!data?.wedding.event_date) return null;
-    const event = new Date(`${data.wedding.event_date}T00:00:00`);
-    const diff = Math.max(0, event.getTime() - Date.now());
+    if (!eventDateValue) return null;
+    const event = new Date(`${eventDateValue}T00:00:00`);
+    const diff = Math.max(0, event.getTime() - now);
     const days = Math.floor(diff / 86400000);
     const hours = Math.floor((diff % 86400000) / 3600000);
     const minutes = Math.floor((diff % 3600000) / 60000);
     const seconds = Math.floor((diff % 60000) / 1000);
     return { days, hours, minutes, seconds };
-  }, [data?.wedding.event_date]);
+  }, [eventDateValue, now]);
 
   if (loading) {
     return <div className="min-h-screen bg-[#fbf7f4] flex items-center justify-center text-[#8c5367]">Loading wedding portal...</div>;
@@ -141,20 +152,16 @@ export default function WeddingPortalLanding({ slug }: { slug: string }) {
       >
         <header className="flex items-start justify-between">
           <div className="font-serif text-4xl leading-7 tracking-tight">udo<div className="font-sans text-[9px] uppercase tracking-[0.32em]">weddings</div></div>
-          <button className="inline-flex items-center gap-2 rounded-lg bg-white/85 px-4 py-3 text-sm shadow-sm">
-            <Globe2 size={16} />
-            English
-          </button>
         </header>
 
-        <div className="mx-auto mt-24 max-w-3xl text-center">
-          <div className="flex items-center justify-center gap-8 text-xs uppercase tracking-[0.38em] text-[#9b6a75]">
-            <span className="h-px w-14 bg-[#d9b9bd]" />
+        <div className="mx-auto mt-12 max-w-3xl text-center md:mt-24">
+          <div className="flex items-center justify-center gap-4 text-xs uppercase tracking-[0.38em] text-[#9b6a75] sm:gap-8">
+            <span className="h-px w-8 bg-[#d9b9bd] sm:w-14" />
             Welcome to our wedding
-            <span className="h-px w-14 bg-[#d9b9bd]" />
+            <span className="h-px w-8 bg-[#d9b9bd] sm:w-14" />
           </div>
           <Heart className="mx-auto mt-4 text-[#9b526d]" size={18} />
-          <h1 className="mt-5 font-serif text-6xl md:text-7xl">{couple}</h1>
+          <h1 className="mt-5 font-serif text-4xl sm:text-6xl md:text-7xl">{couple}</h1>
           <p className="mt-8 text-sm uppercase tracking-[0.36em] text-[#4f4648]">{date}{location ? `  -  ${location}` : ''}</p>
           <p className="mx-auto mt-9 max-w-md font-serif text-2xl text-[#6f4653]">{experience.welcome_message || "We're so happy you're here!"}</p>
           <p className="mt-2 text-sm text-[#5e5758]">Find everything you need to join us for our special day.</p>
@@ -176,7 +183,7 @@ export default function WeddingPortalLanding({ slug }: { slug: string }) {
           <PortalTile icon={<Utensils />} title="Meal Selection" text="Let us know your meal preference through your invite link." cta="Add Your Choice" href="#rsvp" />
           <PortalTile icon={<Camera />} title="Photo Gallery" text="See all the moments from our journey." cta="View Gallery" href="#gallery" />
           <PortalTile icon={<Gift />} title="Gift Registry" text="Your presence is the best gift, but if you wish..." cta="View Registry" href="#registry" />
-          <PortalTile icon={<MessageCircle />} title="FAQ" text="Find answers to common questions here." cta="View FAQ" href="#contact" />
+          <PortalTile icon={<HelpCircle />} title="FAQ" text="Find answers to common questions here." cta="View FAQ" href="#faq" />
         </div>
         <PortalRail alerts={data.portal_alerts} messages={data.portal_messages} />
       </section>
@@ -184,7 +191,7 @@ export default function WeddingPortalLanding({ slug }: { slug: string }) {
       <section className="mx-auto mt-6 grid max-w-7xl grid-cols-1 gap-6 px-6 lg:grid-cols-2">
         <Panel id="countdown" title="Wedding Countdown">
           <p className="text-sm text-[#6f6768]">The big day is almost here!</p>
-          <div className="mt-6 grid grid-cols-4 gap-4">
+          <div className="mt-6 grid grid-cols-2 gap-4 sm:grid-cols-4">
             {(['days', 'hours', 'minutes', 'seconds'] as const).map((key) => (
               <div key={key} className="rounded-lg border border-[#eadcda] bg-white/70 p-4 text-center">
                 <div className="font-serif text-3xl">{countdown?.[key] ?? 0}</div>
@@ -228,9 +235,19 @@ export default function WeddingPortalLanding({ slug }: { slug: string }) {
 
       <DetailsSections wedding={wedding} sections={sections} />
 
+      <section className="mx-auto mt-6 max-w-7xl px-6">
+        <Panel id="faq" title="Frequently Asked Questions">
+          <FaqAccordion faqs={data.faqs} />
+        </Panel>
+      </section>
+
       <footer className="mx-auto mt-10 flex max-w-7xl flex-col gap-4 px-6 py-8 text-xs text-[#8a8081] md:flex-row md:items-center md:justify-between">
         <div className="font-serif text-3xl leading-6 text-[#2d2729]">udo<div className="font-sans text-[8px] uppercase tracking-[0.28em]">weddings</div></div>
-        <div className="flex gap-8"><span>Privacy Policy</span><span>Terms of Use</span><span>Contact Support</span></div>
+        <div className="flex gap-8">
+          <a href="/privacy" className="hover:text-[#8c5367]">Privacy Policy</a>
+          <a href="/terms" className="hover:text-[#8c5367]">Terms of Use</a>
+          <a href="#contact" className="hover:text-[#8c5367]">Contact Support</a>
+        </div>
         <span>© {new Date().getFullYear()} {couple}</span>
       </footer>
     </main>
@@ -362,4 +379,34 @@ function Rows({ rows, empty }: { rows: string[]; empty: string }) {
   const cleanRows = rows.filter(Boolean);
   if (cleanRows.length === 0) return <p className="text-sm text-[#6f6768]">{empty}</p>;
   return <div className="space-y-3">{cleanRows.slice(0, 5).map((row, index) => <div key={index} className="rounded-lg border border-[#f0e4e1] bg-[#fffaf8] p-3 text-sm text-[#4f4648]">{row}</div>)}</div>;
+}
+
+function FaqAccordion({ faqs }: { faqs: PortalData['faqs'] }) {
+  const [openId, setOpenId] = useState<number | null>(null);
+
+  if (faqs.length === 0) {
+    return <p className="text-sm text-[#6f6768]">Answers to common questions will appear here soon.</p>;
+  }
+
+  return (
+    <div className="space-y-3">
+      {faqs.map((faq) => {
+        const open = openId === faq.id;
+        return (
+          <div key={faq.id} className="overflow-hidden rounded-lg border border-[#f0e4e1] bg-[#fffaf8]">
+            <button
+              type="button"
+              onClick={() => setOpenId(open ? null : faq.id)}
+              className="flex w-full items-center justify-between gap-4 p-4 text-left text-sm font-medium text-[#4f4648]"
+              aria-expanded={open}
+            >
+              {faq.question}
+              <ChevronDown size={16} className={`flex-shrink-0 text-[#9b526d] transition-transform ${open ? 'rotate-180' : ''}`} />
+            </button>
+            {open && <p className="px-4 pb-4 text-sm leading-6 text-[#6f6768]">{faq.answer}</p>}
+          </div>
+        );
+      })}
+    </div>
+  );
 }

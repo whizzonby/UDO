@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Faq;
 use App\Models\GalleryAsset;
 use App\Models\Guest;
 use App\Models\GuestToken;
@@ -33,6 +34,7 @@ class GuestPortalController extends Controller
             'wedding' => $this->weddingPayload($wedding),
             'portal_alerts' => $isPublished ? $this->portalAlerts($wedding) : [],
             'portal_messages' => $isPublished ? $this->portalMessages($wedding) : [],
+            'faqs' => $this->faqPayload(),
             'sections' => $isPublished ? $this->sectionPayload($wedding, $config) : [
                 'schedule' => [],
                 'accommodation' => [],
@@ -472,6 +474,19 @@ class GuestPortalController extends Controller
             ->take(6)
             ->values()
             ->all();
+    }
+
+    /**
+     * Platform-level FAQs (not wedding-specific) — same content Filament
+     * admins manage under Content > FAQs, surfaced publicly on the wedding
+     * portal landing page.
+     */
+    private function faqPayload(): array
+    {
+        return Faq::where('is_visible', true)
+            ->orderBy('sort_order')
+            ->get(['id', 'question', 'answer', 'category'])
+            ->toArray();
     }
 
     private function guestAlertTitle(array $alert): string
