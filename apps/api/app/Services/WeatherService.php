@@ -20,7 +20,7 @@ class WeatherService
      */
     public function forecast(float $lat, float $lng, ?\DateTimeInterface $weddingDate = null): ?array
     {
-        $key = env('OPENWEATHER_API_KEY');
+        $key = config('services.openweather.key');
         if (! $key) {
             return null;
         }

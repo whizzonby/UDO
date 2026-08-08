@@ -33,7 +33,7 @@ class EmailTemplateResource extends Resource
     /** Sample values so "Send test email" and the live preview render something readable. */
     public static function sampleData(EmailTemplate $record): array
     {
-        $frontendUrl = rtrim(env('FRONTEND_URL', 'http://localhost:3000'), '/');
+        $frontendUrl = rtrim(config('app.frontend_url', 'http://localhost:3000'), '/');
 
         $samples = [
             'first_name' => 'Alex',
