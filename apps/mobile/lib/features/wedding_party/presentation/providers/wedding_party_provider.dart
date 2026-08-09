@@ -88,17 +88,20 @@ class WeddingPartyState {
 class WeddingPartyNotifier extends StateNotifier<WeddingPartyState> {
   final ApiClient _api;
 
-  WeddingPartyNotifier(this._api) : super(const WeddingPartyState(isLoading: true)) {
+  WeddingPartyNotifier(this._api)
+      : super(const WeddingPartyState(isLoading: true)) {
     load();
   }
 
   List<Map<String, dynamic>> _extract(dynamic res) {
-    if (res is Map && res['data'] != null) return (res['data'] as List).cast<Map<String, dynamic>>();
+    if (res is Map && res['data'] != null)
+      return (res['data'] as List).cast<Map<String, dynamic>>();
     if (res is List) return res.cast<Map<String, dynamic>>();
     return [];
   }
 
-  Future<({List<Map<String, dynamic>> data, String? error})> _fetch(String path, {Map<String, dynamic>? query}) async {
+  Future<({List<Map<String, dynamic>> data, String? error})> _fetch(String path,
+      {Map<String, dynamic>? query}) async {
     try {
       return (data: _extract(await _api.get(path, query: query)), error: null);
     } catch (e) {
@@ -184,7 +187,8 @@ class WeddingPartyNotifier extends StateNotifier<WeddingPartyState> {
 
   Future<bool> updateMember(int id, Map<String, dynamic> data) async {
     try {
-      final res = await _api.patch('/guests/$id', data: data) as Map<String, dynamic>;
+      final res =
+          await _api.patch('/guests/$id', data: data) as Map<String, dynamic>;
       final updated = res['data'] as Map<String, dynamic>;
       state = state.copyWith(
         members: state.members.map((m) => m['id'] == id ? updated : m).toList(),
@@ -198,7 +202,8 @@ class WeddingPartyNotifier extends StateNotifier<WeddingPartyState> {
   Future<void> removeMember(int id) async {
     try {
       await _api.delete('/guests/$id');
-      state = state.copyWith(members: state.members.where((m) => m['id'] != id).toList());
+      state = state.copyWith(
+          members: state.members.where((m) => m['id'] != id).toList());
     } catch (_) {}
   }
 
@@ -216,7 +221,9 @@ class WeddingPartyNotifier extends StateNotifier<WeddingPartyState> {
       final exists = state.members.any((m) => m['id'] == guestId);
       state = state.copyWith(
         members: exists
-            ? state.members.map((m) => m['id'] == guestId ? updated : m).toList()
+            ? state.members
+                .map((m) => m['id'] == guestId ? updated : m)
+                .toList()
             : [...state.members, updated],
       );
       return true;
@@ -238,14 +245,18 @@ class WeddingPartyNotifier extends StateNotifier<WeddingPartyState> {
     try {
       final res = await _api.post('/wedding-party/responsibilities', data: {
         'title': title,
-        if (description != null && description.isNotEmpty) 'description': description,
+        if (description != null && description.isNotEmpty)
+          'description': description,
         if (guestId != null) 'guest_id': guestId,
         'status': status,
         'priority': priority,
-        if (dueDate != null) 'due_date': dueDate.toIso8601String().split('T').first,
+        if (dueDate != null)
+          'due_date': dueDate.toIso8601String().split('T').first,
       });
-      final created = (res as Map<String, dynamic>)['data'] as Map<String, dynamic>;
-      state = state.copyWith(responsibilities: [...state.responsibilities, created]);
+      final created =
+          (res as Map<String, dynamic>)['data'] as Map<String, dynamic>;
+      state = state
+          .copyWith(responsibilities: [...state.responsibilities, created]);
       return true;
     } catch (_) {
       return false;
@@ -254,10 +265,14 @@ class WeddingPartyNotifier extends StateNotifier<WeddingPartyState> {
 
   Future<bool> updateResponsibility(int id, Map<String, dynamic> data) async {
     try {
-      final res = await _api.patch('/wedding-party/responsibilities/$id', data: data);
-      final updated = (res as Map<String, dynamic>)['data'] as Map<String, dynamic>;
+      final res =
+          await _api.patch('/wedding-party/responsibilities/$id', data: data);
+      final updated =
+          (res as Map<String, dynamic>)['data'] as Map<String, dynamic>;
       state = state.copyWith(
-        responsibilities: state.responsibilities.map((r) => r['id'] == id ? updated : r).toList(),
+        responsibilities: state.responsibilities
+            .map((r) => r['id'] == id ? updated : r)
+            .toList(),
       );
       return true;
     } catch (_) {
@@ -268,17 +283,25 @@ class WeddingPartyNotifier extends StateNotifier<WeddingPartyState> {
   Future<void> deleteResponsibility(int id) async {
     try {
       await _api.delete('/wedding-party/responsibilities/$id');
-      state = state.copyWith(responsibilities: state.responsibilities.where((r) => r['id'] != id).toList());
+      state = state.copyWith(
+          responsibilities:
+              state.responsibilities.where((r) => r['id'] != id).toList());
     } catch (_) {}
   }
 
-  Future<int> bulkUpdateResponsibilities(List<int> ids, Map<String, dynamic> updates) async {
+  Future<int> bulkUpdateResponsibilities(
+      List<int> ids, Map<String, dynamic> updates) async {
     if (ids.isEmpty || updates.isEmpty) return 0;
     try {
-      final res = await _api.post('/wedding-party/responsibilities/bulk-update', data: {'ids': ids, 'updates': updates, 'confirm': true}) as Map<String, dynamic>;
+      final res = await _api.post('/wedding-party/responsibilities/bulk-update',
+              data: {'ids': ids, 'updates': updates, 'confirm': true})
+          as Map<String, dynamic>;
       final updated = (res['data'] as List? ?? []).cast<Map<String, dynamic>>();
       final updatedById = {for (final item in updated) item['id']: item};
-      state = state.copyWith(responsibilities: state.responsibilities.map((r) => updatedById[r['id']] ?? r).toList());
+      state = state.copyWith(
+          responsibilities: state.responsibilities
+              .map((r) => updatedById[r['id']] ?? r)
+              .toList());
       return res['updated'] as int? ?? updated.length;
     } catch (_) {
       return 0;
@@ -287,7 +310,10 @@ class WeddingPartyNotifier extends StateNotifier<WeddingPartyState> {
 
   // ── Buzzes ─────────────────────────────────────────────────────────────────
 
-  Future<bool> sendBuzz({required String body, required String channel, bool urgent = false}) async {
+  Future<bool> sendBuzz(
+      {required String body,
+      required String channel,
+      bool urgent = false}) async {
     try {
       final createRes = await _api.post('/messages', data: {
         'subject': body.length > 60 ? '${body.substring(0, 57)}...' : body,
@@ -296,10 +322,24 @@ class WeddingPartyNotifier extends StateNotifier<WeddingPartyState> {
         'message_type': urgent ? 'emergency' : 'general',
         'audience_filter': {'guest_group': 'wedding_party'},
       });
-      final created = (createRes as Map<String, dynamic>)['data'] as Map<String, dynamic>;
+      final created =
+          (createRes as Map<String, dynamic>)['data'] as Map<String, dynamic>;
       final sendRes = await _api.post('/messages/${created['id']}/send');
-      final sent = (sendRes as Map<String, dynamic>)['data'] as Map<String, dynamic>;
+      final sent =
+          (sendRes as Map<String, dynamic>)['data'] as Map<String, dynamic>;
       state = state.copyWith(buzzes: [sent, ...state.buzzes]);
+      Future.delayed(const Duration(seconds: 2), () async {
+        try {
+          final freshRes = await _api.get('/messages/${sent['id']}');
+          final fresh = (freshRes as Map<String, dynamic>)['data']
+              as Map<String, dynamic>;
+          state = state.copyWith(
+            buzzes: state.buzzes
+                .map((m) => m['id'] == fresh['id'] ? fresh : m)
+                .toList(),
+          );
+        } catch (_) {}
+      });
       return true;
     } catch (_) {
       return false;
@@ -308,15 +348,21 @@ class WeddingPartyNotifier extends StateNotifier<WeddingPartyState> {
 
   // ── Emergency contacts ────────────────────────────────────────────────────
 
-  Future<bool> addEmergencyContact({required String name, String? relationship, required String phone}) async {
+  Future<bool> addEmergencyContact(
+      {required String name,
+      String? relationship,
+      required String phone}) async {
     try {
       final res = await _api.post('/wedding-party/emergency-contacts', data: {
         'name': name,
-        if (relationship != null && relationship.isNotEmpty) 'relationship': relationship,
+        if (relationship != null && relationship.isNotEmpty)
+          'relationship': relationship,
         'phone': phone,
       });
-      final created = (res as Map<String, dynamic>)['data'] as Map<String, dynamic>;
-      state = state.copyWith(emergencyContacts: [...state.emergencyContacts, created]);
+      final created =
+          (res as Map<String, dynamic>)['data'] as Map<String, dynamic>;
+      state = state
+          .copyWith(emergencyContacts: [...state.emergencyContacts, created]);
       return true;
     } catch (_) {
       return false;
@@ -326,13 +372,16 @@ class WeddingPartyNotifier extends StateNotifier<WeddingPartyState> {
   Future<void> removeEmergencyContact(int id) async {
     try {
       await _api.delete('/wedding-party/emergency-contacts/$id');
-      state = state.copyWith(emergencyContacts: state.emergencyContacts.where((c) => c['id'] != id).toList());
+      state = state.copyWith(
+          emergencyContacts:
+              state.emergencyContacts.where((c) => c['id'] != id).toList());
     } catch (_) {}
   }
 
   // ── Files ──────────────────────────────────────────────────────────────────
 
-  Future<bool> uploadFile(List<int> bytes, String filename, {String category = 'file', int? guestId}) async {
+  Future<bool> uploadFile(List<int> bytes, String filename,
+      {String category = 'file', int? guestId}) async {
     try {
       final formData = FormData.fromMap({
         'file': MultipartFile.fromBytes(bytes, filename: filename),
@@ -340,7 +389,8 @@ class WeddingPartyNotifier extends StateNotifier<WeddingPartyState> {
         if (guestId != null) 'guest_id': guestId,
       });
       final res = await _api.post('/wedding-party/files', data: formData);
-      final created = (res as Map<String, dynamic>)['data'] as Map<String, dynamic>;
+      final created =
+          (res as Map<String, dynamic>)['data'] as Map<String, dynamic>;
       state = state.copyWith(files: [created, ...state.files]);
       return true;
     } catch (_) {
@@ -351,7 +401,8 @@ class WeddingPartyNotifier extends StateNotifier<WeddingPartyState> {
   Future<void> deleteFile(int id) async {
     try {
       await _api.delete('/wedding-party/files/$id');
-      state = state.copyWith(files: state.files.where((f) => f['id'] != id).toList());
+      state = state.copyWith(
+          files: state.files.where((f) => f['id'] != id).toList());
     } catch (_) {}
   }
 
@@ -359,7 +410,8 @@ class WeddingPartyNotifier extends StateNotifier<WeddingPartyState> {
 
   Future<bool> createRehearsal(Map<String, dynamic> data) async {
     try {
-      final res = await _api.post('/plan/rehearsals', data: data) as Map<String, dynamic>;
+      final res = await _api.post('/plan/rehearsals', data: data)
+          as Map<String, dynamic>;
       final created = res['data'] as Map<String, dynamic>;
       state = state.copyWith(rehearsals: [...state.rehearsals, created]);
       return true;
@@ -370,9 +422,13 @@ class WeddingPartyNotifier extends StateNotifier<WeddingPartyState> {
 
   Future<bool> updateRehearsal(int id, Map<String, dynamic> data) async {
     try {
-      final res = await _api.patch('/plan/rehearsals/$id', data: data) as Map<String, dynamic>;
+      final res = await _api.patch('/plan/rehearsals/$id', data: data)
+          as Map<String, dynamic>;
       final updated = res['data'] as Map<String, dynamic>;
-      state = state.copyWith(rehearsals: state.rehearsals.map((r) => r['id'] == id ? updated : r).toList());
+      state = state.copyWith(
+          rehearsals: state.rehearsals
+              .map((r) => r['id'] == id ? updated : r)
+              .toList());
       return true;
     } catch (_) {
       return false;
@@ -384,7 +440,9 @@ class WeddingPartyNotifier extends StateNotifier<WeddingPartyState> {
   /// Returns an empty list on any failure (missing API key, network error) —
   /// the location search field is a nice-to-have and should silently fall
   /// back to plain typing rather than surface an error.
-  Future<List<Map<String, dynamic>>> searchPlaces(String query, String sessionToken, {String? type}) async {
+  Future<List<Map<String, dynamic>>> searchPlaces(
+      String query, String sessionToken,
+      {String? type}) async {
     try {
       final res = await _api.get('/places/search', query: {
         'query': query,
@@ -400,7 +458,8 @@ class WeddingPartyNotifier extends StateNotifier<WeddingPartyState> {
     }
   }
 
-  Future<Map<String, dynamic>?> fetchPlaceDetails(String placeId, String sessionToken) async {
+  Future<Map<String, dynamic>?> fetchPlaceDetails(
+      String placeId, String sessionToken) async {
     try {
       final res = await _api.get('/places/$placeId', query: {
         'session_token': sessionToken,
@@ -413,6 +472,7 @@ class WeddingPartyNotifier extends StateNotifier<WeddingPartyState> {
   }
 }
 
-final weddingPartyProvider = StateNotifierProvider<WeddingPartyNotifier, WeddingPartyState>((ref) {
+final weddingPartyProvider =
+    StateNotifierProvider<WeddingPartyNotifier, WeddingPartyState>((ref) {
   return WeddingPartyNotifier(ref.read(apiClientProvider));
 });

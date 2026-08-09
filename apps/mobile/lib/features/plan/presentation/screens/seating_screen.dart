@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/theme/app_theme.dart';
@@ -50,17 +52,30 @@ class _SeatingScreenState extends ConsumerState<SeatingScreen> {
     ));
   }
 
-  Future<void> _addTable() async {
-    setState(() {
-      _search = '';
-      _statusFilter = null;
-      _floorView = false;
-    });
-    final ok = await ref.read(seatingPlannerProvider.notifier).addTable();
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      content: Text(ok ? 'Table added.' : "Couldn't add a table. Try again."),
-    ));
+  void _addTable() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      useRootNavigator: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _AddTableManualSheet(
+        nextTableNumber: ref.read(seatingPlannerProvider).tables.length + 1,
+        guests: ref.read(guestsProvider).guests,
+        onCreated: (table, positionGuests) {
+          setState(() {
+            _search = '';
+            _statusFilter = null;
+            _floorView = false;
+          });
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Table created.')),
+          );
+          if (positionGuests) {
+            _openSeatSheet(table, ref.read(guestsProvider).guests);
+          }
+        },
+      ),
+    );
   }
 
   void _openPairingPicker(List<Map<String, dynamic>> guests, String type) {
@@ -1262,6 +1277,582 @@ String _initials(Map<String, dynamic> guest) {
     if (last.trim().isNotEmpty) last.trim()[0],
   ].join();
   return letters.isEmpty ? '?' : letters.toUpperCase();
+}
+
+class _AddTableManualSheet extends ConsumerStatefulWidget {
+  final int nextTableNumber;
+  final List<Map<String, dynamic>> guests;
+  final void Function(Map<String, dynamic> table, bool positionGuests)
+      onCreated;
+
+  const _AddTableManualSheet({
+    required this.nextTableNumber,
+    required this.guests,
+    required this.onCreated,
+  });
+
+  @override
+  ConsumerState<_AddTableManualSheet> createState() =>
+      _AddTableManualSheetState();
+}
+
+class _AddTableManualSheetState extends ConsumerState<_AddTableManualSheet> {
+  late final TextEditingController _name = TextEditingController(
+      text: 'Table ${widget.nextTableNumber}'.toUpperCase());
+  final _area = TextEditingController();
+  final _notes = TextEditingController();
+  int _seats = 8;
+  String _shape = 'round';
+  String _numbering = 'Clockwise';
+  String _startSeat = 'Top';
+  String _arrangement = 'Evenly spaced';
+  String _gapSeat = 'None';
+  String _headSeat = 'None';
+  String _rotation = '0 degrees';
+  bool _positionGuests = true;
+  String? _error;
+
+  Future<void> _save() async {
+    final name = _name.text.trim();
+    if (name.isEmpty) {
+      setState(() => _error = 'Add a table name or number.');
+      return;
+    }
+
+    final layoutNotes = [
+      if (_notes.text.trim().isNotEmpty) _notes.text.trim(),
+      'Seat layout: $_numbering, start $_startSeat, $_arrangement.',
+      if (_gapSeat != 'None') 'Leave gap at seat $_gapSeat.',
+      if (_headSeat != 'None') 'Head seat: $_headSeat.',
+      if (_rotation != '0 degrees') 'Rotate table: $_rotation.',
+    ].join('\n');
+
+    final table = await ref.read(seatingPlannerProvider.notifier).addTable(
+      data: {
+        'name': name,
+        'shape': _shape,
+        'capacity': _seats,
+        if (_area.text.trim().isNotEmpty) 'event_section': _area.text.trim(),
+        if (layoutNotes.trim().isNotEmpty) 'notes': layoutNotes.trim(),
+      },
+    );
+
+    if (!mounted) return;
+    if (table == null) {
+      setState(() => _error = "Couldn't create this table. Try again.");
+      return;
+    }
+
+    Navigator.pop(context);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      widget.onCreated(table, _positionGuests);
+    });
+  }
+
+  @override
+  void dispose() {
+    _name.dispose();
+    _area.dispose();
+    _notes.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isSaving = ref.watch(seatingPlannerProvider).isSaving;
+    final bottom = MediaQuery.viewInsetsOf(context).bottom;
+
+    return SafeArea(
+      top: false,
+      child: Padding(
+        padding: EdgeInsets.only(top: 38, bottom: bottom),
+        child: Container(
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(18)),
+          ),
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 18),
+            child:
+                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Row(children: [
+                Container(
+                  width: 30,
+                  height: 30,
+                  decoration: BoxDecoration(
+                    color: AppTheme.udoCrimson.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Icon(Icons.table_restaurant_outlined,
+                      color: AppTheme.udoCrimson, size: 16),
+                ),
+                const SizedBox(width: 10),
+                const Expanded(
+                  child: Text('Add table',
+                      style:
+                          TextStyle(fontSize: 17, fontWeight: FontWeight.w800)),
+                ),
+                IconButton(
+                    onPressed: isSaving ? null : () => Navigator.pop(context),
+                    icon: const Icon(Icons.close)),
+              ]),
+              const SizedBox(height: 10),
+              _AddTableField(
+                label: 'Table name / number',
+                controller: _name,
+                hint: 'e.g. Table 1, Sweetheart Table',
+              ),
+              const SizedBox(height: 12),
+              Row(children: [
+                Expanded(
+                  child: _SeatStepper(
+                    label: 'Number of seats',
+                    value: _seats,
+                    onChanged: (v) => setState(() => _seats = v),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: _AddTableDropdown(
+                    label: 'Table type',
+                    value: _shape,
+                    items: const {
+                      'round': 'Round',
+                      'rectangle': 'Rectangle',
+                      'oval': 'Oval',
+                      'square': 'Square',
+                    },
+                    onChanged: (v) => setState(() => _shape = v),
+                  ),
+                ),
+              ]),
+              const SizedBox(height: 12),
+              _AddTableField(
+                label: 'Table area / zone (optional)',
+                controller: _area,
+                hint: 'Select area',
+                icon: Icons.location_on_outlined,
+              ),
+              const SizedBox(height: 12),
+              _AddTableField(
+                label: 'Table notes (optional)',
+                controller: _notes,
+                hint: 'Add notes about this table',
+                maxLines: 2,
+              ),
+              const SizedBox(height: 18),
+              const Text('Seat layout',
+                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800)),
+              const SizedBox(height: 3),
+              const Text('Choose how seats are arranged around the table.',
+                  style: TextStyle(
+                      fontSize: 11, color: AppTheme.udoTextSecondary)),
+              const SizedBox(height: 10),
+              Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Expanded(
+                  child: Column(children: [
+                    _SeatStepper(
+                      label: 'Number of seats',
+                      value: _seats,
+                      onChanged: (v) => setState(() => _seats = v),
+                    ),
+                    const SizedBox(height: 8),
+                    _AddTableDropdown(
+                      label: 'Seat numbering',
+                      value: _numbering,
+                      items: const {
+                        'Clockwise': 'Clockwise',
+                        'Counter-clockwise': 'Counter-clockwise',
+                      },
+                      onChanged: (v) => setState(() => _numbering = v),
+                    ),
+                    const SizedBox(height: 8),
+                    _AddTableDropdown(
+                      label: 'Start seat at',
+                      value: _startSeat,
+                      items: const {
+                        'Top': 'Top',
+                        'Right': 'Right',
+                        'Bottom': 'Bottom',
+                        'Left': 'Left',
+                      },
+                      onChanged: (v) => setState(() => _startSeat = v),
+                    ),
+                    const SizedBox(height: 8),
+                    _AddTableDropdown(
+                      label: 'Arrangement',
+                      value: _arrangement,
+                      items: const {
+                        'Evenly spaced': 'Evenly spaced',
+                        'Head table style': 'Head table style',
+                        'Clustered': 'Clustered',
+                      },
+                      onChanged: (v) => setState(() => _arrangement = v),
+                    ),
+                  ]),
+                ),
+                const SizedBox(width: 14),
+                _SeatLayoutPreview(
+                  seats: _seats,
+                  shape: _shape,
+                  clockwise: _numbering == 'Clockwise',
+                  startSeat: _startSeat,
+                ),
+              ]),
+              const SizedBox(height: 10),
+              Row(children: [
+                Expanded(
+                  child: _AddTableDropdown(
+                    label: 'Leave an aisle gap',
+                    value: _gapSeat,
+                    items: _seatOptionMap(),
+                    onChanged: (v) => setState(() => _gapSeat = v),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: _AddTableDropdown(
+                    label: 'Head seat(s)',
+                    value: _headSeat,
+                    items: _seatOptionMap(),
+                    onChanged: (v) => setState(() => _headSeat = v),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: _AddTableDropdown(
+                    label: 'Rotate table',
+                    value: _rotation,
+                    items: const {
+                      '0 degrees': '0',
+                      '45 degrees': '45',
+                      '90 degrees': '90',
+                    },
+                    onChanged: (v) => setState(() => _rotation = v),
+                  ),
+                ),
+              ]),
+              const SizedBox(height: 14),
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                decoration: BoxDecoration(
+                  color: AppTheme.udoCardFill,
+                  borderRadius: BorderRadius.circular(13),
+                  border: Border.all(color: AppTheme.udoBorder),
+                ),
+                child: Row(children: [
+                  const Expanded(
+                    child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('Position guests now',
+                              style: TextStyle(
+                                  fontSize: 12.5, fontWeight: FontWeight.w800)),
+                          SizedBox(height: 2),
+                          Text(
+                              'Open the table to add and position guests immediately.',
+                              style: TextStyle(
+                                  fontSize: 10.5,
+                                  color: AppTheme.udoTextSecondary)),
+                        ]),
+                  ),
+                  Switch(
+                    value: _positionGuests,
+                    activeThumbColor: AppTheme.udoCrimson,
+                    onChanged: (v) => setState(() => _positionGuests = v),
+                  ),
+                ]),
+              ),
+              if (_error != null) ...[
+                const SizedBox(height: 10),
+                Text(_error!,
+                    style: const TextStyle(
+                        color: AppTheme.udoCrimson, fontSize: 12)),
+              ],
+              const SizedBox(height: 14),
+              ElevatedButton.icon(
+                onPressed: isSaving ? null : _save,
+                icon: isSaving
+                    ? const SizedBox(
+                        width: 15,
+                        height: 15,
+                        child: CircularProgressIndicator(
+                            strokeWidth: 2, color: Colors.white))
+                    : const Icon(Icons.auto_awesome_outlined, size: 16),
+                label: Text(_positionGuests
+                    ? 'Create table & position guests'
+                    : 'Create table'),
+                style: ElevatedButton.styleFrom(
+                  minimumSize: const Size(double.infinity, 48),
+                  backgroundColor: AppTheme.udoCrimson,
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12)),
+                ),
+              ),
+            ]),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Map<String, String> _seatOptionMap() {
+    return {
+      'None': 'None',
+      for (var i = 1; i <= _seats; i++) '$i': '$i',
+    };
+  }
+}
+
+class _AddTableField extends StatelessWidget {
+  final String label;
+  final String hint;
+  final TextEditingController controller;
+  final IconData? icon;
+  final int maxLines;
+
+  const _AddTableField({
+    required this.label,
+    required this.controller,
+    required this.hint,
+    this.icon,
+    this.maxLines = 1,
+  });
+
+  @override
+  Widget build(BuildContext context) => Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(label,
+              style:
+                  const TextStyle(fontSize: 11, fontWeight: FontWeight.w700)),
+          const SizedBox(height: 5),
+          TextField(
+            controller: controller,
+            maxLines: maxLines,
+            style: const TextStyle(fontSize: 12),
+            decoration: InputDecoration(
+              hintText: hint,
+              prefixIcon: icon == null ? null : Icon(icon, size: 15),
+              filled: true,
+              fillColor: Colors.white,
+              contentPadding:
+                  const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(9),
+                  borderSide: const BorderSide(color: AppTheme.udoBorder)),
+              enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(9),
+                  borderSide: const BorderSide(color: AppTheme.udoBorder)),
+            ),
+          ),
+        ],
+      );
+}
+
+class _SeatStepper extends StatelessWidget {
+  final String label;
+  final int value;
+  final ValueChanged<int> onChanged;
+
+  const _SeatStepper({
+    required this.label,
+    required this.value,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) => Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(label,
+              style:
+                  const TextStyle(fontSize: 11, fontWeight: FontWeight.w700)),
+          const SizedBox(height: 5),
+          Container(
+            height: 41,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(9),
+              border: Border.all(color: AppTheme.udoBorder),
+            ),
+            child: Row(children: [
+              _StepperButton(
+                  icon: Icons.remove,
+                  onTap: value <= 1 ? null : () => onChanged(value - 1)),
+              Expanded(
+                child: Text('$value',
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                        fontSize: 12, fontWeight: FontWeight.w800)),
+              ),
+              _StepperButton(
+                  icon: Icons.add,
+                  onTap: value >= 50 ? null : () => onChanged(value + 1)),
+            ]),
+          ),
+        ],
+      );
+}
+
+class _StepperButton extends StatelessWidget {
+  final IconData icon;
+  final VoidCallback? onTap;
+  const _StepperButton({required this.icon, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) => InkWell(
+        onTap: onTap,
+        child: SizedBox(
+          width: 36,
+          height: 41,
+          child: Icon(icon,
+              size: 15,
+              color: onTap == null
+                  ? AppTheme.udoTextSecondary.withValues(alpha: 0.45)
+                  : AppTheme.udoTextSecondary),
+        ),
+      );
+}
+
+class _AddTableDropdown extends StatelessWidget {
+  final String label;
+  final String value;
+  final Map<String, String> items;
+  final ValueChanged<String> onChanged;
+
+  const _AddTableDropdown({
+    required this.label,
+    required this.value,
+    required this.items,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) => Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(label,
+              style:
+                  const TextStyle(fontSize: 11, fontWeight: FontWeight.w700)),
+          const SizedBox(height: 5),
+          DropdownButtonFormField<String>(
+            initialValue: items.containsKey(value) ? value : items.keys.first,
+            isExpanded: true,
+            decoration: InputDecoration(
+              filled: true,
+              fillColor: Colors.white,
+              contentPadding:
+                  const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
+              border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(9),
+                  borderSide: const BorderSide(color: AppTheme.udoBorder)),
+              enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(9),
+                  borderSide: const BorderSide(color: AppTheme.udoBorder)),
+            ),
+            style:
+                const TextStyle(fontSize: 11, color: AppTheme.udoTextPrimary),
+            items: [
+              for (final entry in items.entries)
+                DropdownMenuItem(value: entry.key, child: Text(entry.value)),
+            ],
+            onChanged: (v) {
+              if (v != null) onChanged(v);
+            },
+          ),
+        ],
+      );
+}
+
+class _SeatLayoutPreview extends StatelessWidget {
+  final int seats;
+  final String shape;
+  final bool clockwise;
+  final String startSeat;
+
+  const _SeatLayoutPreview({
+    required this.seats,
+    required this.shape,
+    required this.clockwise,
+    required this.startSeat,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    const size = 128.0;
+    const seatSize = 22.0;
+    const center = size / 2;
+    const radius = size / 2 - seatSize / 2;
+    final start = switch (startSeat) {
+      'Right' => 0.0,
+      'Bottom' => math.pi / 2,
+      'Left' => math.pi,
+      _ => -math.pi / 2,
+    };
+
+    return SizedBox(
+      width: size,
+      height: size,
+      child: Stack(children: [
+        Center(
+          child: Container(
+            width: shape == 'rectangle' ? 76 : 64,
+            height: shape == 'rectangle' ? 48 : 64,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: AppTheme.udoCrimson.withValues(alpha: 0.12),
+              shape: shape == 'round' ? BoxShape.circle : BoxShape.rectangle,
+              borderRadius: shape == 'round'
+                  ? null
+                  : BorderRadius.circular(shape == 'square' ? 12 : 24),
+              border: Border.all(
+                  color: AppTheme.udoCrimson.withValues(alpha: 0.18)),
+            ),
+            child: Text(_nameForPreview(),
+                textAlign: TextAlign.center,
+                style:
+                    const TextStyle(fontSize: 9, fontWeight: FontWeight.w800)),
+          ),
+        ),
+        for (var index = 0; index < seats.clamp(1, 16); index++)
+          Positioned(
+            left: center +
+                math.cos(start +
+                        (clockwise ? 1 : -1) *
+                            ((math.pi * 2) / seats) *
+                            index) *
+                    radius -
+                seatSize / 2,
+            top: center +
+                math.sin(start +
+                        (clockwise ? 1 : -1) *
+                            ((math.pi * 2) / seats) *
+                            index) *
+                    radius -
+                seatSize / 2,
+            child: Container(
+              width: seatSize,
+              height: seatSize,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: Colors.white,
+                shape: BoxShape.circle,
+                border: Border.all(color: AppTheme.udoBorder),
+              ),
+              child: Text('${index + 1}',
+                  style: const TextStyle(
+                      fontSize: 9, color: AppTheme.udoTextSecondary)),
+            ),
+          ),
+      ]),
+    );
+  }
+
+  String _nameForPreview() {
+    return shape == 'round' ? 'TABLE 1' : 'TABLE';
+  }
 }
 
 class _SeatAssignmentSheet extends ConsumerWidget {

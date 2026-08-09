@@ -1,6 +1,6 @@
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:image_picker/image_picker.dart';
+import '../../../../core/errors/app_exception.dart';
 import '../../../../core/network/api_client.dart';
 
 class PlanState {
@@ -451,7 +451,8 @@ class PlanNotifier extends StateNotifier<PlanState> {
     required double amount,
     String? dueDate,
     String? notes,
-    XFile? document,
+    List<int>? documentBytes,
+    String? documentFilename,
   }) async {
     try {
       dynamic data = {
@@ -460,11 +461,11 @@ class PlanNotifier extends StateNotifier<PlanState> {
         if (dueDate != null && dueDate.isNotEmpty) 'due_date': dueDate,
         if (notes != null && notes.isNotEmpty) 'notes': notes,
       };
-      if (document != null) {
-        final bytes = await document.readAsBytes();
+      if (documentBytes != null) {
         data = FormData.fromMap({
           ...data,
-          'receipt': MultipartFile.fromBytes(bytes, filename: document.name),
+          'receipt': MultipartFile.fromBytes(documentBytes,
+              filename: documentFilename ?? 'invoice'),
         });
       }
       await _api.post('/plan/budget/$budgetItemId/payment-schedules',
@@ -480,14 +481,17 @@ class PlanNotifier extends StateNotifier<PlanState> {
     }
   }
 
-  /// Marks an existing pending/scheduled milestone as paid.
-  Future<bool> payVendorSchedule({
+  /// Marks an existing pending/scheduled milestone as paid. Returns null on
+  /// success, or a human-readable error message (from the server when
+  /// available) on failure.
+  Future<String?> payVendorSchedule({
     required int scheduleId,
     double? amount,
     String? paymentMethod,
     String? reference,
     String? notes,
-    XFile? receipt,
+    List<int>? receiptBytes,
+    String? receiptFilename,
   }) async {
     try {
       dynamic data = {
@@ -497,11 +501,11 @@ class PlanNotifier extends StateNotifier<PlanState> {
         if (reference != null && reference.isNotEmpty) 'reference': reference,
         if (notes != null && notes.isNotEmpty) 'notes': notes,
       };
-      if (receipt != null) {
-        final bytes = await receipt.readAsBytes();
+      if (receiptBytes != null) {
         data = FormData.fromMap({
           ...data,
-          'receipt': MultipartFile.fromBytes(bytes, filename: receipt.name),
+          'receipt': MultipartFile.fromBytes(receiptBytes,
+              filename: receiptFilename ?? 'receipt'),
         });
       }
       await _api.post('/plan/budget/payment-schedules/$scheduleId/mark-paid',
@@ -511,9 +515,9 @@ class PlanNotifier extends StateNotifier<PlanState> {
           budgetItems: budget.data,
           budgetSummary: budget.summary,
           budgetError: budget.error);
-      return true;
-    } catch (_) {
-      return false;
+      return null;
+    } catch (e) {
+      return humanizeError(e);
     }
   }
 
@@ -521,7 +525,8 @@ class PlanNotifier extends StateNotifier<PlanState> {
   /// milestone — creates the schedule row already marked paid. Works for
   /// vendor-linked items (paying an ad-hoc amount) and non-vendor category
   /// budgets alike (e.g. logging a Home Depot receipt under "Decor").
-  Future<bool> createAdHocPayment({
+  /// Returns null on success, or a human-readable error message on failure.
+  Future<String?> createAdHocPayment({
     required int budgetItemId,
     required String label,
     required double amount,
@@ -529,7 +534,8 @@ class PlanNotifier extends StateNotifier<PlanState> {
     String? reference,
     String? notes,
     String? dueDate,
-    XFile? receipt,
+    List<int>? receiptBytes,
+    String? receiptFilename,
   }) async {
     try {
       dynamic data = {
@@ -542,11 +548,11 @@ class PlanNotifier extends StateNotifier<PlanState> {
         if (notes != null && notes.isNotEmpty) 'notes': notes,
         if (dueDate != null && dueDate.isNotEmpty) 'due_date': dueDate,
       };
-      if (receipt != null) {
-        final bytes = await receipt.readAsBytes();
+      if (receiptBytes != null) {
         data = FormData.fromMap({
           ...data,
-          'receipt': MultipartFile.fromBytes(bytes, filename: receipt.name),
+          'receipt': MultipartFile.fromBytes(receiptBytes,
+              filename: receiptFilename ?? 'receipt'),
         });
       }
       await _api.post('/plan/budget/$budgetItemId/payment-schedules',
@@ -556,9 +562,9 @@ class PlanNotifier extends StateNotifier<PlanState> {
           budgetItems: budget.data,
           budgetSummary: budget.summary,
           budgetError: budget.error);
-      return true;
-    } catch (_) {
-      return false;
+      return null;
+    } catch (e) {
+      return humanizeError(e);
     }
   }
 

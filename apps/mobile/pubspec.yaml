@@ -74,9 +74,36 @@ dev_dependencies:
   retrofit_generator: ^9.1.7
   json_serializable: ^6.8.0
   json_annotation: ^4.9.0
+  flutter_launcher_icons: ^0.14.3
+  flutter_native_splash: ^2.4.4
 
 flutter:
   uses-material-design: true
   assets:
     - assets/images/
     - assets/animations/
+    - assets/branding/
+
+# Regenerate after changing assets/branding/*: dart run flutter_launcher_icons
+flutter_launcher_icons:
+  android: true
+  ios: true
+  image_path: "assets/branding/app_icon.png"
+  adaptive_icon_background: "#FFFFFF"
+  adaptive_icon_foreground: "assets/branding/app_icon_foreground.png"
+  min_sdk_android: 21
+  remove_alpha_ios: true
+
+# Regenerate after changing assets/branding/*: dart run flutter_native_splash:create
+flutter_native_splash:
+  color: "#F8F8F5"
+  image: assets/branding/splash_image.png
+  # Android 12+'s native SplashScreen API renders this inside a fixed
+  # square icon window (like an adaptive icon) — it must be the square
+  # mark-only asset, not the tall full lockup with wordmark/tagline text,
+  # or it gets center-cropped down to near-nothing.
+  android_12:
+    color: "#F8F8F5"
+    image: assets/branding/app_icon_foreground.png
+  android: true
+  ios: true

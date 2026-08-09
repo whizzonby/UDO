@@ -110,22 +110,29 @@ class ApiClient {
     } on DioException catch (e) {
       if (e.error is AppException) rethrow;
       final statusCode = e.response?.statusCode;
-      final message = _extractMessage(e.response?.data) ??
-          _networkMessage(e) ??
-          e.message ??
-          'Something went wrong.';
+      final message = _extractMessage(e.response?.data) ?? _networkMessage(e);
       throw ServerException(message, statusCode: statusCode);
     }
   }
 
-  String? _networkMessage(DioException error) {
-    if (error.type == DioExceptionType.connectionTimeout ||
-        error.type == DioExceptionType.connectionError ||
-        error.type == DioExceptionType.receiveTimeout ||
-        error.type == DioExceptionType.sendTimeout) {
-      return 'Cannot reach the Udo server at ${AppConstants.apiBaseUrl}. Check your internet connection or confirm the live API is online.';
+  /// Dio's own `error.message` is developer-facing (raw SocketException
+  /// text, or — for connection failures — the literal request URL), so it's
+  /// never shown to the user. This always returns a clean, generic message
+  /// instead, distinguishing only the cases where the wording actually
+  /// helps the user (no connection vs. a slow/unresponsive server).
+  String _networkMessage(DioException error) {
+    switch (error.type) {
+      case DioExceptionType.connectionError:
+        return "You're not connected to the internet. Check your connection and try again.";
+      case DioExceptionType.connectionTimeout:
+      case DioExceptionType.sendTimeout:
+      case DioExceptionType.receiveTimeout:
+        return 'The connection timed out. Check your internet connection and try again.';
+      case DioExceptionType.badCertificate:
+        return "Couldn't establish a secure connection. Please try again.";
+      default:
+        return 'Something went wrong. Please try again.';
     }
-    return null;
   }
 
   String? _extractMessage(dynamic data) {

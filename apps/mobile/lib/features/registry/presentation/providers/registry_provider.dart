@@ -72,6 +72,30 @@ class RegistryNotifier extends StateNotifier<RegistryState> {
     }
   }
 
+  /// Logs a gift received outside the online registry flow — e.g. cash
+  /// handed over in an envelope — against a cash-fund item's raised total.
+  Future<bool> recordContribution({
+    required int itemId,
+    required String contributorName,
+    required double amount,
+    String? message,
+  }) async {
+    try {
+      await _api.post('/registry/$itemId/contributions', data: {
+        'contributor_name': contributorName,
+        'amount': amount,
+        'payment_status': 'completed',
+        if (message != null && message.trim().isNotEmpty)
+          'message': message.trim(),
+      });
+      await refresh();
+      return true;
+    } catch (e) {
+      state = state.copyWith(error: e.toString());
+      return false;
+    }
+  }
+
   Future<void> markThanked(int contributionId, {String? channel}) async {
     try {
       await _api

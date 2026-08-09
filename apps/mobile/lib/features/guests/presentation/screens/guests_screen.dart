@@ -6,10 +6,10 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../../../core/network/api_client.dart';
 import '../../../../core/theme/app_theme.dart';
+import '../../../../shared/utils/date_formatters.dart' as udo_dates;
 import '../../../../shared/widgets/place_search_field.dart';
 import '../../../../shared/widgets/udo_design_system.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
@@ -168,8 +168,7 @@ class _GuestsScreenState extends ConsumerState<GuestsScreen>
                       statusFilter: _statusFilter,
                       infoFilter: _infoFilter,
                       onSearchChanged: (v) => setState(() => _search = v),
-                      onFilterChanged: (v) =>
-                          setState(() => _statusFilter = v),
+                      onFilterChanged: (v) => setState(() => _statusFilter = v),
                       onInfoFilterChanged: (v) =>
                           setState(() => _infoFilter = v),
                       onAddGuest: () => _showAddModal(context, notifier),
@@ -208,6 +207,8 @@ class _GuestsScreenState extends ConsumerState<GuestsScreen>
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
+      useRootNavigator: true,
+      backgroundColor: Colors.white,
       shape: const RoundedRectangleBorder(
           borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
       builder: (_) => _AddGuestModal(
@@ -238,7 +239,7 @@ const _guestPages = [
   _GuestPageMeta('Overview', Icons.dashboard_outlined),
   _GuestPageMeta('Guest Directory', Icons.groups_outlined),
   _GuestPageMeta('Invitations', Icons.mark_email_unread_outlined),
-  _GuestPageMeta('Guest Experience', Icons.room_service_outlined),
+  _GuestPageMeta('Guest Portal', Icons.room_service_outlined),
   _GuestPageMeta('Communication Centre', Icons.chat_bubble_outline),
   _GuestPageMeta('Check In', Icons.qr_code_scanner_outlined),
   _GuestPageMeta('Logistics', Icons.luggage_outlined),
@@ -284,14 +285,7 @@ class _GuestWorkspaceHeader extends StatelessWidget {
                               size: isOverview ? 36 : 24,
                               color: UdoDesign.text)),
                     ),
-                    if (isOverview) ...[
-                      const SizedBox(height: 14),
-                      Text(
-                        'Manage every guest, invitation and experience from one place.',
-                        style: UdoDesign.sans(
-                            size: 14.5, height: 1.45, color: UdoDesign.sub),
-                      ),
-                    ] else ...[
+                    if (!isOverview) ...[
                       const SizedBox(height: 6),
                       Text('$totalGuests guests in this workspace',
                           style: UdoDesign.sans(
@@ -487,8 +481,6 @@ class _GuestDrawerRow extends StatelessWidget {
     );
   }
 }
-
-
 
 class _GuestStaleBanner extends StatelessWidget {
   final DateTime? cachedAt;
@@ -908,20 +900,80 @@ class _OverviewTab extends ConsumerWidget {
               'Everyone with an email on file has already been invited.')));
       return;
     }
-    final confirmed = await showDialog<bool>(
+    final confirmed = await showModalBottomSheet<bool>(
       context: context,
-      builder: (_) => AlertDialog(
-        title: const Text('Send invites'),
-        content: Text(
-            'Send an invitation email to ${targets.length} guest${targets.length == 1 ? '' : 's'} who haven\'t been invited yet?'),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(context, false),
-              child: const Text('Cancel')),
-          TextButton(
-              onPressed: () => Navigator.pop(context, true),
-              child: const Text('Send')),
-        ],
+      useRootNavigator: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+      builder: (sheetContext) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 20, 20, 20),
+          child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(children: [
+                  Expanded(
+                      child: Text('Send invites',
+                          style: UdoDesign.sans(
+                              size: 18, weight: FontWeight.w800))),
+                  IconButton(
+                      onPressed: () => Navigator.pop(sheetContext, false),
+                      icon: const Icon(Icons.close)),
+                ]),
+                const SizedBox(height: 8),
+                Text(
+                  'Send invitation emails to ${targets.length} guest${targets.length == 1 ? '' : 's'} who have an email and have not been invited yet.',
+                  style: UdoDesign.sans(
+                      size: 13, color: UdoDesign.muted, height: 1.4),
+                ),
+                const SizedBox(height: 14),
+                ConstrainedBox(
+                  constraints: const BoxConstraints(maxHeight: 220),
+                  child: ListView.builder(
+                    shrinkWrap: true,
+                    itemCount: targets.length,
+                    itemBuilder: (_, i) => ListTile(
+                      dense: true,
+                      contentPadding: EdgeInsets.zero,
+                      leading: CircleAvatar(
+                        radius: 15,
+                        backgroundColor: _guestAccent.withValues(alpha: 0.12),
+                        child: Text(_initials(targets[i]),
+                            style: UdoDesign.sans(
+                                size: 10,
+                                color: _guestAccent,
+                                weight: FontWeight.w800)),
+                      ),
+                      title: Text(_guestDisplayName(targets[i]),
+                          style: UdoDesign.sans(
+                              size: 13, weight: FontWeight.w700)),
+                      subtitle: Text(targets[i]['email']?.toString() ?? '',
+                          style:
+                              UdoDesign.sans(size: 11, color: UdoDesign.muted)),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Row(children: [
+                  Expanded(
+                      child: OutlinedButton(
+                          onPressed: () => Navigator.pop(sheetContext, false),
+                          child: const Text('Cancel'))),
+                  const SizedBox(width: 10),
+                  Expanded(
+                      child: ElevatedButton.icon(
+                    onPressed: () => Navigator.pop(sheetContext, true),
+                    icon: const Icon(Icons.send_outlined, size: 16),
+                    label: const Text('Send invites'),
+                    style: ElevatedButton.styleFrom(
+                        backgroundColor: _guestAccent,
+                        foregroundColor: Colors.white),
+                  )),
+                ]),
+              ]),
+        ),
       ),
     );
     if (confirmed != true) return;
@@ -1114,16 +1166,16 @@ class _GuestCommandCentrePage extends StatelessWidget {
           missingArrival: missingArrival,
           mealsSpecified: guests
               .where((g) =>
-                  (g['meal_preference'] as String?)?.trim().isNotEmpty ??
-                  false)
+                  (g['meal_preference'] as String?)?.trim().isNotEmpty ?? false)
               .length,
           totalGuests: guests.length,
-          onRsvps: () => onJumpToGuestList(statusFilter: 'pending'),
-          onMeals: onMealSummary,
+          onRsvps: () => onJumpToGuestList(statusFilter: 'yes'),
+          onMeals: () => onJumpToGuestList(infoFilter: 'missing_meal'),
           onAccommodation: () =>
               onJumpToGuestList(infoFilter: 'missing_accommodation'),
-          onTravel: onTravelOverview,
-          onDirectory: onGoToList,
+          onTravel: () => onJumpToGuestList(infoFilter: 'missing_transport'),
+          onInvitations: () => onJumpToGuestList(infoFilter: 'not_invited'),
+          onPlusOnes: () => onJumpToGuestList(infoFilter: 'plus_ones'),
         ),
         const SizedBox(height: 18),
         _GuestActionPanel(
@@ -1148,7 +1200,9 @@ class _GuestCommandCentrePage extends StatelessWidget {
           title:
               activity.isNotEmpty ? 'Recent Guest Activity' : 'Recently Added',
           action: 'View All',
-          onAction: onGoToList,
+          onAction: activity.isNotEmpty
+              ? () => _showAllGuestActivitySheet(context, activity)
+              : onGoToList,
         ),
         if (activity.isNotEmpty)
           UdoCard(
@@ -1176,8 +1230,7 @@ class _GuestCommandCentrePage extends StatelessWidget {
               const Icon(Icons.event_available_outlined, color: _guestAccent),
               const SizedBox(width: 12),
               Expanded(
-                child: Text(
-                    'RSVP deadline: ${_formatDeadline(rsvpDeadline!)}',
+                child: Text('RSVP deadline: ${_formatDeadline(rsvpDeadline!)}',
                     style: UdoDesign.sans(size: 13, weight: FontWeight.w700)),
               ),
             ]),
@@ -1420,7 +1473,12 @@ class _GuestHealthGrid extends StatelessWidget {
       missingArrival,
       mealsSpecified,
       totalGuests;
-  final VoidCallback onRsvps, onMeals, onAccommodation, onTravel, onDirectory;
+  final VoidCallback onRsvps,
+      onMeals,
+      onAccommodation,
+      onTravel,
+      onInvitations,
+      onPlusOnes;
   const _GuestHealthGrid({
     required this.attending,
     required this.pending,
@@ -1436,7 +1494,8 @@ class _GuestHealthGrid extends StatelessWidget {
     required this.onMeals,
     required this.onAccommodation,
     required this.onTravel,
-    required this.onDirectory,
+    required this.onInvitations,
+    required this.onPlusOnes,
   });
 
   @override
@@ -1475,14 +1534,14 @@ class _GuestHealthGrid extends StatelessWidget {
         '$invitationsSent sent',
         Icons.outgoing_mail,
         _guestAccent,
-        onDirectory
+        onInvitations
       ),
       (
         'Plus Ones',
         '$plusOnes listed',
         Icons.group_add_outlined,
         UdoDesign.rose,
-        onDirectory
+        onPlusOnes
       ),
     ];
     return GridView.builder(
@@ -1641,9 +1700,53 @@ class _GuestActivityLine extends StatelessWidget {
   }
 }
 
+void _showAllGuestActivitySheet(
+    BuildContext context, List<Map<String, dynamic>> activity) {
+  showModalBottomSheet(
+    context: context,
+    useRootNavigator: true,
+    isScrollControlled: true,
+    backgroundColor: Colors.white,
+    shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+    builder: (_) => DraggableScrollableSheet(
+      expand: false,
+      initialChildSize: 0.72,
+      maxChildSize: 0.92,
+      builder: (sheetContext, controller) => SafeArea(
+        child: Column(children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 16, 12, 10),
+            child: Row(children: [
+              Expanded(
+                  child: Text('Recent guest activity',
+                      style:
+                          UdoDesign.sans(size: 18, weight: FontWeight.w800))),
+              IconButton(
+                  onPressed: () => Navigator.pop(sheetContext),
+                  icon: const Icon(Icons.close)),
+            ]),
+          ),
+          const Divider(height: 1),
+          Expanded(
+            child: ListView.separated(
+              controller: controller,
+              padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
+              itemCount: activity.length,
+              separatorBuilder: (_, __) =>
+                  const Divider(height: 1, color: UdoDesign.stone),
+              itemBuilder: (_, index) =>
+                  _GuestActivityLine(event: activity[index]),
+            ),
+          ),
+        ]),
+      ),
+    ),
+  );
+}
+
 String _formatDeadline(String raw) {
-  final parsed = DateTime.tryParse(raw);
-  return parsed == null ? raw : DateFormat('MMM d, yyyy').format(parsed);
+  return udo_dates.formatApiDate(raw);
 }
 
 String _relativeActivityTime(DateTime dt) {
@@ -2167,6 +2270,11 @@ bool _guestMatchesInfoFilter(Map<String, dynamic> g, String filter) {
           g['transport_assignment_id'] == null;
     case 'accessibility_seating':
       return _guestNeedsAccessibilitySeating(g);
+    case 'not_invited':
+      return g['invite_status'] != 'sent' &&
+          (g['email']?.toString().trim().isNotEmpty ?? false);
+    case 'plus_ones':
+      return ((g['plus_one_count'] as num?)?.toInt() ?? 0) > 0;
     case 'missing_logistics':
       return g['travel_required'] == true &&
           (g['hotel_assignment_id'] == null ||
@@ -2184,6 +2292,8 @@ const _infoFilterLabels = {
   'missing_transport': 'Missing transport',
   'missing_logistics': 'Needs accommodation or transport',
   'accessibility_seating': 'Needs wheelchair seating',
+  'not_invited': 'Not invited',
+  'plus_ones': 'Plus-ones listed',
 };
 
 class _OutstandingGuestMessageSheet extends ConsumerStatefulWidget {
@@ -2317,18 +2427,24 @@ class _OutstandingGuestMessageSheetState
                   decoration: BoxDecoration(
                       color: _guestAccent.withValues(alpha: 0.08),
                       borderRadius: BorderRadius.circular(10)),
-                  child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    const Icon(Icons.info_outline, size: 15, color: _guestAccent),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        guestPortalUrl != null && guestPortalUrl.isNotEmpty
-                            ? 'No native inbox yet — guests will see this on their wedding portal:\n$guestPortalUrl'
-                            : "No native inbox yet — guests will see this on their wedding portal page once it's set up.",
-                        style: UdoDesign.sans(size: 12, color: _guestAccent, weight: FontWeight.w500),
-                      ),
-                    ),
-                  ]),
+                  child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Icon(Icons.info_outline,
+                            size: 15, color: _guestAccent),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            guestPortalUrl != null && guestPortalUrl.isNotEmpty
+                                ? 'Guests will receive this as a wedding portal message:\n$guestPortalUrl'
+                                : "Guests will receive this as a wedding portal message once your portal link is ready.",
+                            style: UdoDesign.sans(
+                                size: 12,
+                                color: _guestAccent,
+                                weight: FontWeight.w500),
+                          ),
+                        ),
+                      ]),
                 ),
               ],
               const SizedBox(height: 12),
@@ -3024,7 +3140,7 @@ class _MealsSection extends StatelessWidget {
             SizedBox(width: 8),
             Expanded(
                 child: Text(
-                    'Meal selection can be enabled via the Guest Experience builder.',
+                    'Meal selection can be enabled via the Guest Portal builder.',
                     style: TextStyle(
                         fontSize: 12,
                         color: AppTheme.udoTextSecondary,
@@ -3288,6 +3404,8 @@ class _GuestProfileBodyState extends ConsumerState<_GuestProfileBody> {
             onPressed: () => showModalBottomSheet(
               context: context,
               isScrollControlled: true,
+              useRootNavigator: true,
+              backgroundColor: Colors.white,
               shape: const RoundedRectangleBorder(
                   borderRadius:
                       BorderRadius.vertical(top: Radius.circular(24))),
@@ -3536,6 +3654,7 @@ class _EditGuestModalState extends ConsumerState<_EditGuestModal> {
       _notes;
   late String _status;
   bool _loading = false;
+  String? _error;
 
   @override
   void initState() {
@@ -3550,103 +3669,130 @@ class _EditGuestModalState extends ConsumerState<_EditGuestModal> {
   }
 
   Future<void> _submit() async {
-    if (_firstName.text.trim().isEmpty) return;
-    setState(() => _loading = true);
+    if (_firstName.text.trim().isEmpty) {
+      setState(() => _error = 'First name is required.');
+      return;
+    }
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
     final ok = await ref
         .read(guestsProvider.notifier)
         .updateGuest(widget.guest['id'] as int, {
       'first_name': _firstName.text.trim(),
-      'last_name': _lastName.text.trim(),
-      if (_email.text.trim().isNotEmpty) 'email': _email.text.trim(),
-      if (_phone.text.trim().isNotEmpty) 'phone': _phone.text.trim(),
+      'last_name': _lastName.text.trim().isEmpty ? null : _lastName.text.trim(),
+      'email': _email.text.trim().isEmpty ? null : _email.text.trim(),
+      'phone': _phone.text.trim().isEmpty ? null : _phone.text.trim(),
       'attending_status': _status,
-      'notes': _notes.text.trim(),
-    });
+      'notes': _notes.text.trim().isEmpty ? null : _notes.text.trim(),
+    }).timeout(const Duration(seconds: 35), onTimeout: () => false);
     if (!mounted) return;
     if (ok) {
       final updated = ref.read(guestsProvider).guests.firstWhere(
           (g) => g['id'] == widget.guest['id'],
           orElse: () => widget.guest);
       widget.onSaved(updated);
+      final messenger = ScaffoldMessenger.of(context);
       Navigator.pop(context);
+      messenger.showSnackBar(const SnackBar(content: Text('Guest saved.')));
     } else {
-      setState(() => _loading = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Couldn't save. Try again.")));
+      final message = ref.read(guestsProvider).error ??
+          "Couldn't save this guest. Check your connection and try again.";
+      setState(() {
+        _loading = false;
+        _error = message;
+      });
     }
   }
 
   @override
-  Widget build(BuildContext context) => Padding(
-        padding:
-            EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
-        child: SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(20, 24, 20, 20),
-            child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(children: [
-                    const Expanded(
-                        child: Text('Edit guest',
-                            style: TextStyle(
-                                fontSize: 18, fontWeight: FontWeight.w600))),
-                    IconButton(
-                        onPressed: () => Navigator.pop(context),
-                        icon: const Icon(Icons.close),
-                        padding: EdgeInsets.zero),
-                  ]),
-                  const SizedBox(height: 16),
-                  Row(children: [
-                    Expanded(
-                        child:
-                            _FieldWrap('First name', controller: _firstName)),
-                    const SizedBox(width: 12),
-                    Expanded(
-                        child: _FieldWrap('Last name', controller: _lastName)),
-                  ]),
-                  const SizedBox(height: 12),
-                  _FieldWrap('Email',
-                      controller: _email, type: TextInputType.emailAddress),
-                  const SizedBox(height: 12),
-                  _FieldWrap('Phone',
-                      controller: _phone, type: TextInputType.phone),
-                  const SizedBox(height: 12),
-                  const Text('RSVP status',
-                      style:
-                          TextStyle(fontSize: 14, fontWeight: FontWeight.w500)),
-                  const SizedBox(height: 6),
-                  DropdownButtonFormField<String>(
-                    value: _status,
-                    decoration: _dropDeco(),
-                    items: const [
-                      DropdownMenuItem(
-                          value: 'pending', child: Text('Pending')),
-                      DropdownMenuItem(value: 'yes', child: Text('Attending')),
-                      DropdownMenuItem(
-                          value: 'no', child: Text('Not attending')),
+  Widget build(BuildContext context) => SafeArea(
+        child: AnimatedPadding(
+          duration: const Duration(milliseconds: 180),
+          curve: Curves.easeOut,
+          padding:
+              EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+          child: FractionallySizedBox(
+            heightFactor: 0.86,
+            alignment: Alignment.bottomCenter,
+            child: SingleChildScrollView(
+              keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+              padding: const EdgeInsets.fromLTRB(20, 24, 20, 112),
+              child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(children: [
+                      const Expanded(
+                          child: Text('Edit guest',
+                              style: TextStyle(
+                                  fontSize: 18, fontWeight: FontWeight.w600))),
+                      IconButton(
+                          onPressed: () => Navigator.pop(context),
+                          icon: const Icon(Icons.close),
+                          padding: EdgeInsets.zero),
+                    ]),
+                    const SizedBox(height: 16),
+                    Row(children: [
+                      Expanded(
+                          child:
+                              _FieldWrap('First name', controller: _firstName)),
+                      const SizedBox(width: 12),
+                      Expanded(
+                          child:
+                              _FieldWrap('Last name', controller: _lastName)),
+                    ]),
+                    const SizedBox(height: 12),
+                    _FieldWrap('Email',
+                        controller: _email, type: TextInputType.emailAddress),
+                    const SizedBox(height: 12),
+                    _FieldWrap('Phone',
+                        controller: _phone, type: TextInputType.phone),
+                    const SizedBox(height: 12),
+                    const Text('RSVP status',
+                        style: TextStyle(
+                            fontSize: 14, fontWeight: FontWeight.w500)),
+                    const SizedBox(height: 6),
+                    DropdownButtonFormField<String>(
+                      value: _status,
+                      decoration: _dropDeco(),
+                      items: const [
+                        DropdownMenuItem(
+                            value: 'pending', child: Text('Pending')),
+                        DropdownMenuItem(
+                            value: 'yes', child: Text('Attending')),
+                        DropdownMenuItem(
+                            value: 'no', child: Text('Not attending')),
+                      ],
+                      onChanged: (v) =>
+                          setState(() => _status = v ?? 'pending'),
+                    ),
+                    const SizedBox(height: 12),
+                    _FieldWrap('Notes', controller: _notes),
+                    if (_error != null) ...[
+                      const SizedBox(height: 12),
+                      Text(_error!,
+                          style: const TextStyle(
+                              fontSize: 12, color: AppTheme.udoCrimson)),
                     ],
-                    onChanged: (v) => setState(() => _status = v ?? 'pending'),
-                  ),
-                  const SizedBox(height: 12),
-                  _FieldWrap('Notes', controller: _notes),
-                  const SizedBox(height: 20),
-                  ElevatedButton(
-                    onPressed: _loading ? null : _submit,
-                    style: ElevatedButton.styleFrom(
-                        minimumSize: const Size(double.infinity, 52),
-                        backgroundColor: AppTheme.udoGreen,
-                        foregroundColor: Colors.white),
-                    child: _loading
-                        ? const SizedBox(
-                            width: 20,
-                            height: 20,
-                            child: CircularProgressIndicator(
-                                color: Colors.white, strokeWidth: 2))
-                        : const Text('Save changes'),
-                  ),
-                ]),
+                    const SizedBox(height: 20),
+                    ElevatedButton(
+                      onPressed: _loading ? null : _submit,
+                      style: ElevatedButton.styleFrom(
+                          minimumSize: const Size(double.infinity, 52),
+                          backgroundColor: AppTheme.udoGreen,
+                          foregroundColor: Colors.white),
+                      child: _loading
+                          ? const SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(
+                                  color: Colors.white, strokeWidth: 2))
+                          : const Text('Save changes'),
+                    ),
+                  ]),
+            ),
           ),
         ),
       );
@@ -3724,146 +3870,166 @@ class _AddGuestModalState extends State<_AddGuestModal> {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding:
-          EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
-      child: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(20, 24, 20, 20),
-          child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(children: [
-                  const Expanded(
-                      child: Text('Add guest',
-                          style: TextStyle(
-                              fontSize: 18, fontWeight: FontWeight.w600))),
-                  Container(
-                    decoration: BoxDecoration(
-                        color: AppTheme.udoCardFill,
-                        borderRadius: BorderRadius.circular(20)),
-                    child: Row(mainAxisSize: MainAxisSize.min, children: [
-                      _ModeBtn('Quick', _quickMode, () => _setMode(true)),
-                      _ModeBtn('Manual', !_quickMode, () => _setMode(false)),
-                    ]),
-                  ),
-                  const SizedBox(width: 8),
-                  IconButton(
-                      onPressed: () => Navigator.pop(context),
-                      icon: const Icon(Icons.close),
-                      padding: EdgeInsets.zero),
-                ]),
-                const SizedBox(height: 16),
-                Row(children: [
-                  Expanded(
-                      child: _FieldWrap('First name', controller: _firstName)),
-                  const SizedBox(width: 12),
-                  Expanded(
-                      child: _FieldWrap('Last name', controller: _lastName)),
-                ]),
-                const SizedBox(height: 12),
-                _FieldWrap('Email',
-                    controller: _email, type: TextInputType.emailAddress),
-                const SizedBox(height: 12),
-                _FieldWrap('Phone (optional)',
-                    controller: _phone, type: TextInputType.phone),
-                if (!_quickMode) ...[
-                  const SizedBox(height: 12),
-                  const Text('RSVP status',
-                      style:
-                          TextStyle(fontSize: 14, fontWeight: FontWeight.w500)),
-                  const SizedBox(height: 6),
-                  DropdownButtonFormField<String>(
-                    initialValue: _rsvpStatus,
-                    decoration: _dropDeco(),
-                    items: const [
-                      DropdownMenuItem(
-                          value: 'pending', child: Text('Pending')),
-                      DropdownMenuItem(value: 'yes', child: Text('Attending')),
-                      DropdownMenuItem(
-                          value: 'no', child: Text('Not attending')),
-                    ],
-                    onChanged: (v) =>
-                        setState(() => _rsvpStatus = v ?? 'pending'),
-                  ),
-                  const SizedBox(height: 12),
-                  const Text('Meal preference',
-                      style:
-                          TextStyle(fontSize: 14, fontWeight: FontWeight.w500)),
-                  const SizedBox(height: 6),
-                  DropdownButtonFormField<String>(
-                    initialValue: _mealPreference,
-                    decoration: _dropDeco(),
-                    items: [
-                      for (final entry in _kMealPreferenceOptions.entries)
-                        DropdownMenuItem(value: entry.key, child: Text(entry.value)),
-                    ],
-                    onChanged: (v) => setState(() => _mealPreference = v ?? ''),
-                  ),
-                  const SizedBox(height: 12),
+    return SafeArea(
+      child: AnimatedPadding(
+        duration: const Duration(milliseconds: 180),
+        curve: Curves.easeOut,
+        padding:
+            EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+        child: FractionallySizedBox(
+          heightFactor: 0.92,
+          alignment: Alignment.bottomCenter,
+          child: SingleChildScrollView(
+            keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+            padding: const EdgeInsets.fromLTRB(20, 24, 20, 112),
+            child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
                   Row(children: [
                     const Expanded(
-                        child: Text('Plus-one allowed',
+                        child: Text('Add guest',
                             style: TextStyle(
-                                fontSize: 14, fontWeight: FontWeight.w500))),
-                    Switch(
-                        value: _plusOneAllowed,
-                        onChanged: (v) => setState(() {
-                              _plusOneAllowed = v;
-                              if (!v) _plusOneCount = 0;
-                            }),
-                        activeThumbColor: AppTheme.udoGreen),
+                                fontSize: 18, fontWeight: FontWeight.w600))),
+                    Container(
+                      decoration: BoxDecoration(
+                          color: AppTheme.udoCardFill,
+                          borderRadius: BorderRadius.circular(20)),
+                      child: Row(mainAxisSize: MainAxisSize.min, children: [
+                        _ModeBtn('Quick', _quickMode, () => _setMode(true)),
+                        _ModeBtn('Manual', !_quickMode, () => _setMode(false)),
+                      ]),
+                    ),
+                    const SizedBox(width: 8),
+                    IconButton(
+                        onPressed: () => Navigator.pop(context),
+                        icon: const Icon(Icons.close),
+                        padding: EdgeInsets.zero),
                   ]),
-                  if (_plusOneAllowed) ...[
-                    const SizedBox(height: 6),
-                    const Text('Plus-one count',
+                  const SizedBox(height: 16),
+                  Row(children: [
+                    Expanded(
+                        child:
+                            _FieldWrap('First name', controller: _firstName)),
+                    const SizedBox(width: 12),
+                    Expanded(
+                        child: _FieldWrap('Last name', controller: _lastName)),
+                  ]),
+                  const SizedBox(height: 12),
+                  _FieldWrap('Email',
+                      controller: _email, type: TextInputType.emailAddress),
+                  const SizedBox(height: 12),
+                  _FieldWrap('Phone (optional)',
+                      controller: _phone, type: TextInputType.phone),
+                  if (!_quickMode) ...[
+                    const SizedBox(height: 12),
+                    const Text('RSVP status',
                         style: TextStyle(
                             fontSize: 14, fontWeight: FontWeight.w500)),
                     const SizedBox(height: 6),
-                    DropdownButtonFormField<int>(
-                      initialValue: _plusOneCount,
+                    DropdownButtonFormField<String>(
+                      initialValue: _rsvpStatus,
+                      decoration: _dropDeco(),
+                      items: const [
+                        DropdownMenuItem(
+                            value: 'pending', child: Text('Pending')),
+                        DropdownMenuItem(
+                            value: 'yes', child: Text('Attending')),
+                        DropdownMenuItem(
+                            value: 'no', child: Text('Not attending')),
+                      ],
+                      onChanged: (v) =>
+                          setState(() => _rsvpStatus = v ?? 'pending'),
+                    ),
+                    const SizedBox(height: 12),
+                    const Text('Meal preference',
+                        style: TextStyle(
+                            fontSize: 14, fontWeight: FontWeight.w500)),
+                    const SizedBox(height: 6),
+                    DropdownButtonFormField<String>(
+                      initialValue: _mealPreference,
                       decoration: _dropDeco(),
                       items: [
-                        for (var i = 0; i <= 5; i++)
-                          DropdownMenuItem(value: i, child: Text('$i')),
+                        for (final entry in _kMealPreferenceOptions.entries)
+                          DropdownMenuItem(
+                              value: entry.key, child: Text(entry.value)),
                       ],
-                      onChanged: (v) => setState(() => _plusOneCount = v ?? 0),
+                      onChanged: (v) =>
+                          setState(() => _mealPreference = v ?? ''),
                     ),
+                    const SizedBox(height: 12),
+                    Row(children: [
+                      const Expanded(
+                          child: Text('Plus-one allowed',
+                              style: TextStyle(
+                                  fontSize: 14, fontWeight: FontWeight.w500))),
+                      Switch(
+                          value: _plusOneAllowed,
+                          onChanged: (v) => setState(() {
+                                _plusOneAllowed = v;
+                                if (!v) _plusOneCount = 0;
+                              }),
+                          activeThumbColor: AppTheme.udoGreen),
+                    ]),
+                    if (_plusOneAllowed) ...[
+                      const SizedBox(height: 6),
+                      const Text('Plus-one count',
+                          style: TextStyle(
+                              fontSize: 14, fontWeight: FontWeight.w500)),
+                      const SizedBox(height: 6),
+                      DropdownButtonFormField<int>(
+                        initialValue: _plusOneCount,
+                        decoration: _dropDeco(),
+                        items: [
+                          for (var i = 0; i <= 5; i++)
+                            DropdownMenuItem(value: i, child: Text('$i')),
+                        ],
+                        onChanged: (v) =>
+                            setState(() => _plusOneCount = v ?? 0),
+                      ),
+                    ],
+                    const SizedBox(height: 12),
+                    _FieldWrap('Dietary note (optional)',
+                        controller: _dietaryNote),
                   ],
-                  const SizedBox(height: 12),
-                  _FieldWrap('Dietary note (optional)',
-                      controller: _dietaryNote),
-                ],
-                if (_error != null) ...[
-                  const SizedBox(height: 12),
-                  Text(_error!,
-                      style: const TextStyle(
-                          fontSize: 12, color: AppTheme.udoCrimson)),
-                ],
-                const SizedBox(height: 20),
-                ElevatedButton(
-                  onPressed: _loading ? null : _submit,
-                  style: ElevatedButton.styleFrom(
-                      minimumSize: const Size(double.infinity, 52),
-                      backgroundColor: AppTheme.udoGreen,
-                      foregroundColor: Colors.white),
-                  child: _loading
-                      ? const SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: CircularProgressIndicator(
-                              color: Colors.white, strokeWidth: 2))
-                      : Text(_quickMode ? 'Add & send invite' : 'Add guest'),
-                ),
-              ]),
+                  if (_error != null) ...[
+                    const SizedBox(height: 12),
+                    Text(_error!,
+                        style: const TextStyle(
+                            fontSize: 12, color: AppTheme.udoCrimson)),
+                  ],
+                  const SizedBox(height: 20),
+                  ElevatedButton(
+                    onPressed: _loading ? null : _submit,
+                    style: ElevatedButton.styleFrom(
+                        minimumSize: const Size(double.infinity, 52),
+                        backgroundColor: AppTheme.udoGreen,
+                        foregroundColor: Colors.white),
+                    child: _loading
+                        ? const SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(
+                                color: Colors.white, strokeWidth: 2))
+                        : Text(_quickMode ? 'Add & send invite' : 'Add guest'),
+                  ),
+                ]),
+          ),
         ),
       ),
     );
   }
 
   Future<void> _submit() async {
-    if (_firstName.text.trim().isEmpty) return;
+    if (_firstName.text.trim().isEmpty) {
+      setState(() => _error = 'Add at least a first name.');
+      return;
+    }
+    if (_quickMode && _email.text.trim().isEmpty) {
+      setState(() => _error =
+          'Add an email address to send an invite, or switch to Manual to add without inviting.');
+      return;
+    }
     setState(() {
       _loading = true;
       _error = null;
@@ -3888,7 +4054,13 @@ class _AddGuestModalState extends State<_AddGuestModal> {
       });
       return;
     }
-    if (mounted) Navigator.pop(context);
+    if (mounted) {
+      final messenger = ScaffoldMessenger.of(context);
+      Navigator.pop(context);
+      messenger.showSnackBar(SnackBar(
+          content: Text(
+              _quickMode ? 'Guest added and invite queued.' : 'Guest added.')));
+    }
   }
 
   InputDecoration _dropDeco() => InputDecoration(
@@ -4469,8 +4641,8 @@ class _InvitationsTabState extends ConsumerState<_InvitationsTab> {
         venueText,
         rsvpDeadlineText,
       ),
-      onSettings: () => Navigator.of(context)
-          .push(MaterialPageRoute(builder: (_) => const InvitationEditorScreen())),
+      onSettings: () => Navigator.of(context).push(
+          MaterialPageRoute(builder: (_) => const InvitationEditorScreen())),
       onSendInvitations: () => _openWizard(context, initialStep: 0),
       onDeliveryHistory: () => _showBreakdownSheet(context, 'Invite status', {
         'Sent': sent,
@@ -5202,7 +5374,7 @@ class _ExperienceTab extends ConsumerWidget {
     }
     if (state.error != null && state.config.isEmpty) {
       return _errorBox(
-          "Couldn't load your guest experience settings.", state.error!);
+          "Couldn't load your guest portal settings.", state.error!);
     }
 
     final config = state.config;
@@ -5226,7 +5398,7 @@ class _ExperienceTab extends ConsumerWidget {
           isSaving: state.isSaving,
           onPreview: () => _showPortalPreview(context, config),
           onEditText: () => _showEditTextModal(context, notifier, config),
-          onGoToGuests: onGoToList,
+          onLinks: () => _showPortalLinksSheet(context, ref, guestPortalUrl),
         ),
         const SizedBox(height: 16),
         _PortalLinkCard(
@@ -5242,8 +5414,8 @@ class _ExperienceTab extends ConsumerWidget {
         ),
         const SizedBox(height: 18),
         UdoSectionHeader(
-          title: 'Portal Modules',
-          action: state.isSaving ? 'Saving' : 'Preview',
+          title: 'Shown on guest link',
+          action: state.isSaving ? 'Saving' : 'View guest portal',
           onAction: () => _showPortalPreview(context, config),
         ),
         const SizedBox(height: 10),
@@ -5306,7 +5478,7 @@ class _ExperienceTab extends ConsumerWidget {
             ]),
             const SizedBox(height: 4),
             const Text(
-                'Choose what guests can see and do on their wedding portal.',
+                'Choose what guests can see and do on their public guest portal link.',
                 style: TextStyle(
                     fontSize: 13,
                     color: AppTheme.udoTextSecondary,
@@ -5473,7 +5645,7 @@ class _PortalHeroCard extends StatelessWidget {
   final bool isSaving;
   final VoidCallback onPreview;
   final VoidCallback onEditText;
-  final VoidCallback onGoToGuests;
+  final VoidCallback onLinks;
 
   const _PortalHeroCard({
     required this.readiness,
@@ -5483,7 +5655,7 @@ class _PortalHeroCard extends StatelessWidget {
     required this.isSaving,
     required this.onPreview,
     required this.onEditText,
-    required this.onGoToGuests,
+    required this.onLinks,
   });
 
   @override
@@ -5520,11 +5692,11 @@ class _PortalHeroCard extends StatelessWidget {
           ]),
           const SizedBox(height: 18),
           Row(children: [
-            Expanded(child: _PortalHeroButton('Preview', onPreview)),
+            Expanded(child: _PortalHeroButton('View guest portal', onPreview)),
             const SizedBox(width: 8),
             Expanded(child: _PortalHeroButton('Wording', onEditText)),
             const SizedBox(width: 8),
-            Expanded(child: _PortalHeroButton('Links', onGoToGuests)),
+            Expanded(child: _PortalHeroButton('Links', onLinks)),
           ]),
         ]),
       );
@@ -5597,10 +5769,101 @@ class _PortalLinkCard extends StatelessWidget {
       );
 }
 
+void _showPortalLinksSheet(
+    BuildContext context, WidgetRef ref, String? guestPortalUrl) {
+  final hasUrl = guestPortalUrl != null && guestPortalUrl.isNotEmpty;
+  showModalBottomSheet(
+    context: context,
+    useRootNavigator: true,
+    isScrollControlled: true,
+    backgroundColor: Colors.white,
+    shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+    builder: (sheetContext) => SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(20, 20, 20, 22),
+        child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(children: [
+                Expanded(
+                    child: Text('Guest portal links',
+                        style:
+                            UdoDesign.sans(size: 18, weight: FontWeight.w800))),
+                IconButton(
+                    onPressed: () => Navigator.pop(sheetContext),
+                    icon: const Icon(Icons.close)),
+              ]),
+              const SizedBox(height: 6),
+              Text(
+                'Share this link with guests for wedding details, RSVP access, updates, and enabled portal modules.',
+                style: UdoDesign.sans(
+                    size: 12.5, color: UdoDesign.muted, height: 1.4),
+              ),
+              const SizedBox(height: 14),
+              Container(
+                width: double.infinity,
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                decoration: BoxDecoration(
+                    color: UdoDesign.bg,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: UdoDesign.border)),
+                child: Text(
+                  hasUrl ? guestPortalUrl : 'Link not available yet',
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: UdoDesign.sans(
+                      size: 12.5,
+                      color: UdoDesign.text,
+                      weight: FontWeight.w700),
+                ),
+              ),
+              const SizedBox(height: 14),
+              Row(children: [
+                Expanded(
+                    child: OutlinedButton.icon(
+                  onPressed: !hasUrl
+                      ? null
+                      : () {
+                          Clipboard.setData(
+                              ClipboardData(text: guestPortalUrl));
+                          Navigator.pop(sheetContext);
+                          ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(content: Text('Link copied')));
+                        },
+                  icon: const Icon(Icons.copy_outlined, size: 16),
+                  label: const Text('Copy link'),
+                  style: OutlinedButton.styleFrom(
+                      side: const BorderSide(color: _guestAccent),
+                      foregroundColor: _guestAccent),
+                )),
+                const SizedBox(width: 10),
+                Expanded(
+                    child: ElevatedButton.icon(
+                  onPressed: () {
+                    Navigator.pop(sheetContext);
+                    _showEditPortalLinkSheet(context, ref, guestPortalUrl);
+                  },
+                  icon: const Icon(Icons.edit_outlined, size: 16),
+                  label: const Text('Edit link'),
+                  style: ElevatedButton.styleFrom(
+                      backgroundColor: _guestAccent,
+                      foregroundColor: Colors.white),
+                )),
+              ]),
+            ]),
+      ),
+    ),
+  );
+}
+
 void _showEditPortalLinkSheet(
     BuildContext context, WidgetRef ref, String? currentUrl) {
-  final currentSlug =
-      (currentUrl != null && currentUrl.contains('/')) ? currentUrl.split('/').last : '';
+  final currentSlug = (currentUrl != null && currentUrl.contains('/'))
+      ? currentUrl.split('/').last
+      : '';
   final controller = TextEditingController(text: currentSlug);
   showModalBottomSheet(
     context: context,
@@ -5608,8 +5871,8 @@ void _showEditPortalLinkSheet(
     shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
     builder: (sheetContext) => Padding(
-      padding:
-          EdgeInsets.only(bottom: MediaQuery.of(sheetContext).viewInsets.bottom),
+      padding: EdgeInsets.only(
+          bottom: MediaQuery.of(sheetContext).viewInsets.bottom),
       child: SafeArea(
         child: Padding(
           padding: const EdgeInsets.fromLTRB(20, 24, 20, 20),
@@ -5704,8 +5967,7 @@ void _showAutomationsSheet(BuildContext context, WidgetRef ref) {
                         style:
                             UdoDesign.sans(size: 18, weight: FontWeight.w800)),
                     const SizedBox(height: 4),
-                    Text(
-                        'Real, automatic messages — no manual sending needed.',
+                    Text('Real, automatic messages — no manual sending needed.',
                         style:
                             UdoDesign.sans(size: 12.5, color: UdoDesign.muted)),
                     const SizedBox(height: 12),
@@ -5727,8 +5989,7 @@ void _showAutomationsSheet(BuildContext context, WidgetRef ref) {
                       Padding(
                         padding: const EdgeInsets.only(bottom: 8),
                         child: Row(children: [
-                          Text('Remind after',
-                              style: UdoDesign.sans(size: 13)),
+                          Text('Remind after', style: UdoDesign.sans(size: 13)),
                           const SizedBox(width: 10),
                           DropdownButton<int>(
                             value: reminderDays,
@@ -6533,128 +6794,130 @@ class _CommunicationCentrePageState extends State<_CommunicationCentrePage> {
                   maxHeight: MediaQuery.of(context).size.height * 0.85),
               child: SingleChildScrollView(
                 child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(children: [
-                    Expanded(
-                        child: Text('New Campaign',
-                            style: UdoDesign.sans(
-                                size: 18, weight: FontWeight.w800))),
-                    IconButton(
-                        onPressed: () => Navigator.pop(context),
-                        icon: const Icon(Icons.close)),
-                  ]),
-                  const SizedBox(height: 12),
-                  Wrap(spacing: 8, runSpacing: 8, children: [
-                    for (final audience in widget.audiences)
-                      ChoiceChip(
-                        selected: widget.selectedAudience == audience.$1,
-                        label: Text(audience.$2),
-                        onSelected: (_) => setState(
-                            () => widget.onAudienceChanged(audience.$1)),
-                        selectedColor: _guestAccent,
-                        backgroundColor: UdoDesign.card,
-                        side: BorderSide(
-                            color: widget.selectedAudience == audience.$1
-                                ? _guestAccent
-                                : UdoDesign.stone),
-                        labelStyle: UdoDesign.sans(
-                            size: 12,
-                            weight: FontWeight.w700,
-                            color: widget.selectedAudience == audience.$1
-                                ? Colors.white
-                                : UdoDesign.text),
-                      ),
-                  ]),
-                  const SizedBox(height: 12),
-                  Wrap(spacing: 8, children: [
-                    for (final channel in widget.channels.entries)
-                      ChoiceChip(
-                        selected: widget.selectedChannel == channel.key,
-                        label: Text(channel.value),
-                        onSelected: (_) => setState(
-                            () => widget.onChannelChanged(channel.key)),
-                        selectedColor: _guestAccent,
-                        backgroundColor: UdoDesign.card,
-                        side: BorderSide(
-                            color: widget.selectedChannel == channel.key
-                                ? _guestAccent
-                                : UdoDesign.stone),
-                        labelStyle: UdoDesign.sans(
-                            size: 12,
-                            weight: FontWeight.w700,
-                            color: widget.selectedChannel == channel.key
-                                ? Colors.white
-                                : UdoDesign.text),
-                      ),
-                  ]),
-                  if (widget.selectedChannel == 'in_app') ...[
-                    const SizedBox(height: 8),
-                    Container(
-                      padding: const EdgeInsets.all(10),
-                      decoration: BoxDecoration(
-                          color: _guestAccent.withValues(alpha: 0.08),
-                          borderRadius: BorderRadius.circular(10)),
-                      child: Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Icon(Icons.info_outline,
-                                size: 15, color: _guestAccent),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: Text(
-                                widget.guestPortalUrl != null &&
-                                        widget.guestPortalUrl!.isNotEmpty
-                                    ? 'No native inbox yet — guests will see this on their wedding portal:\n${widget.guestPortalUrl}'
-                                    : "No native inbox yet — guests will see this on their wedding portal page once it's set up.",
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(children: [
+                        Expanded(
+                            child: Text('New Campaign',
                                 style: UdoDesign.sans(
-                                    size: 12,
-                                    color: _guestAccent,
-                                    weight: FontWeight.w500),
-                              ),
-                            ),
-                          ]),
-                    ),
-                  ],
-                  const SizedBox(height: 12),
-                  _CampaignTextField(
-                      controller: widget.subjectCtrl, hint: 'Subject'),
-                  const SizedBox(height: 10),
-                  _CampaignTextField(
-                      controller: widget.bodyCtrl,
-                      hint: 'Write your message...',
-                      maxLines: 4),
-                  if (widget.state.sendError != null) ...[
-                    const SizedBox(height: 10),
-                    Text(widget.state.sendError!,
-                        style: UdoDesign.sans(size: 12, color: UdoDesign.rose)),
-                  ],
-                  const SizedBox(height: 14),
-                  ElevatedButton.icon(
-                    onPressed: widget.state.isSending
-                        ? null
-                        : () async {
-                            await widget.onSend();
-                            if (context.mounted && !widget.state.isSending) {
-                              Navigator.pop(context);
-                            }
-                          },
-                    icon: widget.state.isSending
-                        ? const SizedBox(
-                            width: 16,
-                            height: 16,
-                            child: CircularProgressIndicator(
-                                strokeWidth: 2, color: Colors.white))
-                        : const Icon(Icons.send_outlined, size: 18),
-                    label: const Text('Send Campaign'),
-                    style: ElevatedButton.styleFrom(
-                      minimumSize: const Size(double.infinity, 50),
-                      backgroundColor: _guestAccent,
-                      foregroundColor: Colors.white,
-                    ),
-                  ),
-                ]),
+                                    size: 18, weight: FontWeight.w800))),
+                        IconButton(
+                            onPressed: () => Navigator.pop(context),
+                            icon: const Icon(Icons.close)),
+                      ]),
+                      const SizedBox(height: 12),
+                      Wrap(spacing: 8, runSpacing: 8, children: [
+                        for (final audience in widget.audiences)
+                          ChoiceChip(
+                            selected: widget.selectedAudience == audience.$1,
+                            label: Text(audience.$2),
+                            onSelected: (_) => setState(
+                                () => widget.onAudienceChanged(audience.$1)),
+                            selectedColor: _guestAccent,
+                            backgroundColor: UdoDesign.card,
+                            side: BorderSide(
+                                color: widget.selectedAudience == audience.$1
+                                    ? _guestAccent
+                                    : UdoDesign.stone),
+                            labelStyle: UdoDesign.sans(
+                                size: 12,
+                                weight: FontWeight.w700,
+                                color: widget.selectedAudience == audience.$1
+                                    ? Colors.white
+                                    : UdoDesign.text),
+                          ),
+                      ]),
+                      const SizedBox(height: 12),
+                      Wrap(spacing: 8, children: [
+                        for (final channel in widget.channels.entries)
+                          ChoiceChip(
+                            selected: widget.selectedChannel == channel.key,
+                            label: Text(channel.value),
+                            onSelected: (_) => setState(
+                                () => widget.onChannelChanged(channel.key)),
+                            selectedColor: _guestAccent,
+                            backgroundColor: UdoDesign.card,
+                            side: BorderSide(
+                                color: widget.selectedChannel == channel.key
+                                    ? _guestAccent
+                                    : UdoDesign.stone),
+                            labelStyle: UdoDesign.sans(
+                                size: 12,
+                                weight: FontWeight.w700,
+                                color: widget.selectedChannel == channel.key
+                                    ? Colors.white
+                                    : UdoDesign.text),
+                          ),
+                      ]),
+                      if (widget.selectedChannel == 'in_app') ...[
+                        const SizedBox(height: 8),
+                        Container(
+                          padding: const EdgeInsets.all(10),
+                          decoration: BoxDecoration(
+                              color: _guestAccent.withValues(alpha: 0.08),
+                              borderRadius: BorderRadius.circular(10)),
+                          child: Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Icon(Icons.info_outline,
+                                    size: 15, color: _guestAccent),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    widget.guestPortalUrl != null &&
+                                            widget.guestPortalUrl!.isNotEmpty
+                                        ? 'Guests will receive this as a wedding portal message:\n${widget.guestPortalUrl}'
+                                        : "Guests will receive this as a wedding portal message once your portal link is ready.",
+                                    style: UdoDesign.sans(
+                                        size: 12,
+                                        color: _guestAccent,
+                                        weight: FontWeight.w500),
+                                  ),
+                                ),
+                              ]),
+                        ),
+                      ],
+                      const SizedBox(height: 12),
+                      _CampaignTextField(
+                          controller: widget.subjectCtrl, hint: 'Subject'),
+                      const SizedBox(height: 10),
+                      _CampaignTextField(
+                          controller: widget.bodyCtrl,
+                          hint: 'Write your message...',
+                          maxLines: 4),
+                      if (widget.state.sendError != null) ...[
+                        const SizedBox(height: 10),
+                        Text(widget.state.sendError!,
+                            style: UdoDesign.sans(
+                                size: 12, color: UdoDesign.rose)),
+                      ],
+                      const SizedBox(height: 14),
+                      ElevatedButton.icon(
+                        onPressed: widget.state.isSending
+                            ? null
+                            : () async {
+                                await widget.onSend();
+                                if (context.mounted &&
+                                    !widget.state.isSending) {
+                                  Navigator.pop(context);
+                                }
+                              },
+                        icon: widget.state.isSending
+                            ? const SizedBox(
+                                width: 16,
+                                height: 16,
+                                child: CircularProgressIndicator(
+                                    strokeWidth: 2, color: Colors.white))
+                            : const Icon(Icons.send_outlined, size: 18),
+                        label: const Text('Send Campaign'),
+                        style: ElevatedButton.styleFrom(
+                          minimumSize: const Size(double.infinity, 50),
+                          backgroundColor: _guestAccent,
+                          foregroundColor: Colors.white,
+                        ),
+                      ),
+                    ]),
               ),
             ),
           ),
@@ -6726,8 +6989,7 @@ class _CommunicationHeroCard extends StatelessWidget {
                 child: _HeroAction(label: 'Templates', onTap: onTemplates)),
             const SizedBox(width: 8),
             Expanded(
-                child:
-                    _HeroAction(label: 'Automations', onTap: onAutomations)),
+                child: _HeroAction(label: 'Automations', onTap: onAutomations)),
           ]),
         ]),
       );
@@ -7095,6 +7357,7 @@ class _LogisticsTab extends ConsumerWidget {
               hotel: hotel,
               guests: ref.watch(guestsProvider).guests,
               notifier: notifier,
+              guestsNotifier: ref.read(guestsProvider.notifier),
             ),
           const SizedBox(height: 12),
           _AddRouteBottomButton(
@@ -7277,8 +7540,7 @@ class _LogisticsHeroCard extends StatelessWidget {
             const SizedBox(width: 8),
             Expanded(child: _PortalHeroButton('Add Route', onAddTransport)),
             const SizedBox(width: 8),
-            Expanded(
-                child: _PortalHeroButton('Review', onReviewMissing)),
+            Expanded(child: _PortalHeroButton('Review', onReviewMissing)),
           ]),
         ]),
       );
@@ -7405,10 +7667,12 @@ class _HotelCommandCard extends StatelessWidget {
   final Map<String, dynamic> hotel;
   final List<Map<String, dynamic>> guests;
   final LogisticsNotifier notifier;
+  final GuestsNotifier guestsNotifier;
   const _HotelCommandCard({
     required this.hotel,
     required this.guests,
     required this.notifier,
+    required this.guestsNotifier,
   });
 
   @override
@@ -7428,6 +7692,7 @@ class _HotelCommandCard extends StatelessWidget {
         hotel: hotel,
         guests: guests,
         notifier: notifier,
+        guestsNotifier: guestsNotifier,
       ),
       margin: const EdgeInsets.only(bottom: 10),
       padding: const EdgeInsets.all(15),
@@ -7467,7 +7732,8 @@ class _HotelCommandCard extends StatelessWidget {
                 color: UdoDesign.gold),
           if (hotel['check_in_date'] != null)
             UdoBadge(
-                label: 'In ${hotel['check_in_date']}', color: UdoDesign.gold),
+                label: 'In ${udo_dates.formatApiDate(hotel['check_in_date'])}',
+                color: UdoDesign.gold),
         ]),
       ]),
     );
@@ -7860,11 +8126,39 @@ String _roomLabel(Map<String, dynamic> hotel, int index) {
   return 'Room ${201 + index}';
 }
 
+List<String> _roomLabels(Map<String, dynamic> hotel) {
+  final labels = hotel['room_labels'];
+  if (labels is List) {
+    final parsed = labels
+        .map((label) => label?.toString().trim() ?? '')
+        .where((label) => label.isNotEmpty)
+        .toList();
+    if (parsed.isNotEmpty) return parsed;
+  }
+
+  final totalRooms =
+      ((hotel['total_rooms_blocked'] ?? hotel['total_rooms'] ?? 0) as num)
+          .toInt();
+  return List.generate(totalRooms, (index) => _roomLabel(hotel, index));
+}
+
+InputDecoration _logisticsSheetInput(String label) => InputDecoration(
+      labelText: label,
+      filled: true,
+      fillColor: AppTheme.udoCardFill,
+      border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14), borderSide: BorderSide.none),
+      enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14), borderSide: BorderSide.none),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+    );
+
 void _showAccommodationDetailSheet({
   required BuildContext context,
   required Map<String, dynamic> hotel,
   required List<Map<String, dynamic>> guests,
   required LogisticsNotifier notifier,
+  required GuestsNotifier guestsNotifier,
 }) {
   final totalRooms =
       ((hotel['total_rooms_blocked'] ?? hotel['total_rooms'] ?? 0) as num)
@@ -7906,10 +8200,10 @@ void _showAccommodationDetailSheet({
                 'Available', '$available room${available == 1 ? '' : 's'}'),
             if (hotel['check_in_date'] != null)
               _AccommodationInfoRow(
-                  'Check-in', hotel['check_in_date'].toString()),
+                  'Check-in', udo_dates.formatApiDate(hotel['check_in_date'])),
             if (hotel['check_out_date'] != null)
-              _AccommodationInfoRow(
-                  'Check-out', hotel['check_out_date'].toString()),
+              _AccommodationInfoRow('Check-out',
+                  udo_dates.formatApiDate(hotel['check_out_date'])),
             if (rate != null) _AccommodationInfoRow('Rate', '\$$rate / night'),
             const SizedBox(height: 16),
             Text('Assigned Guests',
@@ -7923,7 +8217,13 @@ void _showAccommodationDetailSheet({
               for (var i = 0; i < assignedGuests.length; i++)
                 _AccommodationGuestRow(
                   guest: assignedGuests[i],
-                  roomLabel: _roomLabel(hotel, i),
+                  roomLabel: assignedGuests[i]['hotel_room_label']
+                              ?.toString()
+                              .trim()
+                              .isNotEmpty ==
+                          true
+                      ? assignedGuests[i]['hotel_room_label'].toString()
+                      : _roomLabel(hotel, i),
                 ),
             const SizedBox(height: 16),
             ElevatedButton(
@@ -7934,6 +8234,7 @@ void _showAccommodationDetailSheet({
                   hotel: hotel,
                   guests: guests,
                   notifier: notifier,
+                  guestsNotifier: guestsNotifier,
                 );
               },
               style: ElevatedButton.styleFrom(
@@ -7986,21 +8287,78 @@ void _showAssignAccommodationGuestSheet({
   required Map<String, dynamic> hotel,
   required List<Map<String, dynamic>> guests,
   required LogisticsNotifier notifier,
+  required GuestsNotifier guestsNotifier,
 }) {
   final hotelId = hotel['id'] as int;
   final candidates = guests.where((guest) {
+    if (_guestId(guest) == null) return false;
     final assignedHotel = guest['hotel_assignment_id'];
     return assignedHotel == null || assignedHotel == hotelId;
   }).toList();
+  final roomLabels = _roomLabels(hotel);
 
   showModalBottomSheet(
     context: context,
     isScrollControlled: true,
     shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
-    builder: (sheetContext) => SafeArea(
+    builder: (_) => _AssignAccommodationSheet(
+      hotel: hotel,
+      candidates: candidates,
+      roomLabels: roomLabels,
+      notifier: notifier,
+      guestsNotifier: guestsNotifier,
+    ),
+  );
+}
+
+class _AssignAccommodationSheet extends StatefulWidget {
+  final Map<String, dynamic> hotel;
+  final List<Map<String, dynamic>> candidates;
+  final List<String> roomLabels;
+  final LogisticsNotifier notifier;
+  final GuestsNotifier guestsNotifier;
+
+  const _AssignAccommodationSheet({
+    required this.hotel,
+    required this.candidates,
+    required this.roomLabels,
+    required this.notifier,
+    required this.guestsNotifier,
+  });
+
+  @override
+  State<_AssignAccommodationSheet> createState() =>
+      _AssignAccommodationSheetState();
+}
+
+class _AssignAccommodationSheetState extends State<_AssignAccommodationSheet> {
+  int? _selectedGuestId;
+  String? _selectedRoom;
+  bool _saving = false;
+
+  Set<String> get _takenRooms => widget.candidates
+      .where((guest) =>
+          guest['hotel_assignment_id'] == widget.hotel['id'] &&
+          guest['hotel_room_label'] != null &&
+          _guestId(guest) != _selectedGuestId)
+      .map((guest) => guest['hotel_room_label'].toString())
+      .toSet();
+
+  @override
+  Widget build(BuildContext context) {
+    final availableRooms = widget.roomLabels
+        .where((room) => !_takenRooms.contains(room) || room == _selectedRoom)
+        .toList();
+
+    return SafeArea(
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(20, 24, 20, 20),
+        padding: EdgeInsets.only(
+          left: 20,
+          right: 20,
+          top: 24,
+          bottom: MediaQuery.of(context).viewInsets.bottom + 20,
+        ),
         child: Column(mainAxisSize: MainAxisSize.min, children: [
           Row(children: [
             Expanded(
@@ -8008,72 +8366,96 @@ void _showAssignAccommodationGuestSheet({
                   style: UdoDesign.sans(size: 18, weight: FontWeight.w800)),
             ),
             IconButton(
-                onPressed: () => Navigator.pop(sheetContext),
+                onPressed: () => Navigator.pop(context),
                 icon: const Icon(Icons.close)),
           ]),
           const SizedBox(height: 12),
-          if (candidates.isEmpty)
+          if (widget.candidates.isEmpty)
             Padding(
               padding: const EdgeInsets.symmetric(vertical: 20),
               child: Text('No guests available to assign to this hotel.',
                   style: UdoDesign.sans(size: 13, color: UdoDesign.muted)),
             )
-          else
-            Flexible(
-              child: ListView.builder(
-                shrinkWrap: true,
-                itemCount: candidates.length,
-                itemBuilder: (_, index) {
-                  final guest = candidates[index];
-                  final selected = guest['hotel_assignment_id'] == hotelId;
-                  return UdoCard(
-                    onTap: selected
-                        ? null
-                        : () async {
-                            final id = _guestId(guest);
-                            if (id == null) return;
-                            final ok =
-                                await notifier.assignAccommodation(hotelId, id);
-                            if (!context.mounted) return;
-                            ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                                content: Text(ok
-                                    ? 'Guest assigned to ${hotel['name'] ?? 'hotel'}.'
-                                    : "Couldn't assign this guest.")));
-                            if (ok && sheetContext.mounted) {
-                              Navigator.pop(sheetContext);
-                            }
-                          },
-                    margin: const EdgeInsets.only(bottom: 8),
-                    padding: const EdgeInsets.all(12),
-                    child: Row(children: [
-                      CircleAvatar(
-                        radius: 16,
-                        backgroundColor: _guestAccent.withValues(alpha: 0.12),
-                        child: Text(_initials(guest),
-                            style: UdoDesign.sans(
-                                size: 10,
-                                weight: FontWeight.w800,
-                                color: _guestAccent)),
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: Text(_guestDisplayName(guest),
-                            style: UdoDesign.sans(
-                                size: 13, weight: FontWeight.w800)),
-                      ),
-                      if (selected)
-                        const UdoBadge(label: 'Assigned', color: UdoDesign.sage)
-                      else
-                        const Icon(Icons.chevron_right, color: UdoDesign.muted),
-                    ]),
-                  );
-                },
-              ),
+          else ...[
+            DropdownButtonFormField<int>(
+              initialValue: _selectedGuestId,
+              decoration: _logisticsSheetInput('Guest'),
+              isExpanded: true,
+              items: [
+                for (final guest in widget.candidates)
+                  DropdownMenuItem(
+                    value: _guestId(guest),
+                    child: Text(
+                      [
+                        _guestDisplayName(guest),
+                        if (guest['hotel_room_label'] != null)
+                          'Room ${guest['hotel_room_label']}',
+                      ].join(' - '),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+              ],
+              onChanged: (id) {
+                final guest = widget.candidates
+                    .firstWhere((candidate) => _guestId(candidate) == id);
+                setState(() {
+                  _selectedGuestId = id;
+                  _selectedRoom = guest['hotel_room_label']?.toString();
+                });
+              },
             ),
+            const SizedBox(height: 10),
+            DropdownButtonFormField<String>(
+              initialValue: _selectedRoom,
+              decoration: _logisticsSheetInput('Room'),
+              isExpanded: true,
+              items: [
+                for (final room in availableRooms)
+                  DropdownMenuItem(value: room, child: Text(room)),
+              ],
+              onChanged: (room) => setState(() => _selectedRoom = room),
+            ),
+            if (widget.roomLabels.isEmpty) ...[
+              const SizedBox(height: 8),
+              Text('Add room numbers to this hotel block first.',
+                  style: UdoDesign.sans(size: 12, color: UdoDesign.muted)),
+            ],
+            const SizedBox(height: 16),
+            ElevatedButton(
+              onPressed:
+                  _saving || _selectedGuestId == null || _selectedRoom == null
+                      ? null
+                      : () async {
+                          setState(() => _saving = true);
+                          final ok = await widget.notifier.assignAccommodation(
+                            widget.hotel['id'] as int,
+                            _selectedGuestId!,
+                            roomLabel: _selectedRoom,
+                          );
+                          if (ok) await widget.guestsNotifier.refresh();
+                          if (!context.mounted) return;
+                          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                              content: Text(ok
+                                  ? 'Guest assigned to ${widget.hotel['name'] ?? 'hotel'}, room $_selectedRoom.'
+                                  : "Couldn't assign this guest.")));
+                          if (ok) {
+                            Navigator.pop(context);
+                          } else {
+                            setState(() => _saving = false);
+                          }
+                        },
+              style: ElevatedButton.styleFrom(
+                minimumSize: const Size(double.infinity, 50),
+                backgroundColor: _guestAccent,
+                foregroundColor: Colors.white,
+              ),
+              child: Text(_saving ? 'Assigning...' : 'Assign room'),
+            ),
+          ],
         ]),
       ),
-    ),
-  );
+    );
+  }
 }
 
 void _showAllRoomsSheet({
@@ -8082,13 +8464,17 @@ void _showAllRoomsSheet({
   required List<Map<String, dynamic>> guests,
   required LogisticsNotifier notifier,
 }) {
-  final totalRooms =
-      ((hotel['total_rooms_blocked'] ?? hotel['total_rooms'] ?? 0) as num)
-          .toInt();
   final assignedGuests = guests
       .where((guest) => guest['hotel_assignment_id'] == hotel['id'])
       .toList();
-  final roomCount = totalRooms > 0 ? totalRooms : assignedGuests.length;
+  final roomLabels = _roomLabels(hotel);
+  final roomCount =
+      roomLabels.isNotEmpty ? roomLabels.length : assignedGuests.length;
+  final guestByRoom = {
+    for (final guest in assignedGuests)
+      if (guest['hotel_room_label'] != null)
+        guest['hotel_room_label'].toString(): guest,
+  };
 
   showModalBottomSheet(
     context: context,
@@ -8130,11 +8516,15 @@ void _showAllRoomsSheet({
                 shrinkWrap: true,
                 itemCount: roomCount,
                 itemBuilder: (_, index) {
-                  final guest = index < assignedGuests.length
-                      ? assignedGuests[index]
-                      : null;
+                  final label = roomLabels.isNotEmpty
+                      ? roomLabels[index]
+                      : _roomLabel(hotel, index);
+                  final guest = guestByRoom[label] ??
+                      (index < assignedGuests.length
+                          ? assignedGuests[index]
+                          : null);
                   return _RoomSlotRow(
-                    roomLabel: _roomLabel(hotel, index),
+                    roomLabel: label,
                     guest: guest,
                   );
                 },
@@ -8204,13 +8594,13 @@ class _EditRoomLabelsSheetState extends State<_EditRoomLabelsSheet> {
       _error = null;
     });
     final labels = _controllers.map((c) => c.text.trim()).toList();
-    final errorMessage = await widget.notifier
-        .updateAccommodation(widget.hotel['id'] as int, {'room_labels': labels});
+    final errorMessage = await widget.notifier.updateAccommodation(
+        widget.hotel['id'] as int, {'room_labels': labels});
     if (!mounted) return;
     if (errorMessage == null) {
       Navigator.pop(context);
-      ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Room labels updated.')));
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('Room labels updated.')));
     } else {
       setState(() {
         _loading = false;
@@ -8492,10 +8882,14 @@ class _AccommodationCard extends StatelessWidget {
         const SizedBox(height: 8),
         Row(children: [
           if (h['check_in_date'] != null)
-            _LogBadge('Check-in: ${h['check_in_date']}', Colors.blue),
+            _LogBadge(
+                'Check-in: ${udo_dates.formatApiDate(h['check_in_date'])}',
+                Colors.blue),
           if (h['check_in_date'] != null) const SizedBox(width: 6),
           if (h['check_out_date'] != null)
-            _LogBadge('Check-out: ${h['check_out_date']}', Colors.orange),
+            _LogBadge(
+                'Check-out: ${udo_dates.formatApiDate(h['check_out_date'])}',
+                Colors.orange),
         ]),
         if (totalRooms > 0) ...[
           const SizedBox(height: 8),
@@ -8674,8 +9068,11 @@ class _AddHotelModalState extends State<AddHotelModal> {
                 onPlaceSelected: (place) {
                   final address = place['address']?.toString();
                   final phone = place['phone']?.toString();
-                  if (address != null && address.isNotEmpty) _address.text = address;
-                  if (phone != null && phone.isNotEmpty && _contactPhone.text.trim().isEmpty) {
+                  if (address != null && address.isNotEmpty)
+                    _address.text = address;
+                  if (phone != null &&
+                      phone.isNotEmpty &&
+                      _contactPhone.text.trim().isEmpty) {
                     _contactPhone.text = phone;
                   }
                 },
@@ -8683,16 +9080,11 @@ class _AddHotelModalState extends State<AddHotelModal> {
               const SizedBox(height: 10),
               _GField('Address', _address),
               const SizedBox(height: 10),
-              Row(children: [
-                Expanded(
-                    child: _GField('Total rooms', _rooms,
-                        type: TextInputType.number)),
-                const SizedBox(width: 10),
-                Expanded(
-                    child: _GField('Rate/night', _rate,
-                        type: const TextInputType.numberWithOptions(
-                            decimal: true)))
-              ]),
+              _GField('Room numbers / labels', _rooms,
+                  hint: '101, 102, 103, King Suite, Accessible Room'),
+              const SizedBox(height: 10),
+              _GField('Rate/night', _rate,
+                  type: const TextInputType.numberWithOptions(decimal: true)),
               const SizedBox(height: 10),
               Row(children: [
                 Expanded(
@@ -8754,6 +9146,11 @@ class _AddHotelModalState extends State<AddHotelModal> {
 
   Future<void> _submit() async {
     if (_name.text.trim().isEmpty) return;
+    final roomLabels = _rooms.text
+        .split(',')
+        .map((label) => label.trim())
+        .where((label) => label.isNotEmpty)
+        .toList();
     setState(() {
       _loading = true;
       _error = null;
@@ -8761,8 +9158,8 @@ class _AddHotelModalState extends State<AddHotelModal> {
     final errorMessage = await widget.notifier.addAccommodation({
       'name': _name.text.trim(),
       if (_address.text.trim().isNotEmpty) 'address': _address.text.trim(),
-      if (_rooms.text.trim().isNotEmpty)
-        'total_rooms': int.tryParse(_rooms.text.trim()) ?? 0,
+      if (roomLabels.isNotEmpty) 'total_rooms': roomLabels.length,
+      if (roomLabels.isNotEmpty) 'room_labels': roomLabels,
       if (_rate.text.trim().isNotEmpty)
         'price_per_night': double.tryParse(_rate.text.trim()),
       if (_checkIn != null) 'check_in_date': _dateOnly(_checkIn!),
@@ -8920,15 +9317,33 @@ class _AddTransportModalState extends State<AddTransportModal> {
                       PlaceSearchField(
                         controller: _pickup,
                         search: widget.notifier.searchPlaces,
+                        fetchDetails: widget.notifier.fetchPlaceDetails,
                         hint: 'Pickup location',
+                        icon: Icons.location_on_outlined,
                         useFullDescriptionOnSelect: true,
+                        onPlaceSelected: (place) {
+                          final address = place['address']?.toString();
+                          final name = place['name']?.toString();
+                          _pickup.text = address?.isNotEmpty == true
+                              ? address!
+                              : name ?? _pickup.text;
+                        },
                       ),
                       const SizedBox(height: 10),
                       PlaceSearchField(
                         controller: _drop,
                         search: widget.notifier.searchPlaces,
+                        fetchDetails: widget.notifier.fetchPlaceDetails,
                         hint: 'Drop-off location',
+                        icon: Icons.flag_outlined,
                         useFullDescriptionOnSelect: true,
+                        onPlaceSelected: (place) {
+                          final address = place['address']?.toString();
+                          final name = place['name']?.toString();
+                          _drop.text = address?.isNotEmpty == true
+                              ? address!
+                              : name ?? _drop.text;
+                        },
                       ),
                       const SizedBox(height: 10),
                       _GField('Seats', _seats, type: TextInputType.number),
@@ -8980,8 +9395,7 @@ class _AddTransportModalState extends State<AddTransportModal> {
       if (_drop.text.trim().isNotEmpty) 'dropoff_location': _drop.text.trim(),
       if (_seats.text.trim().isNotEmpty)
         'capacity': int.tryParse(_seats.text.trim()) ?? 0,
-      if (_company.text.trim().isNotEmpty)
-        'company_name': _company.text.trim(),
+      if (_company.text.trim().isNotEmpty) 'company_name': _company.text.trim(),
       if (_driverName.text.trim().isNotEmpty)
         'driver_name': _driverName.text.trim(),
       if (_driverPhone.text.trim().isNotEmpty)
@@ -9011,13 +9425,13 @@ class _AddTransportModalState extends State<AddTransportModal> {
   }
 }
 
-Widget _GField(String hint, TextEditingController ctrl,
-        {TextInputType? type}) =>
+Widget _GField(String label, TextEditingController ctrl,
+        {TextInputType? type, String? hint}) =>
     TextField(
         controller: ctrl,
         keyboardType: type,
         decoration: InputDecoration(
-            hintText: hint,
+            hintText: hint ?? label,
             hintStyle:
                 const TextStyle(color: AppTheme.udoTextSecondary, fontSize: 13),
             filled: true,

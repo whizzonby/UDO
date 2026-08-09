@@ -1,9 +1,14 @@
 import 'package:flutter/material.dart';
+import '../utils/date_formatters.dart' as udo_dates;
 import 'udo_design_system.dart';
 
 String? _humanizeStatus(String? value) {
   if (value == null || value.isEmpty) return null;
   return '${value[0].toUpperCase()}${value.substring(1).replaceAll('_', ' ')}';
+}
+
+String _formatDueDate(dynamic value) {
+  return udo_dates.formatApiDate(value);
 }
 
 /// The pink/rose "Your Wedding Party" overview layout — shared between the
@@ -40,6 +45,7 @@ class WeddingPartyOverview extends StatelessWidget {
   /// Extra content appended after the Members list — e.g. the real screen's
   /// "Send a buzz" quick actions. The Plan-tab preview leaves this null.
   final Widget? trailingSection;
+  final bool showDetailedPlanningButton;
 
   const WeddingPartyOverview({
     super.key,
@@ -62,6 +68,7 @@ class WeddingPartyOverview extends StatelessWidget {
     required this.onOpenModule,
     this.onPersonTap,
     this.trailingSection,
+    this.showDetailedPlanningButton = false,
   });
 
   String _name(Map<String, dynamic> member) {
@@ -124,12 +131,28 @@ class WeddingPartyOverview extends StatelessWidget {
           buzzes: buzzes.length,
           members: members.length,
         ),
+        if (showDetailedPlanningButton) ...[
+          const SizedBox(height: 14),
+          SizedBox(
+            width: double.infinity,
+            child: FilledButton.icon(
+              onPressed: () => onOpenModule('overview'),
+              icon: const Icon(Icons.event_note_outlined, size: 16),
+              label: const Text('Detailed Planning'),
+              style: FilledButton.styleFrom(
+                backgroundColor: UdoDesign.rose,
+                foregroundColor: Colors.white,
+                minimumSize: const Size(double.infinity, 48),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12)),
+              ),
+            ),
+          ),
+        ],
         const SizedBox(height: 18),
-        UdoSectionHeader(
+        const UdoSectionHeader(
           title: 'Party operations',
           subtitle: 'Responsibilities, outfits, rehearsal, travel, files',
-          action: 'Open',
-          onAction: () => onOpenModule('overview'),
         ),
         _WeddingPartyModuleGrid(
           openResponsibilities: openResponsibilities,
@@ -432,7 +455,7 @@ class _WeddingPartyTaskRow extends StatelessWidget {
               style: UdoDesign.sans(size: 13, weight: FontWeight.w700)),
         ),
         if (task['due_date'] != null)
-          Text(task['due_date'].toString(),
+          Text(_formatDueDate(task['due_date']),
               style: UdoDesign.sans(size: 11, color: UdoDesign.muted)),
       ]),
     );

@@ -20,8 +20,10 @@ import '../../core/theme/app_theme.dart';
 /// field where the suggestion text itself is the whole answer).
 class PlaceSearchField extends StatefulWidget {
   final TextEditingController controller;
-  final Future<List<Map<String, dynamic>>> Function(String query, String sessionToken, {String? type}) search;
-  final Future<Map<String, dynamic>?> Function(String placeId, String sessionToken)? fetchDetails;
+  final Future<List<Map<String, dynamic>>>
+      Function(String query, String sessionToken, {String? type}) search;
+  final Future<Map<String, dynamic>?> Function(
+      String placeId, String sessionToken)? fetchDetails;
   final String hint;
   final String? placeType;
   final IconData icon;
@@ -52,11 +54,12 @@ class _PlaceSearchFieldState extends State<PlaceSearchField> {
   String _sessionToken = UniqueKey().toString();
 
   Future<List<Map<String, dynamic>>> _search(String query) {
-    if (query.trim().length < 3) return Future.value(const []);
+    if (query.trim().length < 2) return Future.value(const []);
     final completer = Completer<List<Map<String, dynamic>>>();
     _debounce?.cancel();
     _debounce = Timer(const Duration(milliseconds: 350), () async {
-      final results = await widget.search(query.trim(), _sessionToken, type: widget.placeType);
+      final results = await widget.search(query.trim(), _sessionToken,
+          type: widget.placeType);
       if (!completer.isCompleted) completer.complete(results);
     });
     return completer.future;
@@ -104,16 +107,25 @@ class _PlaceSearchFieldState extends State<PlaceSearchField> {
           focusNode: focusNode,
           decoration: InputDecoration(
             hintText: widget.hint,
-            hintStyle: const TextStyle(color: AppTheme.udoTextSecondary, fontSize: 13),
+            hintStyle:
+                const TextStyle(color: AppTheme.udoTextSecondary, fontSize: 13),
             filled: true,
             fillColor: AppTheme.udoCardFill,
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide.none),
-            enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide.none),
-            contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(14),
+                borderSide: BorderSide.none),
+            enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(14),
+                borderSide: BorderSide.none),
+            contentPadding:
+                const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
             suffixIcon: _loadingDetails
                 ? const Padding(
                     padding: EdgeInsets.all(12),
-                    child: SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)))
+                    child: SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2)))
                 : null,
           ),
         );
@@ -136,7 +148,8 @@ class _PlaceSearchFieldState extends State<PlaceSearchField> {
                   leading: Icon(widget.icon, size: 18),
                   title: Text(option['name']?.toString() ?? ''),
                   subtitle: (option['address'] as String?)?.isNotEmpty == true
-                      ? Text(option['address'].toString(), maxLines: 1, overflow: TextOverflow.ellipsis)
+                      ? Text(option['address'].toString(),
+                          maxLines: 1, overflow: TextOverflow.ellipsis)
                       : null,
                   onTap: () => onSelected(option),
                 );

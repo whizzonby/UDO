@@ -7,10 +7,11 @@ import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 import 'package:share_plus/share_plus.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../../../core/constants/app_constants.dart';
 import '../../../../core/theme/app_theme.dart';
+import '../../../../shared/utils/date_formatters.dart' as udo_dates;
 import '../../../../shared/widgets/udo_design_system.dart';
-import '../../../../shared/widgets/wedding_party_overview.dart';
 import '../../../gallery/presentation/providers/gallery_provider.dart';
 import '../../../guests/presentation/providers/guests_provider.dart';
 import '../../../guests/presentation/providers/logistics_provider.dart';
@@ -18,6 +19,8 @@ import '../../../guests/presentation/providers/messages_provider.dart';
 import '../../../home/presentation/providers/home_provider.dart';
 import '../../../memories/presentation/providers/memories_provider.dart';
 import '../../../more/presentation/providers/more_operations_provider.dart';
+import '../../../more/presentation/screens/more_screen.dart';
+import '../../../more/presentation/screens/notifications_screen.dart';
 import '../../../registry/presentation/providers/registry_provider.dart';
 import '../../../wedding_party/presentation/providers/wedding_party_provider.dart';
 import '../../../wedding_story/presentation/providers/wedding_story_provider.dart';
@@ -38,6 +41,13 @@ double _asDouble(dynamic value) {
   return 0;
 }
 
+int? _asIntId(dynamic value) {
+  if (value is int) return value;
+  if (value is num) return value.toInt();
+  if (value is String) return int.tryParse(value);
+  return null;
+}
+
 String? _humanizeStatus(String? value) {
   if (value == null || value.isEmpty) return null;
   return '${value[0].toUpperCase()}${value.substring(1).replaceAll('_', ' ')}';
@@ -50,15 +60,22 @@ String? _nullIfBlank(String value) {
 
 String _dateOnly(dynamic value) {
   if (value == null) return '';
-  if (value is DateTime) return _formatDate(value);
-  final parsed = DateTime.tryParse(value.toString());
-  return parsed == null ? value.toString() : _formatDate(parsed);
+  final parsed = udo_dates.parseApiDate(value);
+  if (parsed == null) return value.toString();
+  return _formatDate(parsed);
+}
+
+String? _formatTaskDueDate(dynamic value) {
+  if (value == null) return null;
+  final formatted = udo_dates.formatApiDate(value);
+  return formatted.isEmpty ? null : formatted;
 }
 
 class PlanScreen extends ConsumerStatefulWidget {
   final String? initialSection;
+  final String? initialAction;
 
-  const PlanScreen({super.key, this.initialSection});
+  const PlanScreen({super.key, this.initialSection, this.initialAction});
 
   @override
   ConsumerState<PlanScreen> createState() => _PlanScreenState();
@@ -71,6 +88,7 @@ class _PlanScreenState extends ConsumerState<PlanScreen>
   final _tabHistory = <int>[];
   double? _dragStartX;
   double _dragDeltaX = 0;
+  bool _handledInitialAction = false;
 
   @override
   void initState() {
@@ -81,6 +99,7 @@ class _PlanScreenState extends ConsumerState<PlanScreen>
       initialIndex: _planSectionIndex(widget.initialSection),
     );
     _tabs.addListener(() => setState(() {}));
+    WidgetsBinding.instance.addPostFrameCallback((_) => _handleInitialAction());
   }
 
   @override
@@ -190,15 +209,9 @@ class _PlanScreenState extends ConsumerState<PlanScreen>
                       const _WeddingPartyTab(),
                       _HoneymoonTab(onViewBudget: () => _navigatePlanPage(3)),
                       const _InsuranceTab(),
-                      _DocumentsTab(state: state),
+                      _DocumentsTab(state: state, onTabJump: _navigatePlanPage),
                       const _DetailsTab(),
-                      const _PlanPlaceholderPage(
-                        icon: Icons.insights_outlined,
-                        title: 'Insights',
-                        question: 'What needs executive attention?',
-                        description:
-                            'Insights will become the premium reporting layer across guests, budget, timeline, vendors, and live operations.',
-                      ),
+                      _InsightsTab(onTabJump: _navigatePlanPage),
                     ],
                   ),
                 ),
@@ -218,6 +231,13 @@ class _PlanScreenState extends ConsumerState<PlanScreen>
 
   void _navigatePlanPage(int index) {
     if (index < 0 || index >= _tabs.length) return;
+    if (index == 10) {
+      if (_drawerOpen) {
+        setState(() => _drawerOpen = false);
+      }
+      context.push('/wedding-party?tab=overview');
+      return;
+    }
     if (index != _tabs.index) {
       _tabHistory.remove(_tabs.index);
       _tabHistory.add(_tabs.index);
@@ -235,6 +255,26 @@ class _PlanScreenState extends ConsumerState<PlanScreen>
         : (_tabs.index > 0 ? _tabs.index - 1 : 0);
     if (previous == _tabs.index) return;
     _tabs.animateTo(previous);
+  }
+
+  void _handleInitialAction() {
+    if (_handledInitialAction || !mounted) return;
+    final action = widget.initialAction?.trim().toLowerCase();
+    if (action != 'add-event') return;
+    _handledInitialAction = true;
+    if (_tabs.index != _planSectionIndex('timeline')) {
+      _tabs.animateTo(_planSectionIndex('timeline'));
+    }
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+      builder: (_) => _AddTimelineEventSheet(
+        notifier: ref.read(planProvider.notifier),
+      ),
+    );
   }
 }
 
@@ -437,17 +477,6 @@ class _PlanHeaderState extends State<_PlanHeader> {
                     ),
                     child: Text(widget.isOverview ? 'Plan' : widget.title),
                   ),
-                  if (widget.isOverview) ...[
-                    const SizedBox(height: 18),
-                    Text(
-                      'Everything important in one\nbeautiful place.',
-                      style: UdoDesign.sans(
-                        size: 15,
-                        height: 1.55,
-                        color: UdoDesign.sub,
-                      ),
-                    ),
-                  ],
                 ])),
             if (widget.onEditTap != null)
               _RoundIconButton(
@@ -587,11 +616,25 @@ class _PlanningDrawer extends StatelessWidget {
                             _PlanUtilityRow(
                                 icon: Icons.settings_outlined,
                                 label: 'Settings',
-                                onTap: onClose),
+                                onTap: () {
+                                  onClose();
+                                  showModalBottomSheet(
+                                    context: context,
+                                    isScrollControlled: true,
+                                    shape: const RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.vertical(
+                                            top: Radius.circular(24))),
+                                    builder: (_) =>
+                                        const WeddingSettingsSheet(),
+                                  );
+                                }),
                             _PlanUtilityRow(
                                 icon: Icons.help_outline,
                                 label: 'Help & Support',
-                                onTap: onClose),
+                                onTap: () {
+                                  onClose();
+                                  showHelpSheet(context);
+                                }),
                           ],
                         ),
                       ),
@@ -719,21 +762,131 @@ class _PlanUtilityRow extends StatelessWidget {
   }
 }
 
-class _PlanPlaceholderPage extends StatelessWidget {
-  final IconData icon;
-  final String title;
-  final String question;
-  final String description;
+String _insightsIssueLabel(String key, int count) {
+  final noun = count == 1 ? '' : 's';
+  switch (key) {
+    case 'pending_rsvps':
+      return '$count guest$noun have not responded yet';
+    case 'missing_meals':
+      return '$count confirmed guest$noun missing a meal choice';
+    case 'missing_arrival_info':
+      return '$count traveling guest$noun missing arrival details';
+    case 'missing_accommodation':
+      return '$count traveling guest$noun without a hotel assignment';
+    case 'missing_transport':
+      return '$count traveling guest$noun without transport arranged';
+    case 'unassigned_seating':
+      return '$count confirmed guest$noun without a seat';
+    case 'vip_needs_attention':
+      return '$count VIP guest$noun need logistics attention';
+    default:
+      return '$count $key';
+  }
+}
 
-  const _PlanPlaceholderPage({
-    required this.icon,
-    required this.title,
-    required this.question,
-    required this.description,
-  });
+Color _insightsPriorityColor(String? priority) {
+  switch (priority) {
+    case 'critical':
+      return UdoDesign.rose;
+    case 'high':
+      return UdoDesign.amber;
+    case 'medium':
+      return UdoDesign.gold;
+    default:
+      return UdoDesign.sage;
+  }
+}
+
+Color _insightsScoreColor(int score) {
+  if (score >= 85) return UdoDesign.sage;
+  if (score >= 65) return UdoDesign.plan;
+  if (score >= 40) return UdoDesign.amber;
+  return UdoDesign.rose;
+}
+
+class _InsightsTab extends ConsumerWidget {
+  final void Function(int) onTabJump;
+  const _InsightsTab({required this.onTabJump});
+
+  void _openAction(BuildContext context, Map<String, dynamic> action) {
+    final id = (action['id'] ?? '').toString();
+    final target = (action['target'] ?? '').toString();
+    if (id == 'live-incidents') {
+      context.go('/live');
+      return;
+    }
+    if (id == 'overdue-tasks' || id.startsWith('task-')) {
+      onTabJump(2);
+      return;
+    }
+    if (id == 'pending-rsvps' || id == 'vip-attention') {
+      context.go('/guests?tab=Guest%20list');
+      return;
+    }
+    if (id == 'budget-risk') {
+      onTabJump(3);
+      return;
+    }
+    if (id == 'timeline-empty') {
+      onTabJump(5);
+      return;
+    }
+    if (target == 'live') {
+      context.go('/live');
+    } else if (target == 'guests') {
+      context.go('/guests');
+    } else {
+      onTabJump(0);
+    }
+  }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final home = ref.watch(homeProvider);
+    final cc = home.commandCenter;
+
+    if (home.isLoading && cc.isEmpty) {
+      return const Center(
+          child: CircularProgressIndicator(color: AppTheme.udoGreen));
+    }
+
+    final planning = cc['planning_health'] as Map<String, dynamic>? ?? {};
+    final rsvp = cc['rsvp_health'] as Map<String, dynamic>? ?? {};
+    final budget = cc['budget_status'] as Map<String, dynamic>? ?? {};
+    final guestIssues = cc['guest_issues'] as Map<String, dynamic>? ?? {};
+    final live = cc['live_readiness'] as Map<String, dynamic>? ?? {};
+    final vendorReadiness =
+        live['vendor_readiness'] as Map<String, dynamic>? ?? {};
+    final actions = ((cc['upcoming_actions'] as List?) ?? const [])
+        .cast<Map<String, dynamic>>();
+    final alerts = cc['smart_alerts'] as Map<String, dynamic>? ?? {};
+
+    final planningScore = (planning['score'] as num?)?.toInt() ?? 0;
+    final liveScore = (live['score'] as num?)?.toInt() ?? 0;
+    final rsvpCompletion = (rsvp['completion'] as num?)?.toInt() ?? 0;
+    final budgetUsage = (budget['usage'] as num?)?.toInt() ?? 0;
+    final vendorConfirmed =
+        (vendorReadiness['confirmed'] as num?)?.toInt() ?? 0;
+    final vendorTotal = (vendorReadiness['total'] as num?)?.toInt() ?? 0;
+
+    final issueRows = <MapEntry<String, int>>[];
+    for (final key in [
+      'vip_needs_attention',
+      'pending_rsvps',
+      'unassigned_seating',
+      'missing_meals',
+      'missing_arrival_info',
+      'missing_accommodation',
+      'missing_transport',
+    ]) {
+      final count = (guestIssues[key] as num?)?.toInt() ?? 0;
+      if (count > 0) issueRows.add(MapEntry(key, count));
+    }
+
+    final totalAlerts = (alerts['total_active'] as num?)?.toInt() ?? 0;
+    final criticalAlerts = (alerts['critical'] as num?)?.toInt() ?? 0;
+    final highAlerts = (alerts['high'] as num?)?.toInt() ?? 0;
+
     return ListView(
       padding: const EdgeInsets.fromLTRB(18, 10, 18, 110),
       children: [
@@ -748,24 +901,286 @@ class _PlanPlaceholderPage extends StatelessWidget {
                 color: UdoDesign.plan.withValues(alpha: 0.10),
                 borderRadius: BorderRadius.circular(16),
               ),
-              child: Icon(icon, color: UdoDesign.plan, size: 26),
+              child: const Icon(Icons.insights_outlined,
+                  color: UdoDesign.plan, size: 26),
             ),
             const SizedBox(height: 18),
-            Text(title, style: UdoDesign.serif(size: 34)),
+            Text('Insights', style: UdoDesign.serif(size: 34)),
             const SizedBox(height: 8),
-            Text(question,
+            Text('What needs executive attention?',
                 style: UdoDesign.sans(
                     size: 16, weight: FontWeight.w700, color: UdoDesign.sub)),
-            const SizedBox(height: 12),
-            Text(description,
-                style: UdoDesign.sans(
-                    size: 14, color: UdoDesign.muted, height: 1.55)),
             const SizedBox(height: 20),
-            const UdoBadge(
-                label: 'Queued for full rebuild', color: UdoDesign.gold),
+            Row(children: [
+              Expanded(
+                child: _InsightsScoreRing(
+                  label: 'Planning health',
+                  score: planningScore,
+                  caption: (planning['label'] as String?) ?? '',
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: _InsightsScoreRing(
+                  label: 'Live readiness',
+                  score: liveScore,
+                  caption: (live['label'] as String?) ?? '',
+                ),
+              ),
+            ]),
           ]),
         ),
+        const SizedBox(height: 16),
+        GridView.count(
+          crossAxisCount: 2,
+          mainAxisSpacing: 10,
+          crossAxisSpacing: 10,
+          childAspectRatio: 1.5,
+          physics: const NeverScrollableScrollPhysics(),
+          shrinkWrap: true,
+          children: [
+            _InsightsKpiTile(
+              label: 'RSVP completion',
+              value: '$rsvpCompletion%',
+              detail:
+                  '${rsvp['confirmed'] ?? 0} confirmed · ${rsvp['pending'] ?? 0} pending',
+              progress: rsvpCompletion / 100,
+              color: UdoDesign.guests,
+              onTap: () => context.go('/guests?tab=Guest%20list'),
+            ),
+            _InsightsKpiTile(
+              label: 'Budget usage',
+              value: '$budgetUsage%',
+              detail:
+                  '${_money(_asDouble(budget['spent']))} of ${_money(_asDouble(budget['total']))}',
+              progress: budgetUsage / 100,
+              color: UdoDesign.budget,
+              onTap: () => onTabJump(3),
+            ),
+            _InsightsKpiTile(
+              label: 'Vendor readiness',
+              value: '$vendorConfirmed/$vendorTotal',
+              detail:
+                  '${vendorReadiness['missing_contracts'] ?? 0} missing contract(s)',
+              progress: vendorTotal > 0 ? vendorConfirmed / vendorTotal : 0,
+              color: UdoDesign.plan,
+              onTap: () => onTabJump(4),
+            ),
+            _InsightsKpiTile(
+              label: 'Smart alerts',
+              value: '$totalAlerts',
+              detail: totalAlerts == 0
+                  ? 'Nothing needs review'
+                  : '$criticalAlerts critical · $highAlerts high',
+              progress: totalAlerts == 0 ? 0 : 1,
+              color: criticalAlerts > 0 ? UdoDesign.rose : UdoDesign.amber,
+              onTap: () => Navigator.of(context).push(MaterialPageRoute(
+                  builder: (_) => const NotificationsScreen())),
+            ),
+          ],
+        ),
+        if (actions.isNotEmpty) ...[
+          const SizedBox(height: 20),
+          const UdoSectionHeader(title: 'Needs attention'),
+          UdoCard(
+            padding: EdgeInsets.zero,
+            child: Column(children: [
+              for (var i = 0; i < actions.length; i++)
+                _InsightsActionRow(
+                  action: actions[i],
+                  showDivider: i < actions.length - 1,
+                  onTap: () => _openAction(context, actions[i]),
+                ),
+            ]),
+          ),
+        ],
+        if (issueRows.isNotEmpty) ...[
+          const SizedBox(height: 20),
+          const UdoSectionHeader(title: 'Guest checklist'),
+          UdoCard(
+            padding: EdgeInsets.zero,
+            child: Column(children: [
+              for (var i = 0; i < issueRows.length; i++)
+                _InsightsIssueRow(
+                  label:
+                      _insightsIssueLabel(issueRows[i].key, issueRows[i].value),
+                  showDivider: i < issueRows.length - 1,
+                  onTap: () => context.go('/guests?tab=Guest%20list'),
+                ),
+            ]),
+          ),
+        ],
       ],
+    );
+  }
+}
+
+class _InsightsScoreRing extends StatelessWidget {
+  final String label;
+  final int score;
+  final String caption;
+
+  const _InsightsScoreRing({
+    required this.label,
+    required this.score,
+    required this.caption,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final color = _insightsScoreColor(score);
+    return Column(children: [
+      UdoRingProgress(
+        value: score / 100,
+        size: 84,
+        color: color,
+        center: Text('$score',
+            style: UdoDesign.sans(
+                size: 20, weight: FontWeight.w800, color: color)),
+      ),
+      const SizedBox(height: 10),
+      Text(label,
+          textAlign: TextAlign.center,
+          style: UdoDesign.sans(size: 12.5, weight: FontWeight.w600)),
+      const SizedBox(height: 2),
+      Text(caption,
+          textAlign: TextAlign.center,
+          style: UdoDesign.sans(size: 11.5, color: UdoDesign.muted)),
+    ]);
+  }
+}
+
+class _InsightsKpiTile extends StatelessWidget {
+  final String label;
+  final String value;
+  final String detail;
+  final double progress;
+  final Color color;
+  final VoidCallback onTap;
+
+  const _InsightsKpiTile({
+    required this.label,
+    required this.value,
+    required this.detail,
+    required this.progress,
+    required this.color,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return UdoCard(
+      padding: const EdgeInsets.all(14),
+      radius: 18,
+      onTap: onTap,
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text(label,
+            style: UdoDesign.sans(
+                size: 11.5, weight: FontWeight.w600, color: UdoDesign.muted)),
+        const SizedBox(height: 4),
+        Text(value,
+            style: UdoDesign.sans(
+                size: 22, weight: FontWeight.w800, color: color)),
+        const Spacer(),
+        Text(detail,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: UdoDesign.sans(size: 10.5, color: UdoDesign.muted)),
+        const SizedBox(height: 6),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(2),
+          child: LinearProgressIndicator(
+            value: progress.clamp(0.0, 1.0),
+            backgroundColor: UdoDesign.stone,
+            valueColor: AlwaysStoppedAnimation(color),
+            minHeight: 4,
+          ),
+        ),
+      ]),
+    );
+  }
+}
+
+class _InsightsActionRow extends StatelessWidget {
+  final Map<String, dynamic> action;
+  final bool showDivider;
+  final VoidCallback onTap;
+
+  const _InsightsActionRow({
+    required this.action,
+    required this.showDivider,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final color = _insightsPriorityColor(action['priority'] as String?);
+    return InkWell(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+        decoration: BoxDecoration(
+          border: showDivider
+              ? const Border(bottom: BorderSide(color: UdoDesign.border))
+              : null,
+        ),
+        child: Row(children: [
+          Container(
+            width: 8,
+            height: 8,
+            decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child:
+                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text((action['title'] ?? '').toString(),
+                  style: UdoDesign.sans(size: 13.5, weight: FontWeight.w600)),
+              if ((action['reason'] ?? '').toString().isNotEmpty) ...[
+                const SizedBox(height: 2),
+                Text((action['reason']).toString(),
+                    style: UdoDesign.sans(size: 12, color: UdoDesign.muted)),
+              ],
+            ]),
+          ),
+          const Icon(Icons.chevron_right, size: 18, color: UdoDesign.muted),
+        ]),
+      ),
+    );
+  }
+}
+
+class _InsightsIssueRow extends StatelessWidget {
+  final String label;
+  final bool showDivider;
+  final VoidCallback onTap;
+
+  const _InsightsIssueRow({
+    required this.label,
+    required this.showDivider,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+        decoration: BoxDecoration(
+          border: showDivider
+              ? const Border(bottom: BorderSide(color: UdoDesign.border))
+              : null,
+        ),
+        child: Row(children: [
+          const Icon(Icons.error_outline, size: 16, color: UdoDesign.amber),
+          const SizedBox(width: 12),
+          Expanded(
+              child: Text(label,
+                  style: UdoDesign.sans(size: 13, weight: FontWeight.w500))),
+          const Icon(Icons.chevron_right, size: 18, color: UdoDesign.muted),
+        ]),
+      ),
     );
   }
 }
@@ -844,7 +1259,10 @@ class _PlanLandingTab extends ConsumerWidget {
     return ListView(
       padding: const EdgeInsets.fromLTRB(24, 4, 24, 28),
       children: [
-        _GreetingCard(greeting: greeting, firstName: firstName),
+        _GreetingCard(
+            greeting: greeting,
+            firstName: firstName,
+            onTap: () => onTabJump(15)),
         const SizedBox(height: 20),
         _WeddingDayCard(
           date: eventDate == null
@@ -977,10 +1395,13 @@ class _PlanLandingTab extends ConsumerWidget {
 class _GreetingCard extends StatelessWidget {
   final String greeting;
   final String firstName;
-  const _GreetingCard({required this.greeting, required this.firstName});
+  final VoidCallback? onTap;
+  const _GreetingCard(
+      {required this.greeting, required this.firstName, this.onTap});
 
   @override
   Widget build(BuildContext context) => _SoftCard(
+        onTap: onTap,
         padding: const EdgeInsets.all(22),
         child: Row(children: [
           Container(
@@ -1136,7 +1557,7 @@ class _ProgressGlanceCard extends StatelessWidget {
                   fit: BoxFit.scaleDown,
                   child: Text('$progress%',
                       style: const TextStyle(
-                          fontSize: 17, fontWeight: FontWeight.w700)),
+                          fontSize: 13, fontWeight: FontWeight.w700)),
                 ),
               ])),
           const SizedBox(height: 8),
@@ -1286,18 +1707,6 @@ class _LandingTaskRow extends StatelessWidget {
         ]),
       ),
     );
-  }
-
-  String? _formatTaskDueDate(dynamic value) {
-    if (value == null) return null;
-    if (value is DateTime) {
-      return DateFormat('MMM d, yyyy').format(value);
-    }
-    final raw = value.toString().trim();
-    if (raw.isEmpty) return null;
-    final parsed = DateTime.tryParse(raw);
-    if (parsed == null) return raw;
-    return DateFormat('MMM d, yyyy').format(parsed);
   }
 }
 
@@ -1496,7 +1905,7 @@ class _OverviewTab extends ConsumerWidget {
             return _PriorityTaskCard(
               title: t['title'] as String? ?? '',
               subtitle: t['due_date'] != null
-                  ? 'Due ${t['due_date']}'
+                  ? 'Due ${_formatTaskDueDate(t['due_date'])}'
                   : (t['category'] as String? ?? 'No due date set'),
               status: status,
               onTap: () => onTabJump(2),
@@ -1514,11 +1923,11 @@ class _OverviewTab extends ConsumerWidget {
               ? 'Not set'
               : (budgetProgress >= 100 ? 'Complete' : 'In progress'),
           summary: totalBudget > 0
-              ? '\$${totalBudget.toStringAsFixed(0)} total'
+              ? '${_money(totalBudget)} total'
               : 'No budget set yet',
           progress: budgetProgress,
           nextStep: totalBudget > 0
-              ? '\$${actualBudget.toStringAsFixed(0)} spent so far'
+              ? '${_money(actualBudget)} spent so far'
               : 'Set your total budget to track spend',
           onTap: () => onTabJump(3),
         ),
@@ -1599,7 +2008,7 @@ class _OverviewTab extends ConsumerWidget {
         ),
 
         const SizedBox(height: 16),
-        _SectionHeader('Guest experience'),
+        _SectionHeader('Guest portal'),
         const SizedBox(height: 8),
         Builder(builder: (context) {
           final imageCount = ref
@@ -1757,7 +2166,8 @@ class _OverviewTab extends ConsumerWidget {
           final checklistTasks = ref.watch(honeymoonProvider).checklistTasks;
           final destination = trip?['destination'] as String?;
           final hasDestination = destination?.isNotEmpty == true;
-          final checklistDone = checklistTasks.where((t) => t['completed'] == true).length;
+          final checklistDone =
+              checklistTasks.where((t) => t['completed'] == true).length;
           final dates =
               (trip?['departure_date'] != null && trip?['return_date'] != null)
                   ? '${trip!['departure_date']} → ${trip['return_date']}'
@@ -2598,7 +3008,10 @@ class _VisionHeroStat extends StatelessWidget {
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
               style: UdoDesign.sans(
-                  size: 11.5, weight: FontWeight.w800, color: Colors.white, height: 1.15)),
+                  size: 11.5,
+                  weight: FontWeight.w800,
+                  color: Colors.white,
+                  height: 1.15)),
           Text(label, style: UdoDesign.sans(size: 9.5, color: Colors.white70)),
         ]),
       );
@@ -2958,8 +3371,17 @@ class _TimelineTabState extends State<_TimelineTab> {
   String _location(Map<String, dynamic> item) =>
       (item['location'] ?? item['venue_area'] ?? '').toString();
 
-  String _vendor(Map<String, dynamic> item) =>
-      (item['vendor'] ?? item['vendor_name'] ?? '').toString();
+  String _vendor(Map<String, dynamic> item) {
+    final vendorName = item['vendor_name'];
+    if (vendorName is String && vendorName.trim().isNotEmpty) return vendorName;
+    final vendor = item['vendor'];
+    if (vendor is Map) {
+      final name = (vendor['name'] ?? vendor['business_name'])?.toString();
+      if (name != null && name.trim().isNotEmpty) return name;
+      return '';
+    }
+    return (vendor ?? '').toString();
+  }
 
   bool _hasConflict(Map<String, dynamic> item) {
     final raw = item['conflict'] ?? item['has_conflict'] ?? item['conflicts'];
@@ -3115,134 +3537,134 @@ class _TimelineTabState extends State<_TimelineTab> {
       ListView(
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 128),
         children: [
-        _TimelineHeroCard(
-          completion: completion,
-          events: items.length,
-          conflicts: conflicts,
-          locked: locked,
-          start: start,
-          finish: finish,
-        ),
-        if (conflicts > 0) ...[
-          const SizedBox(height: 12),
-          _TimelineConflictBanner(
-            count: conflicts,
-            onReview: () => setState(() => _filter = 'Conflicts'),
+          _TimelineHeroCard(
+            completion: completion,
+            events: items.length,
+            conflicts: conflicts,
+            locked: locked,
+            start: start,
+            finish: finish,
           ),
-        ],
-        const SizedBox(height: 14),
-        _TimelineInsightStrip(
-          events: items.length,
-          buffers: items.where((item) => _duration(item) >= 30).length,
-          vendors: items.where((item) => _vendor(item).isNotEmpty).length,
-        ),
-        const SizedBox(height: 14),
-        TextField(
-          onChanged: (value) => setState(() => _query = value),
-          decoration: InputDecoration(
-            hintText: 'Search events, locations, vendors...',
-            prefixIcon: const Icon(Icons.search_rounded, size: 20),
-            filled: true,
-            fillColor: UdoDesign.card,
-            contentPadding:
-                const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(14),
-              borderSide: const BorderSide(color: UdoDesign.stone),
+          if (conflicts > 0) ...[
+            const SizedBox(height: 12),
+            _TimelineConflictBanner(
+              count: conflicts,
+              onReview: () => setState(() => _filter = 'Conflicts'),
             ),
-            enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(14),
-              borderSide: const BorderSide(color: UdoDesign.stone),
-            ),
-            focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(14),
-              borderSide: const BorderSide(color: UdoDesign.sage, width: 1.4),
-            ),
+          ],
+          const SizedBox(height: 14),
+          _TimelineInsightStrip(
+            events: items.length,
+            buffers: items.where((item) => _duration(item) >= 30).length,
+            vendors: items.where((item) => _vendor(item).isNotEmpty).length,
           ),
-        ),
-        const SizedBox(height: 10),
-        SizedBox(
-          height: 40,
-          child: ListView(scrollDirection: Axis.horizontal, children: [
-            for (final filter in const [
-              'All',
-              'Morning',
-              'Ceremony',
-              'Reception',
-              'Evening',
-              'Conflicts',
-            ])
-              Padding(
-                padding: const EdgeInsets.only(right: 8),
-                child: ChoiceChip(
-                  label: Text(filter),
-                  selected: _filter == filter,
-                  onSelected: (_) => setState(() => _filter = filter),
-                ),
+          const SizedBox(height: 14),
+          TextField(
+            onChanged: (value) => setState(() => _query = value),
+            decoration: InputDecoration(
+              hintText: 'Search events, locations, vendors...',
+              prefixIcon: const Icon(Icons.search_rounded, size: 20),
+              filled: true,
+              fillColor: UdoDesign.card,
+              contentPadding:
+                  const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(14),
+                borderSide: const BorderSide(color: UdoDesign.stone),
               ),
-          ]),
-        ),
-        const SizedBox(height: 18),
-        if (items.isEmpty)
-          UdoCard(
-            child: Padding(
-              padding: const EdgeInsets.all(20),
-              child: Column(children: [
-                const Icon(Icons.timeline_outlined,
-                    size: 36, color: UdoDesign.muted),
-                const SizedBox(height: 10),
-                const Text('No timeline events yet',
-                    style:
-                        TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
-                const SizedBox(height: 4),
-                const Text(
-                    'Add wedding-day moments to build the operating schedule.',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(fontSize: 12, color: UdoDesign.muted)),
-                const SizedBox(height: 14),
-                ElevatedButton.icon(
-                  onPressed: _showAddEvent,
-                  icon: const Icon(Icons.add),
-                  label: const Text('Add event'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppTheme.udoGreen,
-                    foregroundColor: Colors.white,
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(14),
+                borderSide: const BorderSide(color: UdoDesign.stone),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(14),
+                borderSide: const BorderSide(color: UdoDesign.sage, width: 1.4),
+              ),
+            ),
+          ),
+          const SizedBox(height: 10),
+          SizedBox(
+            height: 40,
+            child: ListView(scrollDirection: Axis.horizontal, children: [
+              for (final filter in const [
+                'All',
+                'Morning',
+                'Ceremony',
+                'Reception',
+                'Evening',
+                'Conflicts',
+              ])
+                Padding(
+                  padding: const EdgeInsets.only(right: 8),
+                  child: ChoiceChip(
+                    label: Text(filter),
+                    selected: _filter == filter,
+                    onSelected: (_) => setState(() => _filter = filter),
                   ),
                 ),
-              ]),
-            ),
-          )
-        else ...[
-          UdoSectionHeader(
-            title: 'Day map',
-            subtitle: 'A compact read of the full wedding-day sequence',
-          ),
-          _TimelineDayMap(
-            items: items,
-            titleFor: _title,
-            phaseFor: _phase,
-            colorFor: _phaseColor,
-            timeFor: _formatTime,
+            ]),
           ),
           const SizedBox(height: 18),
-          UdoSectionHeader(
-            title: 'Editable timeline',
-            subtitle: '${visible.length} events visible',
-          ),
-          _TimelineEventList(
-            items: visible,
-            titleFor: _title,
-            phaseFor: _phase,
-            locationFor: _location,
-            vendorFor: _vendor,
-            timeFor: _formatTime,
-            durationFor: _duration,
-            colorFor: _phaseColor,
-            hasConflict: _hasConflict,
-            isLocked: _isLocked,
-            onTap: (item) => _showAddEvent(item),
-          ),
-        ],
+          if (items.isEmpty)
+            UdoCard(
+              child: Padding(
+                padding: const EdgeInsets.all(20),
+                child: Column(children: [
+                  const Icon(Icons.timeline_outlined,
+                      size: 36, color: UdoDesign.muted),
+                  const SizedBox(height: 10),
+                  const Text('No timeline events yet',
+                      style:
+                          TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
+                  const SizedBox(height: 4),
+                  const Text(
+                      'Add wedding-day moments to build the operating schedule.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(fontSize: 12, color: UdoDesign.muted)),
+                  const SizedBox(height: 14),
+                  ElevatedButton.icon(
+                    onPressed: _showAddEvent,
+                    icon: const Icon(Icons.add),
+                    label: const Text('Add event'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppTheme.udoGreen,
+                      foregroundColor: Colors.white,
+                    ),
+                  ),
+                ]),
+              ),
+            )
+          else ...[
+            UdoSectionHeader(
+              title: 'Day map',
+              subtitle: 'A compact read of the full wedding-day sequence',
+            ),
+            _TimelineDayMap(
+              items: items,
+              titleFor: _title,
+              phaseFor: _phase,
+              colorFor: _phaseColor,
+              timeFor: _formatTime,
+            ),
+            const SizedBox(height: 18),
+            UdoSectionHeader(
+              title: 'Editable timeline',
+              subtitle: '${visible.length} events visible',
+            ),
+            _TimelineEventList(
+              items: visible,
+              titleFor: _title,
+              phaseFor: _phase,
+              locationFor: _location,
+              vendorFor: _vendor,
+              timeFor: _formatTime,
+              durationFor: _duration,
+              colorFor: _phaseColor,
+              hasConflict: _hasConflict,
+              isLocked: _isLocked,
+              onTap: (item) => _showAddEvent(item),
+            ),
+          ],
         ],
       ),
       Positioned(
@@ -3280,8 +3702,7 @@ class _AddTimelineEventSheet extends StatefulWidget {
   const _AddTimelineEventSheet({required this.notifier, this.existing});
 
   @override
-  State<_AddTimelineEventSheet> createState() =>
-      _AddTimelineEventSheetState();
+  State<_AddTimelineEventSheet> createState() => _AddTimelineEventSheetState();
 }
 
 class _AddTimelineEventSheetState extends State<_AddTimelineEventSheet> {
@@ -3311,7 +3732,8 @@ class _AddTimelineEventSheetState extends State<_AddTimelineEventSheet> {
           ? type
           : null;
       final date = existing['event_date']?.toString();
-      _eventDate = date == null || date.isEmpty ? null : DateTime.tryParse(date);
+      _eventDate =
+          date == null || date.isEmpty ? null : DateTime.tryParse(date);
       _startTime = _parseTime(existing['start_time']?.toString());
       _endTime = _parseTime(existing['end_time']?.toString());
     }
@@ -3369,7 +3791,11 @@ class _AddTimelineEventSheetState extends State<_AddTimelineEventSheet> {
           );
     if (!mounted) return;
     if (ok) {
+      final messenger = ScaffoldMessenger.of(context);
       Navigator.pop(context);
+      messenger.showSnackBar(
+        const SnackBar(content: Text('Weekend update queued for sending.')),
+      );
     } else {
       setState(() {
         _saving = false;
@@ -3449,8 +3875,7 @@ class _AddTimelineEventSheetState extends State<_AddTimelineEventSheet> {
                               width: 18,
                               height: 18,
                               child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                  color: AppTheme.udoCrimson))
+                                  strokeWidth: 2, color: AppTheme.udoCrimson))
                           : const Icon(Icons.delete_outline,
                               color: AppTheme.udoCrimson),
                     ),
@@ -3998,6 +4423,23 @@ class _TimelinePill extends StatelessWidget {
   }
 }
 
+void _showRecordCashGiftSheet(
+  BuildContext context,
+  WidgetRef ref, {
+  required int itemId,
+  required String fundName,
+}) {
+  showModalBottomSheet(
+    context: context,
+    isScrollControlled: true,
+    backgroundColor: Colors.white,
+    shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+    builder: (_) =>
+        _RecordCashGiftSheet(ref: ref, itemId: itemId, fundName: fundName),
+  );
+}
+
 class _PlanRegistryTab extends ConsumerStatefulWidget {
   const _PlanRegistryTab();
 
@@ -4062,7 +4504,9 @@ class _PlanRegistryTabState extends ConsumerState<_PlanRegistryTab> {
     final fundRaised = cashFunds.fold<double>(
         0,
         (total, item) =>
-            total + _amount(item, const ['contributed', 'raised', 'amount']));
+            total +
+            _amount(item,
+                const ['fund_raised', 'contributed', 'raised', 'amount']));
     final completion =
         items.isEmpty ? 0 : ((purchased / items.length) * 100).round();
     final categories = <String, List<Map<String, dynamic>>>{};
@@ -4174,9 +4618,15 @@ class _PlanRegistryTabState extends ConsumerState<_PlanRegistryTab> {
             for (final fund in cashFunds.take(2))
               _RegistryFundCard(
                 name: (fund['name'] ?? 'Cash fund').toString(),
-                raised:
-                    _amount(fund, const ['contributed', 'raised', 'amount']),
+                raised: _amount(fund,
+                    const ['fund_raised', 'contributed', 'raised', 'amount']),
                 goal: _amount(fund, const ['fund_goal', 'price']),
+                onAddGift: () => _showRecordCashGiftSheet(
+                  context,
+                  ref,
+                  itemId: (fund['id'] as num).toInt(),
+                  fundName: (fund['name'] ?? 'Cash fund').toString(),
+                ),
               ),
           ],
           const SizedBox(height: 18),
@@ -4427,11 +4877,13 @@ class _RegistryFundCard extends StatelessWidget {
   final String name;
   final double raised;
   final double goal;
+  final VoidCallback onAddGift;
 
   const _RegistryFundCard({
     required this.name,
     required this.raised,
     required this.goal,
+    required this.onAddGift,
   });
 
   @override
@@ -4454,6 +4906,19 @@ class _RegistryFundCard extends StatelessWidget {
           Text(_money(raised),
               style: UdoDesign.sans(
                   size: 13, weight: FontWeight.w800, color: UdoDesign.sage)),
+          const SizedBox(width: 8),
+          InkWell(
+            onTap: onAddGift,
+            borderRadius: BorderRadius.circular(20),
+            child: Container(
+              padding: const EdgeInsets.all(5),
+              decoration: BoxDecoration(
+                color: UdoDesign.sage.withValues(alpha: 0.12),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.add, size: 15, color: UdoDesign.sage),
+            ),
+          ),
         ]),
         const SizedBox(height: 10),
         ClipRRect(
@@ -4466,6 +4931,132 @@ class _RegistryFundCard extends StatelessWidget {
           ),
         ),
       ]),
+    );
+  }
+}
+
+class _RecordCashGiftSheet extends StatefulWidget {
+  final WidgetRef ref;
+  final int itemId;
+  final String fundName;
+
+  const _RecordCashGiftSheet({
+    required this.ref,
+    required this.itemId,
+    required this.fundName,
+  });
+
+  @override
+  State<_RecordCashGiftSheet> createState() => _RecordCashGiftSheetState();
+}
+
+class _RecordCashGiftSheetState extends State<_RecordCashGiftSheet> {
+  final _amountCtrl = TextEditingController();
+  final _fromCtrl = TextEditingController();
+  final _noteCtrl = TextEditingController();
+  bool _saving = false;
+  String? _error;
+
+  @override
+  void dispose() {
+    _amountCtrl.dispose();
+    _fromCtrl.dispose();
+    _noteCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _save() async {
+    final amount = double.tryParse(_amountCtrl.text.trim());
+    if (amount == null || amount <= 0) {
+      setState(() => _error = 'Enter a valid amount.');
+      return;
+    }
+    setState(() {
+      _saving = true;
+      _error = null;
+    });
+    final from = _fromCtrl.text.trim();
+    final ok = await widget.ref
+        .read(registryProvider.notifier)
+        .recordContribution(
+          itemId: widget.itemId,
+          contributorName: from.isEmpty ? 'Cash gift' : from,
+          amount: amount,
+          message: _noteCtrl.text.trim().isEmpty ? null : _noteCtrl.text.trim(),
+        );
+    if (!mounted) return;
+    if (ok) {
+      Navigator.of(context).pop();
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('${_money(amount)} added to ${widget.fundName}.')));
+    } else {
+      setState(() {
+        _saving = false;
+        _error = "Couldn't save this gift. Try again.";
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.fromLTRB(
+          20, 20, 20, MediaQuery.of(context).viewInsets.bottom + 20),
+      child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Record a cash gift',
+                style: UdoDesign.sans(size: 17, weight: FontWeight.w800)),
+            const SizedBox(height: 4),
+            Text(
+                'Adds straight to ${widget.fundName} — for gifts given in person, like cash in an envelope.',
+                style: UdoDesign.sans(
+                    size: 12.5, color: UdoDesign.muted, height: 1.4)),
+            const SizedBox(height: 18),
+            TextField(
+              controller: _amountCtrl,
+              autofocus: true,
+              keyboardType:
+                  const TextInputType.numberWithOptions(decimal: true),
+              decoration:
+                  const InputDecoration(labelText: 'Amount', prefixText: '\$ '),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _fromCtrl,
+              decoration: const InputDecoration(
+                  labelText: 'From (optional)', hintText: 'e.g. Aunt Linda'),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _noteCtrl,
+              maxLines: 2,
+              decoration: const InputDecoration(labelText: 'Note (optional)'),
+            ),
+            if (_error != null) ...[
+              const SizedBox(height: 10),
+              Text(_error!,
+                  style: UdoDesign.sans(size: 12, color: UdoDesign.rose)),
+            ],
+            const SizedBox(height: 18),
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton(
+                onPressed: _saving ? null : _save,
+                style: FilledButton.styleFrom(
+                    backgroundColor: UdoDesign.sage,
+                    minimumSize: const Size(double.infinity, 50)),
+                child: _saving
+                    ? const SizedBox(
+                        height: 18,
+                        width: 18,
+                        child: CircularProgressIndicator(
+                            strokeWidth: 2, color: Colors.white))
+                    : const Text('Save gift'),
+              ),
+            ),
+          ]),
     );
   }
 }
@@ -4565,9 +5156,18 @@ class _PaymentsTabState extends ConsumerState<_PaymentsTab> {
           'Payment')
       .toString();
 
-  String _paymentVendor(Map<String, dynamic> payment) =>
-      (payment['vendor_name'] ?? payment['vendor'] ?? payment['category'] ?? '')
-          .toString();
+  String _paymentVendor(Map<String, dynamic> payment) {
+    final vendorName = payment['vendor_name'];
+    if (vendorName is String && vendorName.trim().isNotEmpty) return vendorName;
+    final vendor = payment['vendor'];
+    if (vendor is Map) {
+      final name = (vendor['name'] ?? vendor['business_name'])?.toString();
+      if (name != null && name.trim().isNotEmpty) return name;
+    } else if (vendor is String && vendor.trim().isNotEmpty) {
+      return vendor;
+    }
+    return (payment['category'] ?? '').toString();
+  }
 
   String _paymentStatus(Map<String, dynamic> payment) =>
       (payment['status'] ?? payment['payment_status'] ?? 'pending')
@@ -4675,13 +5275,52 @@ class _PaymentsTabState extends ConsumerState<_PaymentsTab> {
     );
   }
 
+  void _openPaymentSheet(Widget sheet) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+      builder: (_) => sheet,
+    );
+  }
+
+  void _showAddPayment() => _openPaymentSheet(_PaymentEntrySheet(
+        notifier: ref.read(planProvider.notifier),
+        vendors: widget.state.vendors,
+        budgetItems: widget.state.budgetItems,
+      ));
+
+  void _showScanInvoice() => _openPaymentSheet(_PaymentInvoiceSheet(
+        notifier: ref.read(planProvider.notifier),
+        vendors: widget.state.vendors,
+        budgetItems: widget.state.budgetItems,
+      ));
+
+  void _showUploadReceipt() => _openPaymentSheet(_PaymentEntrySheet(
+        notifier: ref.read(planProvider.notifier),
+        vendors: widget.state.vendors,
+        budgetItems: widget.state.budgetItems,
+        title: 'Upload receipt',
+        buttonLabel: 'Save receipt',
+      ));
+
+  void _showRecordManual() => _openPaymentSheet(_PaymentEntrySheet(
+        notifier: ref.read(planProvider.notifier),
+        vendors: widget.state.vendors,
+        budgetItems: widget.state.budgetItems,
+        title: 'Record manual payment',
+        buttonLabel: 'Record payment',
+      ));
+
   void _showPayForSchedule(Map<String, dynamic> payment) {
-    final scheduleId = payment['id'];
+    final scheduleId = _asIntId(payment['id']);
     // Only real payment-schedule rows (from the budget summary) carry
     // `budget_item_id` — the fallback list built straight from budget items
     // (when no schedule exists yet) reuses the item's own `id` here instead,
     // which isn't a schedule id. Fall back to the generic picker for those.
-    if (scheduleId is! int || !payment.containsKey('budget_item_id')) {
+    if (scheduleId == null || !payment.containsKey('budget_item_id')) {
       _showAddToPayments();
       return;
     }
@@ -4696,7 +5335,7 @@ class _PaymentsTabState extends ConsumerState<_PaymentsTab> {
         vendors: widget.state.vendors,
         budgetItems: widget.state.budgetItems,
         initialScheduleId: scheduleId,
-        initialVendorId: payment['vendor_id'] as int?,
+        initialVendorId: _asIntId(payment['vendor_id']),
       ),
     );
   }
@@ -4754,8 +5393,11 @@ class _PaymentsTabState extends ConsumerState<_PaymentsTab> {
       }
       return sum + _paymentAmount(payment);
     });
-    final nextPayment = due.isNotEmpty ? due.first : null;
-    final upcoming = due.skip(nextPayment == null ? 0 : 1).take(5).toList();
+    final showAllDue = _filter == 'Due';
+    final nextPayment = !showAllDue && due.isNotEmpty ? due.first : null;
+    final upcoming = showAllDue
+        ? due
+        : due.skip(nextPayment == null ? 0 : 1).take(5).toList();
 
     return Stack(
       children: [
@@ -4795,9 +5437,10 @@ class _PaymentsTabState extends ConsumerState<_PaymentsTab> {
               ),
             const SizedBox(height: 18),
             UdoSectionHeader(
-              title: 'Upcoming payments',
-              action: 'See all (${due.length})',
-              onAction: () => setState(() => _filter = 'Due'),
+              title: showAllDue ? 'All upcoming payments' : 'Upcoming payments',
+              action: showAllDue ? 'Show less' : 'See all (${due.length})',
+              onAction: () =>
+                  setState(() => _filter = showAllDue ? 'All' : 'Due'),
             ),
             if (upcoming.isEmpty)
               UdoCard(
@@ -4828,7 +5471,13 @@ class _PaymentsTabState extends ConsumerState<_PaymentsTab> {
               ),
             ),
             const SizedBox(height: 12),
-            _PaymentActionGrid(onAdd: _showAddToPayments),
+            _PaymentActionGrid(
+              onAddPayment: _showAddPayment,
+              onScanInvoice: _showScanInvoice,
+              onUploadReceipt: _showUploadReceipt,
+              onRecordManual: _showRecordManual,
+              onMore: _showAddToPayments,
+            ),
             if (visible.isEmpty) const SizedBox.shrink(),
           ],
         ),
@@ -5082,23 +5731,25 @@ class _NextPaymentCard extends StatelessWidget {
           Expanded(
             child:
                 Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Row(children: [
-                Expanded(
-                  child: Text(title,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: UdoDesign.sans(size: 14, weight: FontWeight.w900)),
-                ),
-                UdoBadge(
-                    label: status == 'overdue' ? 'Overdue' : 'Due tomorrow',
-                    color:
-                        status == 'overdue' ? UdoDesign.rose : UdoDesign.gold),
-              ]),
-              const SizedBox(height: 3),
-              Text(vendor.isEmpty ? 'Vendor not set' : vendor,
-                  maxLines: 1,
+              Text(title,
+                  maxLines: 2,
                   overflow: TextOverflow.ellipsis,
-                  style: UdoDesign.sans(size: 11, color: UdoDesign.muted)),
+                  style: UdoDesign.sans(size: 14, weight: FontWeight.w900)),
+              const SizedBox(height: 3),
+              Wrap(
+                spacing: 8,
+                runSpacing: 4,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: [
+                  Text(vendor.isEmpty ? 'Vendor not set' : vendor,
+                      style: UdoDesign.sans(size: 11, color: UdoDesign.muted)),
+                  UdoBadge(
+                      label: status == 'overdue' ? 'Overdue' : 'Due tomorrow',
+                      color: status == 'overdue'
+                          ? UdoDesign.rose
+                          : UdoDesign.gold),
+                ],
+              ),
               const SizedBox(height: 6),
               Wrap(spacing: 10, runSpacing: 4, children: [
                 _PaymentTinyInfo(icon: Icons.event_outlined, text: dueDate),
@@ -5264,9 +5915,13 @@ class _PaymentSmartInsightCard extends StatelessWidget {
                       borderRadius: BorderRadius.circular(18),
                       border: Border.all(color: const Color(0xFFE7D4A8)),
                     ),
-                    child: Text('View details',
-                        style:
-                            UdoDesign.sans(size: 11, weight: FontWeight.w800)),
+                    child: Row(mainAxisSize: MainAxisSize.min, children: [
+                      const Icon(Icons.ios_share, size: 12),
+                      const SizedBox(width: 4),
+                      Text('Share',
+                          style: UdoDesign.sans(
+                              size: 11, weight: FontWeight.w800)),
+                    ]),
                   ),
                 ),
               ]),
@@ -5285,17 +5940,27 @@ class _PaymentSmartInsightCard extends StatelessWidget {
 }
 
 class _PaymentActionGrid extends StatelessWidget {
-  final VoidCallback onAdd;
-  const _PaymentActionGrid({required this.onAdd});
+  final VoidCallback onAddPayment;
+  final VoidCallback onScanInvoice;
+  final VoidCallback onUploadReceipt;
+  final VoidCallback onRecordManual;
+  final VoidCallback onMore;
+  const _PaymentActionGrid({
+    required this.onAddPayment,
+    required this.onScanInvoice,
+    required this.onUploadReceipt,
+    required this.onRecordManual,
+    required this.onMore,
+  });
 
   @override
   Widget build(BuildContext context) {
     final actions = [
-      (Icons.add, 'Add\npayment'),
-      (Icons.document_scanner_outlined, 'Scan\ninvoice'),
-      (Icons.upload_file_outlined, 'Upload\nreceipt'),
-      (Icons.account_balance_outlined, 'Record\nmanual'),
-      (Icons.more_horiz, 'More'),
+      (Icons.add, 'Add\npayment', onAddPayment),
+      (Icons.document_scanner_outlined, 'Scan\ninvoice', onScanInvoice),
+      (Icons.upload_file_outlined, 'Upload\nreceipt', onUploadReceipt),
+      (Icons.account_balance_outlined, 'Record\nmanual', onRecordManual),
+      (Icons.more_horiz, 'More', onMore),
     ];
     return UdoCard(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
@@ -5303,7 +5968,7 @@ class _PaymentActionGrid extends StatelessWidget {
         for (final action in actions)
           Expanded(
             child: InkWell(
-              onTap: onAdd,
+              onTap: action.$3,
               borderRadius: BorderRadius.circular(16),
               child: Padding(
                 padding: const EdgeInsets.symmetric(vertical: 4),
@@ -5604,6 +6269,69 @@ class _PayableOption {
   });
 }
 
+/// Lets the user attach a receipt/invoice via camera, photo gallery, or a
+/// file picker (so PDFs work, not just images) — used by every payment
+/// sheet that accepts a supporting document.
+Future<({List<int> bytes, String filename})?> _pickReceiptFile(
+    BuildContext context) async {
+  final choice = await showModalBottomSheet<String>(
+    context: context,
+    shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+    builder: (_) => SafeArea(
+      child: Column(mainAxisSize: MainAxisSize.min, children: [
+        const Padding(
+          padding: EdgeInsets.fromLTRB(20, 20, 20, 8),
+          child: Align(
+              alignment: Alignment.centerLeft,
+              child: Text('Attach a file',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600))),
+        ),
+        ListTile(
+          leading:
+              const Icon(Icons.camera_alt_outlined, color: AppTheme.udoGreen),
+          title: const Text('Take a photo'),
+          onTap: () => Navigator.pop(context, 'camera'),
+        ),
+        ListTile(
+          leading: const Icon(Icons.photo_library_outlined,
+              color: AppTheme.udoGreen),
+          title: const Text('Choose from photos'),
+          onTap: () => Navigator.pop(context, 'gallery'),
+        ),
+        ListTile(
+          leading: const Icon(Icons.insert_drive_file_outlined,
+              color: AppTheme.udoGreen),
+          title: const Text('Choose a file'),
+          subtitle: const Text('PDF or image', style: TextStyle(fontSize: 11)),
+          onTap: () => Navigator.pop(context, 'file'),
+        ),
+        const SizedBox(height: 8),
+      ]),
+    ),
+  );
+  if (choice == null || !context.mounted) return null;
+
+  if (choice == 'camera' || choice == 'gallery') {
+    final xfile = await ImagePicker().pickImage(
+      source: choice == 'camera' ? ImageSource.camera : ImageSource.gallery,
+      imageQuality: 85,
+    );
+    if (xfile == null) return null;
+    final bytes = await xfile.readAsBytes();
+    return (bytes: bytes, filename: xfile.name);
+  }
+
+  final result = await FilePicker.pickFiles(
+    withData: true,
+    type: FileType.custom,
+    allowedExtensions: ['jpg', 'jpeg', 'png', 'pdf'],
+  );
+  final picked = result?.files.single;
+  if (picked == null || picked.bytes == null) return null;
+  return (bytes: picked.bytes!, filename: picked.name);
+}
+
 class _PaymentEntrySheet extends StatefulWidget {
   final PlanNotifier notifier;
   final String title;
@@ -5637,7 +6365,8 @@ class _PaymentEntrySheetState extends State<_PaymentEntrySheet> {
   int? _vendorId;
   _PayableOption? _selectedOption;
   String _paymentMethod = _paymentMethodOptions.first;
-  XFile? _receipt;
+  List<int>? _receiptBytes;
+  String? _receiptFilename;
   bool _saving = false;
   String? _error;
 
@@ -5660,6 +6389,9 @@ class _PaymentEntrySheetState extends State<_PaymentEntrySheet> {
           .where((o) => o.scheduleId == widget.initialScheduleId)
           .toList();
       if (match.isNotEmpty) _applyOption(match.first);
+    } else if (widget.initialVendorId != null) {
+      final options = _optionsForVendor(_vendorId);
+      if (options.isNotEmpty) _applyOption(options.first);
     }
   }
 
@@ -5676,15 +6408,15 @@ class _PaymentEntrySheetState extends State<_PaymentEntrySheet> {
   }
 
   List<Map<String, dynamic>> get _nonVendorBudgetItems => widget.budgetItems
-      .where((item) => item['vendor_id'] == null)
+      .where((item) => _asIntId(item['vendor_id']) == null)
       .toList();
 
   List<_PayableOption> _optionsForVendor(int? vendorId) {
     if (vendorId == null) return const [];
     final options = <_PayableOption>[];
     for (final item in widget.budgetItems) {
-      if (item['vendor_id'] != vendorId) continue;
-      final itemId = item['id'] as int?;
+      if (_asIntId(item['vendor_id']) != vendorId) continue;
+      final itemId = _asIntId(item['id']);
       if (itemId == null) continue;
       final schedules = ((item['payment_schedules'] as List?) ?? const [])
           .cast<Map>()
@@ -5692,7 +6424,7 @@ class _PaymentEntrySheetState extends State<_PaymentEntrySheet> {
           .toList();
       for (final schedule in schedules) {
         options.add(_PayableOption(
-          scheduleId: schedule['id'] as int?,
+          scheduleId: _asIntId(schedule['id']),
           budgetItemId: itemId,
           label:
               '${item['name'] ?? 'Budget item'} — ${schedule['label'] ?? 'Payment'}',
@@ -5724,11 +6456,13 @@ class _PaymentEntrySheetState extends State<_PaymentEntrySheet> {
   }
 
   Future<void> _pickReceipt() async {
-    final picked = await ImagePicker().pickImage(
-      source: ImageSource.gallery,
-      imageQuality: 85,
-    );
-    if (picked != null) setState(() => _receipt = picked);
+    final picked = await _pickReceiptFile(context);
+    if (picked != null) {
+      setState(() {
+        _receiptBytes = picked.bytes;
+        _receiptFilename = picked.filename;
+      });
+    }
   }
 
   Future<void> _submitVendor() async {
@@ -5746,14 +6480,15 @@ class _PaymentEntrySheetState extends State<_PaymentEntrySheet> {
       _error = null;
     });
     final option = _selectedOption!;
-    final ok = option.scheduleId != null
+    final error = option.scheduleId != null
         ? await widget.notifier.payVendorSchedule(
             scheduleId: option.scheduleId!,
             amount: amount,
             paymentMethod: _paymentMethod,
             reference: _reference.text.trim(),
             notes: _note.text.trim(),
-            receipt: _receipt,
+            receiptBytes: _receiptBytes,
+            receiptFilename: _receiptFilename,
           )
         : await widget.notifier.createAdHocPayment(
             budgetItemId: option.budgetItemId,
@@ -5762,9 +6497,10 @@ class _PaymentEntrySheetState extends State<_PaymentEntrySheet> {
             paymentMethod: _paymentMethod,
             reference: _reference.text.trim(),
             notes: _note.text.trim(),
-            receipt: _receipt,
+            receiptBytes: _receiptBytes,
+            receiptFilename: _receiptFilename,
           );
-    _finish(ok);
+    _finish(error);
   }
 
   Future<void> _submitNonVendor() async {
@@ -5778,8 +6514,7 @@ class _PaymentEntrySheetState extends State<_PaymentEntrySheet> {
       setState(() => _error = 'Choose a category name.');
       return;
     }
-    if (_store.text.trim().isEmpty &&
-        _itemDescription.text.trim().isEmpty) {
+    if (_store.text.trim().isEmpty && _itemDescription.text.trim().isEmpty) {
       setState(() => _error = 'Add the store/place or an item description.');
       return;
     }
@@ -5791,9 +6526,8 @@ class _PaymentEntrySheetState extends State<_PaymentEntrySheet> {
       _saving = true;
       _error = null;
     });
-    var budgetItemId = _categoryChoice == _createNewBudgetItemChoice
-        ? null
-        : _categoryChoice;
+    var budgetItemId =
+        _categoryChoice == _createNewBudgetItemChoice ? null : _categoryChoice;
     if (budgetItemId == null) {
       budgetItemId = await widget.notifier.createBudgetItem(
         name: _newCategoryName!,
@@ -5813,7 +6547,7 @@ class _PaymentEntrySheetState extends State<_PaymentEntrySheet> {
       if (_store.text.trim().isNotEmpty) _store.text.trim(),
       if (_itemDescription.text.trim().isNotEmpty) _itemDescription.text.trim(),
     ].join(' — ');
-    final ok = await widget.notifier.createAdHocPayment(
+    final error = await widget.notifier.createAdHocPayment(
       budgetItemId: budgetItemId,
       label: label.isEmpty ? 'Purchase' : label,
       amount: amount,
@@ -5821,19 +6555,20 @@ class _PaymentEntrySheetState extends State<_PaymentEntrySheet> {
       reference: _reference.text.trim(),
       notes: _note.text.trim(),
       dueDate: _purchaseDate == null ? null : _formatDate(_purchaseDate!),
-      receipt: _receipt,
+      receiptBytes: _receiptBytes,
+      receiptFilename: _receiptFilename,
     );
-    _finish(ok);
+    _finish(error);
   }
 
-  void _finish(bool ok) {
+  void _finish(String? error) {
     if (!mounted) return;
-    if (ok) {
+    if (error == null) {
       Navigator.pop(context);
     } else {
       setState(() {
         _saving = false;
-        _error = "Couldn't save this payment.";
+        _error = error;
       });
     }
   }
@@ -5848,11 +6583,14 @@ class _PaymentEntrySheetState extends State<_PaymentEntrySheet> {
         menuMaxHeight: 360,
         decoration: const InputDecoration(labelText: 'Vendor'),
         items: widget.vendors
-            .map((vendor) => DropdownMenuItem(
-                  value: vendor['id'] as int,
-                  child: Text(vendor['name']?.toString() ?? 'Vendor',
-                      overflow: TextOverflow.ellipsis),
-                ))
+            .map((vendor) => _asIntId(vendor['id']) == null
+                ? null
+                : DropdownMenuItem(
+                    value: _asIntId(vendor['id'])!,
+                    child: Text(vendor['name']?.toString() ?? 'Vendor',
+                        overflow: TextOverflow.ellipsis),
+                  ))
+            .whereType<DropdownMenuItem<int>>()
             .toList(),
         onChanged: lockedToSchedule
             ? null
@@ -5886,7 +6624,7 @@ class _PaymentEntrySheetState extends State<_PaymentEntrySheet> {
                       .map((i) => DropdownMenuItem(
                             value: i,
                             child: Text(
-                                '${options[i].label} · \$${options[i].amount.toStringAsFixed(2)}',
+                                '${options[i].label} · ${_moneyCents(options[i].amount)}',
                                 overflow: TextOverflow.ellipsis),
                           ))
                       .toList(),
@@ -5911,11 +6649,15 @@ class _PaymentEntrySheetState extends State<_PaymentEntrySheet> {
         decoration: const InputDecoration(labelText: 'Budget category'),
         hint: const Text('Choose or create a category'),
         items: [
-          ...items.map((item) => DropdownMenuItem(
-                value: item['id'] as int,
-                child: Text(item['name']?.toString() ?? 'Budget item',
-                    overflow: TextOverflow.ellipsis),
-              )),
+          ...items.map((item) {
+            final itemId = _asIntId(item['id']);
+            if (itemId == null) return null;
+            return DropdownMenuItem<int>(
+              value: itemId,
+              child: Text(item['name']?.toString() ?? 'Budget item',
+                  overflow: TextOverflow.ellipsis),
+            );
+          }).whereType<DropdownMenuItem<int>>(),
           const DropdownMenuItem(
             value: _createNewBudgetItemChoice,
             child: Text('+ Create new category'),
@@ -5939,16 +6681,16 @@ class _PaymentEntrySheetState extends State<_PaymentEntrySheet> {
           onChanged: (value) => setState(() => _newCategoryName = value),
         ),
         const SizedBox(height: 12),
-        _PaymentTextField(_newCategoryBudget, 'Budgeted amount (optional)',
-            '2500',
+        _PaymentTextField(
+            _newCategoryBudget, 'Budgeted amount (optional)', '2500',
             keyboardType: const TextInputType.numberWithOptions(decimal: true),
             prefix: '\$'),
       ],
       const SizedBox(height: 12),
       _PaymentTextField(_store, 'Store / Place', 'e.g. Amazon'),
       const SizedBox(height: 12),
-      _PaymentTextField(
-          _itemDescription, 'Item / Description', 'e.g. Candle Holders (Set of 10)'),
+      _PaymentTextField(_itemDescription, 'Item / Description',
+          'e.g. Candle Holders (Set of 10)'),
       const SizedBox(height: 12),
       OutlinedButton.icon(
         onPressed: () async {
@@ -5983,8 +6725,9 @@ class _PaymentEntrySheetState extends State<_PaymentEntrySheet> {
                   _error = null;
                 }),
                 style: OutlinedButton.styleFrom(
-                  backgroundColor:
-                      _isVendorMode ? UdoDesign.blue.withValues(alpha: 0.1) : null,
+                  backgroundColor: _isVendorMode
+                      ? UdoDesign.blue.withValues(alpha: 0.1)
+                      : null,
                   side: BorderSide(
                       color: _isVendorMode ? UdoDesign.blue : UdoDesign.stone),
                 ),
@@ -6035,7 +6778,8 @@ class _PaymentEntrySheetState extends State<_PaymentEntrySheet> {
         OutlinedButton.icon(
           onPressed: _pickReceipt,
           icon: const Icon(Icons.attach_file_outlined),
-          label: Text(_receipt == null ? 'Attach receipt' : _receipt!.name),
+          label: Text(
+              _receiptFilename == null ? 'Attach receipt' : _receiptFilename!),
         ),
         if (_error != null) ...[
           const SizedBox(height: 10),
@@ -6077,7 +6821,8 @@ class _PaymentInvoiceSheetState extends State<_PaymentInvoiceSheet> {
   int? _vendorId;
   int? _budgetItemChoice;
   DateTime? _dueDate;
-  XFile? _file;
+  List<int>? _fileBytes;
+  String? _fileName;
   bool _saving = false;
   String? _error;
 
@@ -6090,15 +6835,17 @@ class _PaymentInvoiceSheetState extends State<_PaymentInvoiceSheet> {
   }
 
   List<Map<String, dynamic>> get _vendorBudgetItems => widget.budgetItems
-      .where((item) => item['vendor_id'] == _vendorId)
+      .where((item) => _asIntId(item['vendor_id']) == _vendorId)
       .toList();
 
   Future<void> _pick() async {
-    final picked = await ImagePicker().pickImage(
-      source: ImageSource.gallery,
-      imageQuality: 85,
-    );
-    if (picked != null) setState(() => _file = picked);
+    final picked = await _pickReceiptFile(context);
+    if (picked != null) {
+      setState(() {
+        _fileBytes = picked.bytes;
+        _fileName = picked.filename;
+      });
+    }
   }
 
   Future<void> _submit() async {
@@ -6111,7 +6858,7 @@ class _PaymentInvoiceSheetState extends State<_PaymentInvoiceSheet> {
       setState(() => _error = 'Add an invoice title and amount.');
       return;
     }
-    if (_file == null) {
+    if (_fileBytes == null) {
       setState(() => _error = 'Attach the invoice file.');
       return;
     }
@@ -6144,7 +6891,8 @@ class _PaymentInvoiceSheetState extends State<_PaymentInvoiceSheet> {
       label: _label.text.trim(),
       amount: amount,
       dueDate: _dueDate == null ? null : _formatDate(_dueDate!),
-      document: _file,
+      documentBytes: _fileBytes,
+      documentFilename: _fileName,
     );
     if (!mounted) return;
     if (ok) {
@@ -6169,11 +6917,16 @@ class _PaymentInvoiceSheetState extends State<_PaymentInvoiceSheet> {
           menuMaxHeight: 360,
           decoration: const InputDecoration(labelText: 'Vendor'),
           items: widget.vendors
-              .map((vendor) => DropdownMenuItem(
-                    value: vendor['id'] as int,
-                    child: Text(vendor['name']?.toString() ?? 'Vendor',
-                        overflow: TextOverflow.ellipsis),
-                  ))
+              .map((vendor) {
+                final vendorId = _asIntId(vendor['id']);
+                if (vendorId == null) return null;
+                return DropdownMenuItem<int>(
+                  value: vendorId,
+                  child: Text(vendor['name']?.toString() ?? 'Vendor',
+                      overflow: TextOverflow.ellipsis),
+                );
+              })
+              .whereType<DropdownMenuItem<int>>()
               .toList(),
           onChanged: (value) => setState(() {
             _vendorId = value;
@@ -6189,11 +6942,15 @@ class _PaymentInvoiceSheetState extends State<_PaymentInvoiceSheet> {
             decoration: const InputDecoration(labelText: 'Budget item'),
             hint: const Text('Choose or create a budget item'),
             items: [
-              ...items.map((item) => DropdownMenuItem(
-                    value: item['id'] as int,
-                    child: Text(item['name']?.toString() ?? 'Budget item',
-                        overflow: TextOverflow.ellipsis),
-                  )),
+              ...items.map((item) {
+                final itemId = _asIntId(item['id']);
+                if (itemId == null) return null;
+                return DropdownMenuItem<int>(
+                  value: itemId,
+                  child: Text(item['name']?.toString() ?? 'Budget item',
+                      overflow: TextOverflow.ellipsis),
+                );
+              }).whereType<DropdownMenuItem<int>>(),
               const DropdownMenuItem(
                 value: _createNewBudgetItemChoice,
                 child: Text('+ Create new budget item'),
@@ -6234,7 +6991,8 @@ class _PaymentInvoiceSheetState extends State<_PaymentInvoiceSheet> {
         OutlinedButton.icon(
           onPressed: _pick,
           icon: const Icon(Icons.attach_file_outlined),
-          label: Text(_file == null ? 'Attach invoice image' : _file!.name),
+          label: Text(
+              _fileName == null ? 'Attach invoice (PDF or image)' : _fileName!),
         ),
         if (_error != null) ...[
           const SizedBox(height: 10),
@@ -6284,7 +7042,7 @@ class _PaymentPlanSheetState extends State<_PaymentPlanSheet> {
       _error = null;
     });
     final vendorName = widget.vendors
-        .firstWhere((v) => v['id'] == _vendorId,
+        .firstWhere((v) => _asIntId(v['id']) == _vendorId,
             orElse: () => const {'name': 'Vendor'})['name']
         ?.toString();
     final itemId = await widget.notifier.createBudgetItem(
@@ -6332,11 +7090,16 @@ class _PaymentPlanSheetState extends State<_PaymentPlanSheet> {
           menuMaxHeight: 360,
           decoration: const InputDecoration(labelText: 'Vendor'),
           items: widget.vendors
-              .map((vendor) => DropdownMenuItem(
-                    value: vendor['id'] as int,
-                    child: Text(vendor['name']?.toString() ?? 'Vendor',
-                        overflow: TextOverflow.ellipsis),
-                  ))
+              .map((vendor) {
+                final vendorId = _asIntId(vendor['id']);
+                if (vendorId == null) return null;
+                return DropdownMenuItem<int>(
+                  value: vendorId,
+                  child: Text(vendor['name']?.toString() ?? 'Vendor',
+                      overflow: TextOverflow.ellipsis),
+                );
+              })
+              .whereType<DropdownMenuItem<int>>()
               .toList(),
           onChanged: (value) => setState(() => _vendorId = value),
         ),
@@ -6600,14 +7363,15 @@ class _PaymentScheduleSheetState extends State<_PaymentScheduleSheet> {
       title: 'Set payment schedule',
       child: Column(mainAxisSize: MainAxisSize.min, children: [
         Text(
-          'Budgeted amount: \$${widget.totalAmount.toStringAsFixed(2)}',
+          'Budgeted amount: ${_moneyCents(widget.totalAmount)}',
           style: UdoDesign.sans(size: 12.5, color: UdoDesign.sub),
         ),
         const SizedBox(height: 14),
         for (var i = 0; i < _rows.length; i++)
           Padding(
             padding: const EdgeInsets.only(bottom: 12),
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            child:
+                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Row(children: [
                 Expanded(
                   flex: 3,
@@ -6651,8 +7415,8 @@ class _PaymentScheduleSheetState extends State<_PaymentScheduleSheet> {
           remaining.abs() < 0.01
               ? 'Milestones match the budgeted amount.'
               : remaining > 0
-                  ? '\$${remaining.toStringAsFixed(2)} left to schedule.'
-                  : '\$${(-remaining).toStringAsFixed(2)} over the budgeted amount.',
+                  ? '${_moneyCents(remaining)} left to schedule.'
+                  : '${_moneyCents(-remaining)} over the budgeted amount.',
           style: UdoDesign.sans(
               size: 12,
               color: remaining.abs() < 0.01 ? UdoDesign.sage : UdoDesign.amber),
@@ -7249,7 +8013,7 @@ class _TaskCommandRow extends StatelessWidget {
     final done = task['completed'] == true;
     final priority = task['priority'] as String? ?? 'low';
     final category = task['category'] as String? ?? 'Planning';
-    final due = task['due_date'] as String?;
+    final due = _formatTaskDueDate(task['due_date']);
     return AnimatedOpacity(
       opacity: done ? 0.62 : 1,
       duration: const Duration(milliseconds: 180),
@@ -7304,7 +8068,7 @@ class _TaskCommandRow extends StatelessWidget {
                         color: UdoDesign.muted,
                         background: UdoDesign.stone.withValues(alpha: 0.55)),
                     UdoBadge(label: priority, color: _priorityColor(priority)),
-                    Text(due == null || due.isEmpty ? 'No due date' : due,
+                    Text(due == null ? 'No due date' : 'Due $due',
                         style:
                             UdoDesign.sans(size: 12, color: UdoDesign.muted)),
                   ]),
@@ -7547,7 +8311,7 @@ class _BudgetTabState extends State<_BudgetTab> {
                 borderRadius: BorderRadius.circular(3)),
             const SizedBox(height: 6),
             Text(
-                '${(progress * 100).toStringAsFixed(0)}% used • \$${totalPaid.toStringAsFixed(0)} paid so far',
+                '${(progress * 100).toStringAsFixed(0)}% used • ${_money(totalPaid)} paid so far',
                 style: const TextStyle(color: Colors.white70, fontSize: 12)),
           ]),
         ),
@@ -7577,7 +8341,7 @@ class _BudgetTabState extends State<_BudgetTab> {
               value: '${overduePayments.length}',
               detail: overduePayments.isEmpty
                   ? null
-                  : '\$${overduePayments.fold<double>(0, (sum, p) => sum + _asDouble(p['amount'])).toStringAsFixed(0)} overdue',
+                  : '${_money(overduePayments.fold<double>(0, (sum, p) => sum + _asDouble(p['amount'])))} overdue',
             )),
             Expanded(
                 child: _BudgetInfoColumn(
@@ -7588,7 +8352,7 @@ class _BudgetTabState extends State<_BudgetTab> {
                   : (largestExpense['category'] as String? ?? 'Uncategorized'),
               detail: largestExpense == null
                   ? null
-                  : '\$${_asDouble(largestExpense['amount']).toStringAsFixed(0)} (${largestExpense['percentage']}%)',
+                  : '${_money(_asDouble(largestExpense['amount']))} (${largestExpense['percentage']}%)',
             )),
           ]),
         ),
@@ -7654,7 +8418,7 @@ class _BudgetTabState extends State<_BudgetTab> {
                               fontSize: 12, color: AppTheme.udoTextSecondary)),
                     ])),
                 Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
-                  Text('\$${_asDouble(payment['amount']).toStringAsFixed(0)}',
+                  Text(_money(_asDouble(payment['amount'])),
                       style: const TextStyle(
                           fontSize: 14, fontWeight: FontWeight.w700)),
                   Text((payment['status'] ?? 'pending').toString(),
@@ -8294,6 +9058,9 @@ class _BudgetCategoryItem extends StatelessWidget {
 String _money(double value) =>
     NumberFormat.currency(symbol: '\$', decimalDigits: 0).format(value);
 
+String _moneyCents(double value) =>
+    NumberFormat.currency(symbol: '\$', decimalDigits: 2).format(value);
+
 class _BudgetStat extends StatelessWidget {
   final String label;
   final double value;
@@ -8311,7 +9078,7 @@ class _BudgetStat extends StatelessWidget {
           Text(label,
               style: const TextStyle(color: Colors.white70, fontSize: 10)),
           const SizedBox(height: 4),
-          Text('\$${value.toStringAsFixed(0)}',
+          Text(_money(value),
               style: const TextStyle(
                   color: Colors.white,
                   fontSize: 15,
@@ -8551,125 +9318,125 @@ class _AddBudgetItemSheet extends StatefulWidget {
 }
 
 const _budgetCategoryOptions = [
-  'Ceremony Venue',
-  'Reception Venue',
-  'Venue Hire',
-  'Site Fees',
-  'Ceremony Setup',
-  'Cleaning Fees',
-  'Corkage Fees',
-  'Security Deposit',
-  'Catering',
-  'Bar Service',
-  'Alcohol',
-  'Non-Alcoholic Drinks',
-  'Cocktail Hour',
-  'Late Night Snacks',
-  'Cake',
-  'Dessert Table',
-  'Coffee Station',
-  'Photographer',
-  'Videographer',
-  'Engagement Shoot',
-  'Drone Coverage',
-  'Photo Booth',
-  'Wedding Content Creator',
-  'Albums & Prints',
-  'Florals',
-  'Ceremony Decor',
-  'Reception Decor',
-  'Centrepieces',
-  'Lighting',
-  'Candles',
-  'Draping',
-  'Backdrops',
-  'Furniture Rental',
-  'Linen Rental',
-  'Tableware Rental',
-  'Signage',
-  'Balloon Decor',
-  'DJ',
-  'Live Band',
-  'Ceremony Music',
-  'MC',
-  'Performers',
-  'Dance Floor',
-  'Fireworks',
-  'Special Effects',
-  'Wedding Dress',
-  'Alterations',
-  'Shoes',
-  'Veil',
-  'Accessories',
-  'Jewellery',
-  'Suit / Tuxedo',
-  'Hair',
-  'Makeup',
-  'Nails',
-  'Skincare',
-  'Barber',
-  'Bridesmaid Dresses',
-  'Groomsmen Attire',
-  'Flower Girl',
-  'Ring Bearer',
-  'Officiant',
-  'Marriage Licence',
-  'Ceremony Programs',
-  'Unity Ceremony Items',
-  'Ring Box',
-  'Bridal Transportation',
-  'Groom Transportation',
-  'Guest Shuttle',
-  'Chauffeur',
-  'Parking',
-  'Valet',
-  'Hotel',
-  'Honeymoon',
-  'Flights',
-  'Airport Transfers',
-  'Guest Accommodation',
-  'Save the Dates',
-  'Invitations',
-  'RSVP Cards',
-  'Thank You Cards',
-  'Place Cards',
-  'Menus',
-  'Seating Chart',
-  'Welcome Sign',
-  'Guest Favours',
-  'Bridal Party Gifts',
-  'Parent Gifts',
-  'Welcome Bags',
-  'Vendor Tips',
-  'Wedding Planner',
-  'Day-of Coordinator',
-  'Event Coordinator',
-  'Consultation Fees',
-  'Wedding Website',
-  'Wedding App',
-  'QR Codes',
-  'Live Streaming',
-  'Guest Wi-Fi',
-  'Tent',
-  'Chairs',
-  'Tables',
-  'Generator',
-  'Portable Toilets',
-  'Lounge Furniture',
-  'Heating / Cooling',
-  'Childcare',
-  'Pet Attendant',
-  'Security',
   'Accessibility Services',
-  'Wedding Insurance',
-  'Event Permits',
-  'Licences',
-  'Legal Fees',
-  'Service Charges',
-  'Taxes',
-  'Tips',
+  'Accessories',
+  'Airport Transfers',
+  'Albums & Prints',
+  'Alcohol',
+  'Alterations',
+  'Backdrops',
+  'Balloon Decor',
+  'Bar Service',
+  'Barber',
+  'Bridal Party Gifts',
+  'Bridal Transportation',
+  'Bridesmaid Dresses',
+  'Cake',
+  'Candles',
+  'Catering',
+  'Centrepieces',
+  'Ceremony Decor',
+  'Ceremony Music',
+  'Ceremony Programs',
+  'Ceremony Setup',
+  'Ceremony Venue',
+  'Chairs',
+  'Chauffeur',
+  'Childcare',
+  'Cleaning Fees',
+  'Cocktail Hour',
+  'Coffee Station',
+  'Consultation Fees',
   'Contingency',
+  'Corkage Fees',
+  'Dance Floor',
+  'Day-of Coordinator',
+  'Dessert Table',
+  'DJ',
+  'Draping',
+  'Drone Coverage',
   'Emergency Purchases',
+  'Engagement Shoot',
+  'Event Coordinator',
+  'Event Permits',
+  'Fireworks',
+  'Flights',
+  'Florals',
+  'Flower Girl',
+  'Furniture Rental',
+  'Generator',
+  'Groom Transportation',
+  'Groomsmen Attire',
+  'Guest Accommodation',
+  'Guest Favours',
+  'Guest Shuttle',
+  'Guest Wi-Fi',
+  'Hair',
+  'Heating / Cooling',
+  'Honeymoon',
+  'Hotel',
+  'Invitations',
+  'Jewellery',
+  'Late Night Snacks',
+  'Legal Fees',
+  'Licences',
+  'Lighting',
+  'Linen Rental',
+  'Live Band',
+  'Live Streaming',
+  'Lounge Furniture',
+  'Makeup',
+  'Marriage Licence',
+  'MC',
+  'Menus',
+  'Nails',
+  'Non-Alcoholic Drinks',
+  'Officiant',
+  'Parent Gifts',
+  'Parking',
+  'Performers',
+  'Pet Attendant',
+  'Photo Booth',
+  'Photographer',
+  'Place Cards',
+  'Portable Toilets',
+  'QR Codes',
+  'Reception Decor',
+  'Reception Venue',
+  'Ring Bearer',
+  'Ring Box',
+  'RSVP Cards',
+  'Save the Dates',
+  'Seating Chart',
+  'Security',
+  'Security Deposit',
+  'Service Charges',
+  'Shoes',
+  'Signage',
+  'Site Fees',
+  'Skincare',
+  'Special Effects',
+  'Suit / Tuxedo',
+  'Tables',
+  'Tableware Rental',
+  'Taxes',
+  'Tent',
+  'Thank You Cards',
+  'Tips',
+  'Unity Ceremony Items',
+  'Valet',
+  'Veil',
+  'Vendor Tips',
+  'Venue Hire',
+  'Videographer',
+  'Wedding App',
+  'Wedding Content Creator',
+  'Wedding Dress',
+  'Wedding Insurance',
+  'Wedding Planner',
+  'Wedding Website',
+  'Welcome Bags',
+  'Welcome Sign',
   'Other',
 ];
 
@@ -8701,7 +9468,7 @@ class _AddBudgetItemSheetState extends State<_AddBudgetItemSheet> {
   List<Map<String, dynamic>> get _vendorOptions {
     final options = [...widget.vendors];
     if (widget.initialVendorId != null &&
-        !options.any((v) => v['id'] == widget.initialVendorId)) {
+        !options.any((v) => _asIntId(v['id']) == widget.initialVendorId)) {
       options.insert(0, {
         'id': widget.initialVendorId,
         'name': widget.initialVendorName ?? 'Vendor',
@@ -8779,11 +9546,16 @@ class _AddBudgetItemSheetState extends State<_AddBudgetItemSheet> {
                   labelText: 'Vendor (optional)',
                   hintText: 'Link this budget to a vendor'),
               items: _vendorOptions
-                  .map((vendor) => DropdownMenuItem(
-                        value: vendor['id'] as int,
-                        child: Text(vendor['name']?.toString() ?? 'Vendor',
-                            overflow: TextOverflow.ellipsis),
-                      ))
+                  .map((vendor) {
+                    final vendorId = _asIntId(vendor['id']);
+                    if (vendorId == null) return null;
+                    return DropdownMenuItem<int>(
+                      value: vendorId,
+                      child: Text(vendor['name']?.toString() ?? 'Vendor',
+                          overflow: TextOverflow.ellipsis),
+                    );
+                  })
+                  .whereType<DropdownMenuItem<int>>()
                   .toList(),
               onChanged: (value) => setState(() => _vendorId = value),
             ),
@@ -8892,8 +9664,7 @@ class _BudgetRow extends StatelessWidget {
             ),
           ]),
           const SizedBox(height: 4),
-          Text(
-              '\$${spent.toStringAsFixed(0)} of \$${allocated.toStringAsFixed(0)}',
+          Text('${_money(spent)} of ${_money(allocated)}',
               style: const TextStyle(
                   fontSize: 12, color: AppTheme.udoTextSecondary)),
           const SizedBox(height: 8),
@@ -8965,7 +9736,7 @@ class _VendorsTabState extends State<_VendorsTab> {
       builder: (_) => _AddBudgetItemSheet(
         notifier: widget.notifier,
         vendors: widget.state.vendors,
-        initialVendorId: result['id'] as int?,
+        initialVendorId: _asIntId(result['id']),
         initialVendorName: vendorName,
         initialCategory: result['category'] as String?,
       ),
@@ -9186,7 +9957,8 @@ class _VendorsTabState extends State<_VendorsTab> {
             .where((v) =>
                 v['booking_status'] == 'researching' ||
                 v['booking_status'] == 'negotiating')
-            .map((v) => v['id'] as int)
+            .map((v) => _asIntId(v['id']))
+            .whereType<int>()
             .toList();
         if (ids.isEmpty) return;
         final (count, pendingApproval) = await widget.notifier
@@ -9195,6 +9967,19 @@ class _VendorsTabState extends State<_VendorsTab> {
           final message = pendingApproval > 0
               ? 'Confirmed $count vendor${count == 1 ? '' : 's'} · $pendingApproval awaiting Decision-maker approval'
               : 'Confirmed $count vendor${count == 1 ? '' : 's'}';
+          ScaffoldMessenger.of(context)
+              .showSnackBar(SnackBar(content: Text(message)));
+        }
+      },
+      onConfirmVendor: (id) async {
+        final (count, pendingApproval) = await widget.notifier
+            .bulkUpdateVendors([id], {'booking_status': 'confirmed'});
+        if (context.mounted) {
+          final message = pendingApproval > 0
+              ? 'Awaiting Decision-maker approval'
+              : count > 0
+                  ? 'Vendor confirmed'
+                  : "Couldn't confirm vendor";
           ScaffoldMessenger.of(context)
               .showSnackBar(SnackBar(content: Text(message)));
         }
@@ -9226,8 +10011,8 @@ class _VendorsTabState extends State<_VendorsTab> {
           Expanded(
               child: _VendorMetricCard(
                   label: 'Balance',
-                  value:
-                      '\$${((summary['unpaid_balance'] as num?) ?? 0).toStringAsFixed(0)}',
+                  value: _money(
+                      (((summary['unpaid_balance'] as num?) ?? 0)).toDouble()),
                   color: AppTheme.udoGold)),
           const SizedBox(width: 10),
           Expanded(
@@ -9348,8 +10133,10 @@ class _VendorsTabState extends State<_VendorsTab> {
                     .where((v) =>
                         v['booking_status'] == 'researching' ||
                         v['booking_status'] == 'negotiating')
-                    .map((v) => v['id'] as int)
+                    .map((v) => _asIntId(v['id']))
+                    .whereType<int>()
                     .toList();
+                if (ids.isEmpty) return;
                 final (count, pendingApproval) = await widget.notifier
                     .bulkUpdateVendors(ids, {'booking_status': 'confirmed'});
                 if (context.mounted) {
@@ -9436,6 +10223,7 @@ class _VendorsRedesignPage extends StatelessWidget {
       amountFor;
   final Future<void> Function() onAddVendor;
   final Future<void> Function() onConfirmVisible;
+  final Future<void> Function(int vendorId) onConfirmVendor;
 
   const _VendorsRedesignPage({
     required this.vendors,
@@ -9458,6 +10246,7 @@ class _VendorsRedesignPage extends StatelessWidget {
     required this.amountFor,
     required this.onAddVendor,
     required this.onConfirmVisible,
+    required this.onConfirmVendor,
   });
 
   @override
@@ -9486,6 +10275,7 @@ class _VendorsRedesignPage extends StatelessWidget {
           unpaidBalance: unpaidBalance,
           paymentsDue: paymentsDue,
           dayOfContacts: dayOfSheet.length,
+          onViewDetails: () => onFilter('all'),
         ),
         const SizedBox(height: 12),
         _PriorityVendorCard(
@@ -9502,7 +10292,14 @@ class _VendorsRedesignPage extends StatelessWidget {
           contractSigned: contractSigned(priorityVendor),
           balanceDue:
               amountFor(priorityVendor, const ['balance_due', 'unpaid_amount']),
-          onPrimaryAction: canConfirm ? onConfirmVisible : onAddVendor,
+          onPrimaryAction: (priorityVendor['booking_status'] == 'researching' ||
+                  priorityVendor['booking_status'] == 'negotiating')
+              ? () async {
+                  final vendorId = _asIntId(priorityVendor['id']);
+                  if (vendorId == null) return;
+                  await onConfirmVendor(vendorId);
+                }
+              : onAddVendor,
         ),
         const SizedBox(height: 14),
         UdoSectionHeader(
@@ -9652,6 +10449,7 @@ class _VendorOverviewDashboard extends StatelessWidget {
   final int paymentsDue;
   final int dayOfContacts;
   final double unpaidBalance;
+  final VoidCallback onViewDetails;
 
   const _VendorOverviewDashboard({
     required this.progress,
@@ -9662,6 +10460,7 @@ class _VendorOverviewDashboard extends StatelessWidget {
     required this.paymentsDue,
     required this.dayOfContacts,
     required this.unpaidBalance,
+    required this.onViewDetails,
   });
 
   @override
@@ -9679,12 +10478,21 @@ class _VendorOverviewDashboard extends StatelessWidget {
                     weight: FontWeight.w800,
                     color: Colors.white.withValues(alpha: 0.76))),
           ),
-          Text('View details',
-              style: UdoDesign.sans(
-                  size: 10, color: Colors.white.withValues(alpha: 0.82))),
-          const SizedBox(width: 4),
-          Icon(Icons.chevron_right,
-              size: 16, color: Colors.white.withValues(alpha: 0.82)),
+          InkWell(
+            onTap: onViewDetails,
+            borderRadius: BorderRadius.circular(20),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+              child: Row(mainAxisSize: MainAxisSize.min, children: [
+                Text('View details',
+                    style: UdoDesign.sans(
+                        size: 10, color: Colors.white.withValues(alpha: 0.82))),
+                const SizedBox(width: 4),
+                Icon(Icons.chevron_right,
+                    size: 16, color: Colors.white.withValues(alpha: 0.82)),
+              ]),
+            ),
+          ),
         ]),
         const SizedBox(height: 12),
         Row(children: [
@@ -11378,14 +12186,16 @@ class _InsuranceTab extends ConsumerWidget {
     );
   }
 
-  Future<void> _uploadDocument(BuildContext context, InsuranceNotifier notifier) async {
+  Future<void> _uploadDocument(
+      BuildContext context, InsuranceNotifier notifier) async {
     final result = await FilePicker.pickFiles(withData: true);
     final picked = result?.files.single;
     if (picked == null || picked.bytes == null || !context.mounted) return;
     final ok = await notifier.uploadDocument(picked.bytes!, picked.name);
     if (!context.mounted) return;
     if (!ok) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Couldn't upload that file. Try again.")));
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text("Couldn't upload that file. Try again.")));
     }
   }
 }
@@ -11757,7 +12567,10 @@ class _InsuranceDocumentsSection extends StatelessWidget {
   final List<Map<String, dynamic>> documents;
   final VoidCallback onUpload;
   final ValueChanged<int> onDelete;
-  const _InsuranceDocumentsSection({required this.documents, required this.onUpload, required this.onDelete});
+  const _InsuranceDocumentsSection(
+      {required this.documents,
+      required this.onUpload,
+      required this.onDelete});
 
   String _fileSize(dynamic bytes) {
     final size = (bytes as num?)?.toInt() ?? 0;
@@ -11772,7 +12585,9 @@ class _InsuranceDocumentsSection extends StatelessWidget {
       padding: const EdgeInsets.all(14),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
-          Expanded(child: Text('Documents', style: UdoDesign.sans(size: 15, weight: FontWeight.w800))),
+          Expanded(
+              child: Text('Documents',
+                  style: UdoDesign.sans(size: 15, weight: FontWeight.w800))),
           TextButton.icon(
             onPressed: onUpload,
             icon: const Icon(Icons.add, size: 16),
@@ -11782,7 +12597,9 @@ class _InsuranceDocumentsSection extends StatelessWidget {
         if (documents.isEmpty)
           Padding(
             padding: const EdgeInsets.symmetric(vertical: 8),
-            child: Text('No documents added yet — policy scans, claim forms, receipts.', style: UdoDesign.sans(size: 12, color: UdoDesign.muted)),
+            child: Text(
+                'No documents added yet — policy scans, claim forms, receipts.',
+                style: UdoDesign.sans(size: 12, color: UdoDesign.muted)),
           )
         else
           for (final doc in documents)
@@ -11792,20 +12609,32 @@ class _InsuranceDocumentsSection extends StatelessWidget {
                 Container(
                   width: 34,
                   height: 34,
-                  decoration: BoxDecoration(color: UdoDesign.blue.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(10)),
-                  child: const Icon(Icons.description_outlined, size: 16, color: UdoDesign.blue),
+                  decoration: BoxDecoration(
+                      color: UdoDesign.blue.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(10)),
+                  child: const Icon(Icons.description_outlined,
+                      size: 16, color: UdoDesign.blue),
                 ),
                 const SizedBox(width: 10),
                 Expanded(
-                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    Text(doc['name'] as String? ?? 'Document', maxLines: 1, overflow: TextOverflow.ellipsis, style: UdoDesign.sans(size: 13, weight: FontWeight.w600)),
-                    if (_fileSize(doc['file_size_bytes']).isNotEmpty)
-                      Text(_fileSize(doc['file_size_bytes']), style: UdoDesign.sans(size: 11, color: UdoDesign.muted)),
-                  ]),
+                  child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(doc['name'] as String? ?? 'Document',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: UdoDesign.sans(
+                                size: 13, weight: FontWeight.w600)),
+                        if (_fileSize(doc['file_size_bytes']).isNotEmpty)
+                          Text(_fileSize(doc['file_size_bytes']),
+                              style: UdoDesign.sans(
+                                  size: 11, color: UdoDesign.muted)),
+                      ]),
                 ),
                 GestureDetector(
                   onTap: () => onDelete(doc['id'] as int),
-                  child: const Icon(Icons.delete_outline, size: 18, color: AppTheme.udoTextSecondary),
+                  child: const Icon(Icons.delete_outline,
+                      size: 18, color: AppTheme.udoTextSecondary),
                 ),
               ]),
             ),
@@ -11887,18 +12716,16 @@ class _InsurancePolicyCard extends StatelessWidget {
         ]),
         const SizedBox(height: 10),
         if (coverage != null)
-          _ModalInfoRow(
-              'Coverage', '\$${_asDouble(coverage).toStringAsFixed(0)}'),
+          _ModalInfoRow('Coverage', _money(_asDouble(coverage))),
         if (policy['premium_amount'] != null)
-          _ModalInfoRow('Premium',
-              '\$${_asDouble(policy['premium_amount']).toStringAsFixed(0)}'),
+          _ModalInfoRow('Premium', _money(_asDouble(policy['premium_amount']))),
         if (policy['deductible_amount'] != null)
-          _ModalInfoRow('Deductible',
-              '\$${_asDouble(policy['deductible_amount']).toStringAsFixed(0)}'),
+          _ModalInfoRow(
+              'Deductible', _money(_asDouble(policy['deductible_amount']))),
         if (policy['policy_number'] != null)
           _ModalInfoRow('Policy number', policy['policy_number'] as String),
         if (policy['end_date'] != null)
-          _ModalInfoRow('Expires', policy['end_date'] as String),
+          _ModalInfoRow('Expires', udo_dates.formatApiDate(policy['end_date'])),
         if (contact.isNotEmpty) _ModalInfoRow('Claims contact', contact),
         const SizedBox(height: 6),
         Text('Tap to edit policy details',
@@ -11998,7 +12825,10 @@ class _AddInsuranceSheetState extends State<_AddInsuranceSheet> {
           maxChildSize: 0.95,
           builder: (_, ctrl) => Column(children: [
             Container(
-              decoration: const BoxDecoration(color: Colors.white, borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+              decoration: const BoxDecoration(
+                  color: Colors.white,
+                  borderRadius:
+                      BorderRadius.vertical(top: Radius.circular(24))),
               padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
               child: Row(children: [
                 Expanded(
@@ -12007,8 +12837,7 @@ class _AddInsuranceSheetState extends State<_AddInsuranceSheet> {
                             ? 'Edit insurance policy'
                             : 'Add insurance policy',
                         style: const TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.w600))),
+                            fontSize: 18, fontWeight: FontWeight.w600))),
                 IconButton(
                     onPressed: () => Navigator.pop(context),
                     icon: const Icon(Icons.close),
@@ -12199,7 +13028,8 @@ class _AddInsuranceSheetState extends State<_AddInsuranceSheet> {
 
 class _DocumentsTab extends ConsumerWidget {
   final PlanState state;
-  const _DocumentsTab({required this.state});
+  final ValueChanged<int> onTabJump;
+  const _DocumentsTab({required this.state, required this.onTabJump});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -12227,19 +13057,50 @@ class _DocumentsTab extends ConsumerWidget {
         documents.isEmpty ? 0.0 : (verified / documents.length).clamp(0.0, 1.0);
     final folders = _buildVaultFolders(documents);
 
-    void showUnavailable(String action) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text('$action will connect to the Documents backend next.'),
-      ));
+    Future<void> openDocument(_VaultDocument doc) async {
+      if (doc.url != null) {
+        final uri = Uri.parse(_resolveDocumentUrl(doc.url));
+        if (await canLaunchUrl(uri)) {
+          await launchUrl(uri, mode: LaunchMode.externalApplication);
+        } else if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text("Couldn't open this document.")));
+        }
+      } else if (doc.jumpToTab != null) {
+        onTabJump(doc.jumpToTab!);
+      }
     }
 
-    Future<void> uploadDocument() async {
+    Future<void> uploadDocument({String folder = 'Uploads'}) async {
       final result = await FilePicker.pickFiles(withData: true);
       final picked = result?.files.single;
       if (picked == null || picked.bytes == null || !context.mounted) return;
-      final ok = await ref.read(documentsVaultProvider.notifier).upload(picked.bytes!, picked.name);
+      final ok = await ref
+          .read(documentsVaultProvider.notifier)
+          .upload(picked.bytes!, picked.name, folder: folder);
       if (!context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(ok ? 'Document uploaded.' : "Couldn't upload that file. Try again.")));
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(ok
+              ? 'Document uploaded.'
+              : "Couldn't upload that file. Try again.")));
+    }
+
+    void openVaultBrowser({String? folder, bool autoFocusSearch = false}) {
+      showModalBottomSheet(
+        context: context,
+        isScrollControlled: true,
+        backgroundColor: Colors.white,
+        shape: const RoundedRectangleBorder(
+            borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+        builder: (_) => _VaultBrowserSheet(
+          documents: documents,
+          folders: folders,
+          initialFolder: folder,
+          autoFocusSearch: autoFocusSearch,
+          onOpenDocument: openDocument,
+          onUpload: (targetFolder) => uploadDocument(folder: targetFolder),
+        ),
+      );
     }
 
     return ListView(
@@ -12252,7 +13113,7 @@ class _DocumentsTab extends ConsumerWidget {
           missing: missing,
           recent: recent.length,
           secureScore: secureScore,
-          onOpenVault: () => showUnavailable('Open Vault'),
+          onOpenVault: () => openVaultBrowser(),
           onUpload: uploadDocument,
         ),
         const SizedBox(height: 16),
@@ -12274,9 +13135,13 @@ class _DocumentsTab extends ConsumerWidget {
         UdoSectionHeader(
           title: 'Document Folders',
           action: 'Search',
-          onAction: () => showUnavailable('Document search'),
+          onAction: () => openVaultBrowser(autoFocusSearch: true),
         ),
-        for (final folder in folders) _VaultFolderCard(folder: folder),
+        for (final folder in folders)
+          _VaultFolderCard(
+            folder: folder,
+            onTap: () => openVaultBrowser(folder: folder.title),
+          ),
         const SizedBox(height: 18),
         UdoSectionHeader(title: 'Recent Uploads'),
         if (recent.isEmpty)
@@ -12288,10 +13153,16 @@ class _DocumentsTab extends ConsumerWidget {
             ),
           )
         else
-          for (final doc in recent) _VaultDocumentRow(document: doc),
+          for (final doc in recent)
+            _VaultDocumentRow(document: doc, onTap: () => openDocument(doc)),
       ],
     );
   }
+}
+
+String _resolveDocumentUrl(String? url) {
+  if (url == null || url.isEmpty) return '';
+  return url.startsWith('http') ? url : '${AppConstants.apiOrigin}$url';
 }
 
 enum _VaultDocStatus { verified, signature, missing, generated }
@@ -12303,6 +13174,15 @@ class _VaultDocument {
   final IconData icon;
   final _VaultDocStatus status;
   final double amount;
+  // Real uploads (from the Documents backend) carry an id + url and open
+  // directly. Everything else here is a *derived* entry describing a real
+  // record that lives in another module (a vendor contract, a budget
+  // invoice, ...) — there's no file behind it, so tapping it jumps to the
+  // Plan tab where that record actually lives instead of pretending to open
+  // a document that doesn't exist.
+  final int? uploadId;
+  final String? url;
+  final int? jumpToTab;
 
   const _VaultDocument({
     required this.title,
@@ -12311,6 +13191,9 @@ class _VaultDocument {
     required this.icon,
     required this.status,
     this.amount = 0,
+    this.uploadId,
+    this.url,
+    this.jumpToTab,
   });
 
   bool get verified =>
@@ -12348,6 +13231,8 @@ List<_VaultDocument> _buildVaultDocuments({
       source: 'Uploads',
       icon: Icons.upload_file_outlined,
       status: _VaultDocStatus.verified,
+      uploadId: upload['id'] as int?,
+      url: upload['url'] as String?,
     ));
   }
 
@@ -12365,6 +13250,7 @@ List<_VaultDocument> _buildVaultDocuments({
       icon: Icons.description_outlined,
       status: signed ? _VaultDocStatus.verified : _VaultDocStatus.signature,
       amount: _asDouble(vendor['estimated_cost']),
+      jumpToTab: 4,
     ));
   }
 
@@ -12382,6 +13268,7 @@ List<_VaultDocument> _buildVaultDocuments({
       icon: Icons.receipt_long_outlined,
       status: paid ? _VaultDocStatus.verified : _VaultDocStatus.missing,
       amount: _asDouble(item['amount']),
+      jumpToTab: 7,
     ));
   }
 
@@ -12395,6 +13282,7 @@ List<_VaultDocument> _buildVaultDocuments({
           ? _VaultDocStatus.missing
           : _VaultDocStatus.verified,
       amount: _asDouble(policy['coverage_amount']),
+      jumpToTab: 12,
     ));
   }
 
@@ -12408,6 +13296,7 @@ List<_VaultDocument> _buildVaultDocuments({
       icon: Icons.flight_takeoff_outlined,
       status: _VaultDocStatus.verified,
       amount: _asDouble(item['cost']),
+      jumpToTab: 11,
     ));
   }
 
@@ -12418,6 +13307,7 @@ List<_VaultDocument> _buildVaultDocuments({
       source: 'Wedding Party',
       icon: Icons.attach_file_outlined,
       status: _VaultDocStatus.verified,
+      jumpToTab: 10,
     ));
   }
 
@@ -12429,6 +13319,7 @@ List<_VaultDocument> _buildVaultDocuments({
       icon: Icons.card_giftcard_outlined,
       status: _VaultDocStatus.generated,
       amount: _asDouble(item['price']),
+      jumpToTab: 6,
     ));
   }
 
@@ -12439,6 +13330,7 @@ List<_VaultDocument> _buildVaultDocuments({
       source: 'Timeline',
       icon: Icons.timeline_outlined,
       status: _VaultDocStatus.generated,
+      jumpToTab: 5,
     ));
   }
 
@@ -12708,7 +13600,8 @@ class _DocumentsInsightCard extends StatelessWidget {
 
 class _VaultFolderCard extends StatelessWidget {
   final _VaultFolder folder;
-  const _VaultFolderCard({required this.folder});
+  final VoidCallback onTap;
+  const _VaultFolderCard({required this.folder, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
@@ -12718,6 +13611,7 @@ class _VaultFolderCard extends StatelessWidget {
         : (verified / folder.documents.length).clamp(0.0, 1.0);
 
     return UdoCard(
+      onTap: onTap,
       margin: const EdgeInsets.only(bottom: 10),
       padding: const EdgeInsets.all(14),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -12761,7 +13655,8 @@ class _VaultFolderCard extends StatelessWidget {
 
 class _VaultDocumentRow extends StatelessWidget {
   final _VaultDocument document;
-  const _VaultDocumentRow({required this.document});
+  final VoidCallback? onTap;
+  const _VaultDocumentRow({required this.document, this.onTap});
 
   @override
   Widget build(BuildContext context) {
@@ -12779,6 +13674,7 @@ class _VaultDocumentRow extends StatelessWidget {
     };
 
     return UdoCard(
+      onTap: onTap,
       margin: const EdgeInsets.only(bottom: 10),
       padding: const EdgeInsets.all(14),
       child: Row(children: [
@@ -12792,13 +13688,179 @@ class _VaultDocumentRow extends StatelessWidget {
               overflow: TextOverflow.ellipsis,
               style: UdoDesign.sans(size: 14.5, weight: FontWeight.w800)),
           const SizedBox(height: 3),
-          Text('${document.source} · ${document.folder}',
+          Text(
+              document.url != null
+                  ? '${document.source} · ${document.folder}'
+                  : '${document.source} · ${document.folder} · tap to view in ${document.source}',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
               style: UdoDesign.sans(size: 11, color: UdoDesign.muted)),
         ])),
+        const SizedBox(width: 8),
         UdoBadge(label: label, color: color),
+        if (onTap != null) ...[
+          const SizedBox(width: 6),
+          const Icon(Icons.chevron_right, size: 18, color: UdoDesign.muted),
+        ],
       ]),
     );
   }
+}
+
+/// Backs "Open Vault", "Document search", and every folder tap — one real
+/// browser (search + folder filter + upload-into-this-folder) instead of
+/// three separate half-built surfaces.
+class _VaultBrowserSheet extends StatefulWidget {
+  final List<_VaultDocument> documents;
+  final List<_VaultFolder> folders;
+  final String? initialFolder;
+  final bool autoFocusSearch;
+  final Future<void> Function(_VaultDocument document) onOpenDocument;
+  final Future<void> Function(String folder) onUpload;
+
+  const _VaultBrowserSheet({
+    required this.documents,
+    required this.folders,
+    this.initialFolder,
+    this.autoFocusSearch = false,
+    required this.onOpenDocument,
+    required this.onUpload,
+  });
+
+  @override
+  State<_VaultBrowserSheet> createState() => _VaultBrowserSheetState();
+}
+
+class _VaultBrowserSheetState extends State<_VaultBrowserSheet> {
+  late String? _folderFilter = widget.initialFolder;
+  final _query = TextEditingController();
+  bool _uploading = false;
+
+  @override
+  void dispose() {
+    _query.dispose();
+    super.dispose();
+  }
+
+  List<_VaultDocument> get _filtered {
+    final q = _query.text.trim().toLowerCase();
+    return widget.documents.where((doc) {
+      final matchesFolder =
+          _folderFilter == null || doc.folder == _folderFilter;
+      final matchesQuery = q.isEmpty ||
+          doc.title.toLowerCase().contains(q) ||
+          doc.source.toLowerCase().contains(q);
+      return matchesFolder && matchesQuery;
+    }).toList();
+  }
+
+  Future<void> _upload() async {
+    setState(() => _uploading = true);
+    await widget.onUpload(_folderFilter ?? 'Uploads');
+    if (mounted) setState(() => _uploading = false);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final results = _filtered;
+    return DraggableScrollableSheet(
+      initialChildSize: 0.85,
+      minChildSize: 0.5,
+      maxChildSize: 0.95,
+      expand: false,
+      builder: (context, scrollController) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
+          child:
+              Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Row(children: [
+              Expanded(
+                  child: Text(_folderFilter ?? 'Wedding Vault',
+                      style:
+                          UdoDesign.sans(size: 18, weight: FontWeight.w800))),
+              IconButton(
+                  onPressed: () => Navigator.pop(context),
+                  icon: const Icon(Icons.close)),
+            ]),
+            const SizedBox(height: 8),
+            TextField(
+              controller: _query,
+              autofocus: widget.autoFocusSearch,
+              onChanged: (_) => setState(() {}),
+              decoration: InputDecoration(
+                hintText: 'Search documents...',
+                prefixIcon: const Icon(Icons.search, size: 20),
+                filled: true,
+                fillColor: UdoDesign.card,
+                border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(14),
+                    borderSide: BorderSide.none),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 14),
+              ),
+            ),
+            const SizedBox(height: 10),
+            SizedBox(
+              height: 34,
+              child: ListView(scrollDirection: Axis.horizontal, children: [
+                _folderChip('All', _folderFilter == null,
+                    () => setState(() => _folderFilter = null)),
+                for (final folder in widget.folders)
+                  _folderChip(folder.title, _folderFilter == folder.title,
+                      () => setState(() => _folderFilter = folder.title)),
+              ]),
+            ),
+            const SizedBox(height: 12),
+            OutlinedButton.icon(
+              onPressed: _uploading ? null : _upload,
+              icon: _uploading
+                  ? const SizedBox(
+                      width: 14,
+                      height: 14,
+                      child: CircularProgressIndicator(strokeWidth: 2))
+                  : const Icon(Icons.upload_file_outlined, size: 16),
+              label: Text(_uploading
+                  ? 'Uploading...'
+                  : (_folderFilter != null
+                      ? 'Add document to $_folderFilter'
+                      : 'Add document')),
+              style: OutlinedButton.styleFrom(
+                  minimumSize: const Size(double.infinity, 44)),
+            ),
+            const SizedBox(height: 12),
+            Expanded(
+              child: results.isEmpty
+                  ? Center(
+                      child: Text('No documents found.',
+                          style:
+                              UdoDesign.sans(size: 13, color: UdoDesign.muted)))
+                  : ListView.builder(
+                      controller: scrollController,
+                      itemCount: results.length,
+                      itemBuilder: (context, index) => _VaultDocumentRow(
+                        document: results[index],
+                        onTap: () {
+                          Navigator.pop(context);
+                          widget.onOpenDocument(results[index]);
+                        },
+                      ),
+                    ),
+            ),
+          ]),
+        ),
+      ),
+    );
+  }
+
+  Widget _folderChip(String label, bool selected, VoidCallback onTap) =>
+      Padding(
+        padding: const EdgeInsets.only(right: 8),
+        child: ChoiceChip(
+          label: Text(label, style: const TextStyle(fontSize: 12)),
+          selected: selected,
+          onSelected: (_) => onTap(),
+          selectedColor: UdoDesign.text.withValues(alpha: 0.12),
+        ),
+      );
 }
 
 const _kCourseTypeLabels = {
@@ -13026,7 +14088,7 @@ const _serviceCategoryOptions = [
   'Bar',
   'Coffee & Tea',
   'Dessert',
-  'Guest Experience',
+  'Guest Portal',
   'Rentals',
   'Logistics',
   'Entertainment',
@@ -13105,7 +14167,7 @@ const _serviceTypeOptionsByCategory = {
     'Ice Cream Station',
     'Candy Bar',
   ],
-  'Guest Experience': [
+  'Guest Portal': [
     'Champagne Greeting',
     'Table Drink Service',
     'VIP Service',
@@ -13424,7 +14486,8 @@ class _FoodTab extends ConsumerWidget {
       isScrollControlled: true,
       shape: const RoundedRectangleBorder(
           borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
-      builder: (_) => _DietaryOverviewSheet(guests: guests),
+      builder: (_) =>
+          _DietaryOverviewSheet(guests: guests, launcherContext: context),
     );
   }
 
@@ -14545,8 +15608,8 @@ class _AddCourseSheetState extends State<_AddCourseSheet> {
       _saving = true;
       _error = null;
     });
-    final courseId =
-        await widget.notifier.createCourse(name: _name.text.trim(), type: _type);
+    final courseId = await widget.notifier
+        .createCourse(name: _name.text.trim(), type: _type);
     if (courseId == null) {
       if (!mounted) return;
       setState(() {
@@ -14599,7 +15662,8 @@ class _AddCourseSheetState extends State<_AddCourseSheet> {
             Wrap(spacing: 8, runSpacing: 8, children: [
               for (final entry in _kCourseTypeLabels.entries)
                 ChoiceChip(
-                  label: Text(entry.value, style: const TextStyle(fontSize: 12)),
+                  label:
+                      Text(entry.value, style: const TextStyle(fontSize: 12)),
                   selected: _type == entry.key,
                   onSelected: (_) => setState(() => _type = entry.key),
                   selectedColor: AppTheme.udoGreen,
@@ -14658,47 +15722,52 @@ class _AddCourseSheetState extends State<_AddCourseSheet> {
             ]),
             const SizedBox(height: 4),
             const Text('Leave a row blank to skip it — you can add more later.',
-                style: TextStyle(fontSize: 12, color: AppTheme.udoTextSecondary)),
+                style:
+                    TextStyle(fontSize: 12, color: AppTheme.udoTextSecondary)),
             const SizedBox(height: 14),
             for (var i = 0; i < _rows.length; i++)
               Padding(
                 padding: const EdgeInsets.only(bottom: 12),
-                child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Expanded(
-                    child: Column(children: [
-                      _RecipeSearchField(
-                        controller: _rows[i].name,
-                        notifier: widget.notifier,
-                        onRecipeSelected: (recipe) => setState(() {
-                          _rows[i].dietaryTags = _dietaryTagsFromRecipe(recipe);
-                          _rows[i].metadata = _metadataFromRecipe(recipe);
-                          _rows[i].imageUrl = recipe['image'] as String?;
-                        }),
-                      ),
-                      if (_rows[i].imageUrl != null) ...[
-                        const SizedBox(height: 8),
-                        Align(
-                          alignment: Alignment.centerLeft,
-                          child: ClipRRect(
-                            borderRadius: BorderRadius.circular(8),
-                            child: Image.network(_rows[i].imageUrl!,
-                                width: 56, height: 56, fit: BoxFit.cover),
+                child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: Column(children: [
+                          _RecipeSearchField(
+                            controller: _rows[i].name,
+                            notifier: widget.notifier,
+                            onRecipeSelected: (recipe) => setState(() {
+                              _rows[i].dietaryTags =
+                                  _dietaryTagsFromRecipe(recipe);
+                              _rows[i].metadata = _metadataFromRecipe(recipe);
+                              _rows[i].imageUrl = recipe['image'] as String?;
+                            }),
                           ),
-                        ),
-                      ],
-                      const SizedBox(height: 8),
-                      TextField(
-                          controller: _rows[i].description,
-                          maxLines: 2,
-                          decoration: const InputDecoration(
-                              labelText: 'Description (optional)')),
+                          if (_rows[i].imageUrl != null) ...[
+                            const SizedBox(height: 8),
+                            Align(
+                              alignment: Alignment.centerLeft,
+                              child: ClipRRect(
+                                borderRadius: BorderRadius.circular(8),
+                                child: Image.network(_rows[i].imageUrl!,
+                                    width: 56, height: 56, fit: BoxFit.cover),
+                              ),
+                            ),
+                          ],
+                          const SizedBox(height: 8),
+                          TextField(
+                              controller: _rows[i].description,
+                              maxLines: 2,
+                              decoration: const InputDecoration(
+                                  labelText: 'Description (optional)')),
+                        ]),
+                      ),
+                      IconButton(
+                        onPressed:
+                            _rows.length > 1 ? () => _removeRow(i) : null,
+                        icon: const Icon(Icons.remove_circle_outline),
+                      ),
                     ]),
-                  ),
-                  IconButton(
-                    onPressed: _rows.length > 1 ? () => _removeRow(i) : null,
-                    icon: const Icon(Icons.remove_circle_outline),
-                  ),
-                ]),
               ),
             TextButton.icon(
               onPressed: _addRow,
@@ -14993,7 +16062,8 @@ class _AddDrinkSheetState extends State<_AddDrinkSheet> {
                   ]),
                   const SizedBox(height: 16),
                   const Text('Drink category',
-                      style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+                      style:
+                          TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
                   const SizedBox(height: 6),
                   DropdownButtonFormField<String>(
                     initialValue: _category,
@@ -15010,7 +16080,8 @@ class _AddDrinkSheetState extends State<_AddDrinkSheet> {
                   ),
                   const SizedBox(height: 14),
                   const Text('Beverage type',
-                      style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+                      style:
+                          TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
                   const SizedBox(height: 6),
                   DropdownButtonFormField<String>(
                     initialValue: _beverageType,
@@ -15027,7 +16098,8 @@ class _AddDrinkSheetState extends State<_AddDrinkSheet> {
                   ),
                   const SizedBox(height: 14),
                   const Text('Service type',
-                      style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+                      style:
+                          TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
                   const SizedBox(height: 6),
                   DropdownButtonFormField<String>(
                     initialValue: _serviceType,
@@ -15054,8 +16126,9 @@ class _AddDrinkSheetState extends State<_AddDrinkSheet> {
                             const SizedBox(height: 6),
                             TextField(
                                 controller: _qty,
-                                keyboardType: const TextInputType.numberWithOptions(
-                                    decimal: true),
+                                keyboardType:
+                                    const TextInputType.numberWithOptions(
+                                        decimal: true),
                                 decoration: _decoration('e.g. 100')),
                           ]),
                     ),
@@ -15087,7 +16160,8 @@ class _AddDrinkSheetState extends State<_AddDrinkSheet> {
                   ]),
                   const SizedBox(height: 14),
                   const Text('Notes (optional)',
-                      style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+                      style:
+                          TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
                   const SizedBox(height: 6),
                   TextField(
                       controller: _notes,
@@ -15095,7 +16169,8 @@ class _AddDrinkSheetState extends State<_AddDrinkSheet> {
                       decoration: _decoration('Add any notes...')),
                   const SizedBox(height: 14),
                   const Text('Tags (optional)',
-                      style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+                      style:
+                          TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
                   const SizedBox(height: 8),
                   Wrap(
                     spacing: 8,
@@ -15103,7 +16178,8 @@ class _AddDrinkSheetState extends State<_AddDrinkSheet> {
                     children: [
                       for (final tag in _drinkTagOptions)
                         FilterChip(
-                          label: Text(tag, style: const TextStyle(fontSize: 12)),
+                          label:
+                              Text(tag, style: const TextStyle(fontSize: 12)),
                           selected: _tags.contains(tag),
                           onSelected: (selected) => setState(() {
                             if (selected) {
@@ -15263,7 +16339,8 @@ class _AddServiceSheetState extends State<_AddServiceSheet> {
                 ]),
                 const SizedBox(height: 16),
                 const Text('Event category',
-                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+                    style:
+                        TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
                 const SizedBox(height: 6),
                 DropdownButtonFormField<String>(
                   initialValue: _eventCategory,
@@ -15287,8 +16364,7 @@ class _AddServiceSheetState extends State<_AddServiceSheet> {
                   const SizedBox(height: 10),
                   TextField(
                       controller: _customCategory,
-                      decoration:
-                          _decoration('e.g. Guest Welcome Bags')),
+                      decoration: _decoration('e.g. Guest Welcome Bags')),
                 ],
                 const SizedBox(height: 14),
                 Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -15309,8 +16385,8 @@ class _AddServiceSheetState extends State<_AddServiceSheet> {
                             items: _serviceCategoryOptions
                                 .map((c) => DropdownMenuItem(
                                     value: c,
-                                    child:
-                                        Text(c, overflow: TextOverflow.ellipsis)))
+                                    child: Text(c,
+                                        overflow: TextOverflow.ellipsis)))
                                 .toList(),
                             onChanged: (v) => setState(() {
                               _serviceCategory = v;
@@ -15341,8 +16417,8 @@ class _AddServiceSheetState extends State<_AddServiceSheet> {
                             items: serviceTypeChoices
                                 .map((t) => DropdownMenuItem(
                                     value: t,
-                                    child:
-                                        Text(t, overflow: TextOverflow.ellipsis)))
+                                    child: Text(t,
+                                        overflow: TextOverflow.ellipsis)))
                                 .toList(),
                             onChanged: _serviceCategory == null
                                 ? null
@@ -15369,12 +16445,15 @@ class _AddServiceSheetState extends State<_AddServiceSheet> {
                                 firstDate: DateTime(2020),
                                 lastDate: DateTime(2035),
                               );
-                              if (picked != null) setState(() => _date = picked);
+                              if (picked != null)
+                                setState(() => _date = picked);
                             },
                             icon: const Icon(Icons.calendar_month_outlined,
                                 size: 16),
                             label: Text(
-                                _date == null ? 'Select date' : _formatDate(_date!),
+                                _date == null
+                                    ? 'Select date'
+                                    : _formatDate(_date!),
                                 overflow: TextOverflow.ellipsis),
                           ),
                         ]),
@@ -15422,7 +16501,8 @@ class _AddServiceSheetState extends State<_AddServiceSheet> {
                                 context: context,
                                 initialTime: _endTime ?? TimeOfDay.now(),
                               );
-                              if (picked != null) setState(() => _endTime = picked);
+                              if (picked != null)
+                                setState(() => _endTime = picked);
                             },
                             icon: const Icon(Icons.schedule_outlined, size: 16),
                             label: Text(
@@ -15436,14 +16516,16 @@ class _AddServiceSheetState extends State<_AddServiceSheet> {
                 ]),
                 const SizedBox(height: 14),
                 const Text('Location',
-                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+                    style:
+                        TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
                 const SizedBox(height: 6),
                 TextField(
                     controller: _location,
                     decoration: _decoration('Enter location')),
                 const SizedBox(height: 14),
                 const Text('Description (optional)',
-                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+                    style:
+                        TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
                 const SizedBox(height: 6),
                 TextField(
                     controller: _description,
@@ -15451,7 +16533,8 @@ class _AddServiceSheetState extends State<_AddServiceSheet> {
                     decoration: _decoration('Add service details...')),
                 const SizedBox(height: 14),
                 const Text('Assigned to (optional)',
-                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+                    style:
+                        TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
                 const SizedBox(height: 6),
                 DropdownButtonFormField<String>(
                   initialValue: _assignedTo,
@@ -15461,13 +16544,15 @@ class _AddServiceSheetState extends State<_AddServiceSheet> {
                   hint: const Text('Select person or team'),
                   items: _serviceAssignedToOptions
                       .map((a) => DropdownMenuItem(
-                          value: a, child: Text(a, overflow: TextOverflow.ellipsis)))
+                          value: a,
+                          child: Text(a, overflow: TextOverflow.ellipsis)))
                       .toList(),
                   onChanged: (v) => setState(() => _assignedTo = v),
                 ),
                 const SizedBox(height: 14),
                 const Text('Notes (optional)',
-                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+                    style:
+                        TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
                 const SizedBox(height: 6),
                 TextField(
                     controller: _notes,
@@ -15653,31 +16738,29 @@ class _EditOptionSheetState extends State<_EditOptionSheet> {
 
 class _DietaryOverviewSheet extends StatelessWidget {
   final List<Map<String, dynamic>> guests;
-  const _DietaryOverviewSheet({required this.guests});
+  final BuildContext launcherContext;
+  const _DietaryOverviewSheet({
+    required this.guests,
+    required this.launcherContext,
+  });
 
-  void _assignDietary(BuildContext context) {
-    showModalBottomSheet(
+  Future<void> _assignDietary(BuildContext context) async {
+    final guestId = await showModalBottomSheet<int>(
       context: context,
       isScrollControlled: true,
       shape: const RoundedRectangleBorder(
           borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
-      builder: (_) => _GuestPickerSheet(
-        guests: guests,
-        onPicked: (guestId) {
-          final guest = guests.firstWhere((g) => g['id'] == guestId,
-              orElse: () => {'id': guestId});
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            if (!context.mounted) return;
-            showModalBottomSheet(
-              context: context,
-              isScrollControlled: true,
-              shape: const RoundedRectangleBorder(
-                  borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
-              builder: (_) => _DietaryTagPickerSheet(guest: guest),
-            );
-          });
-        },
-      ),
+      builder: (_) => _GuestPickerSheet(guests: guests),
+    );
+    if (guestId == null || !context.mounted) return;
+    final guest = guests.firstWhere((g) => _asIntId(g['id']) == guestId,
+        orElse: () => {'id': guestId});
+    await showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+      builder: (_) => _DietaryTagPickerSheet(guest: guest),
     );
   }
 
@@ -15693,15 +16776,16 @@ class _DietaryOverviewSheet extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const Text('Dietary needs',
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
+                    style:
+                        TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
                 const SizedBox(height: 16),
                 SizedBox(
                   width: double.infinity,
                   child: ElevatedButton.icon(
                     onPressed: () {
                       Navigator.pop(context);
-                      WidgetsBinding.instance
-                          .addPostFrameCallback((_) => _assignDietary(context));
+                      WidgetsBinding.instance.addPostFrameCallback(
+                          (_) => _assignDietary(launcherContext));
                     },
                     icon: const Icon(Icons.add),
                     label: const Text('Assign dietary needs'),
@@ -15713,7 +16797,8 @@ class _DietaryOverviewSheet extends StatelessWidget {
                 ),
                 const SizedBox(height: 20),
                 const Text('Current breakdown',
-                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+                    style:
+                        TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
                 const SizedBox(height: 10),
                 if (tally.isEmpty)
                   const Text('No dietary needs recorded yet.',
@@ -15821,7 +16906,14 @@ class _DietaryTagPickerSheetState
         tags.add(tag);
       }
     }
-    final guestId = widget.guest['id'] as int;
+    final guestId = _asIntId(widget.guest['id']);
+    if (guestId == null) {
+      setState(() {
+        _saving = false;
+        _error = "Couldn't identify this guest. Try opening the guest again.";
+      });
+      return;
+    }
     final ok = await ref
         .read(guestsProvider.notifier)
         .updateGuest(guestId, {'dietary_tags': tags.toList()});
@@ -15857,8 +16949,7 @@ class _DietaryTagPickerSheetState
                 selected: option == 'Other (Specify)'
                     ? _selected.any((t) => t.startsWith(otherPrefix))
                     : _selected.contains(option),
-                onSelected: (_) =>
-                    _toggle(option, otherPrefix: otherPrefix),
+                onSelected: (_) => _toggle(option, otherPrefix: otherPrefix),
                 selectedColor: AppTheme.udoGreen,
                 labelStyle: TextStyle(
                     color: (option == 'Other (Specify)'
@@ -15896,8 +16987,7 @@ class _DietaryTagPickerSheetState
                             color: AppTheme.udoBorder,
                             borderRadius: BorderRadius.circular(2)))),
                 const SizedBox(height: 16),
-                Text(
-                    'Dietary needs for ${name.isEmpty ? 'this guest' : name}',
+                Text('Dietary needs for ${name.isEmpty ? 'this guest' : name}',
                     style: const TextStyle(
                         fontFamily: 'Playfair',
                         fontSize: 18,
@@ -15911,11 +17001,11 @@ class _DietaryTagPickerSheetState
                   TextField(
                       controller: _allergyOtherCtrl,
                       decoration: const InputDecoration(
-                          labelText: 'Specify allergy',
-                          hintText: 'e.g. Kiwi')),
+                          labelText: 'Specify allergy', hintText: 'e.g. Kiwi')),
                 ],
                 const SizedBox(height: 16),
-                _buildSection('Dietary Requirements', _dietaryRequirementOptions,
+                _buildSection(
+                    'Dietary Requirements', _dietaryRequirementOptions,
                     otherPrefix: 'Other (Dietary):'),
                 if (_isOtherDietarySelected()) ...[
                   const SizedBox(height: 10),
@@ -15958,8 +17048,8 @@ class _DietaryTagPickerSheetState
 
 class _GuestPickerSheet extends StatefulWidget {
   final List<Map<String, dynamic>> guests;
-  final void Function(int guestId) onPicked;
-  const _GuestPickerSheet({required this.guests, required this.onPicked});
+  final void Function(int guestId)? onPicked;
+  const _GuestPickerSheet({required this.guests, this.onPicked});
   @override
   State<_GuestPickerSheet> createState() => _GuestPickerSheetState();
 }
@@ -16015,8 +17105,10 @@ class _GuestPickerSheetState extends State<_GuestPickerSheet> {
                           return ListTile(
                             title: Text(name.isEmpty ? 'Guest' : name),
                             onTap: () {
-                              widget.onPicked(g['id'] as int);
-                              Navigator.pop(context);
+                              final guestId = _asIntId(g['id']);
+                              if (guestId == null) return;
+                              widget.onPicked?.call(guestId);
+                              Navigator.pop(context, guestId);
                             },
                           );
                         },
@@ -16661,8 +17753,9 @@ class _WeekendRedesignEventCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final title = (event['title'] ?? 'Weekend event').toString();
-    final date = (event['event_date'] ?? '').toString();
-    final time = (event['start_time'] ?? '').toString();
+    final date = _weekendDisplayDate(event['event_date']);
+    final time =
+        _weekendDisplayTimeRange(event['start_time'], event['end_time']);
     final location = (event['location'] ?? '').toString();
     final audience = _humanizeStatus(event['audience'] as String?) ?? 'Guests';
     final status = _humanizeStatus(event['status'] as String?) ?? 'Planned';
@@ -16723,6 +17816,22 @@ class _WeekendRedesignEventCard extends StatelessWidget {
       ]),
     );
   }
+}
+
+String _weekendDisplayDate(dynamic raw) {
+  return udo_dates.formatApiDate(raw);
+}
+
+String _weekendDisplayTime(dynamic raw) {
+  return udo_dates.formatApiTime(raw);
+}
+
+String _weekendDisplayTimeRange(dynamic start, dynamic end) {
+  final startText = _weekendDisplayTime(start);
+  final endText = _weekendDisplayTime(end);
+  if (startText.isEmpty) return endText;
+  if (endText.isEmpty) return startText;
+  return '$startText - $endText';
 }
 
 class _WeekendCommunicationPanel extends StatelessWidget {
@@ -16968,9 +18077,9 @@ class _AddWeekendEventSheetState extends State<_AddWeekendEventSheet> {
                 padding: const EdgeInsets.fromLTRB(20, 24, 20, 20),
                 child: SingleChildScrollView(
                     child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
                       Row(children: [
                         Expanded(
                             child: Text(
@@ -17246,11 +18355,18 @@ class _WeekendSendUpdateSheetState
                     foregroundColor: Colors.white,
                     minimumSize: const Size(double.infinity, 50)),
                 child: _saving
-                    ? const SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: CircularProgressIndicator(
-                            strokeWidth: 2, color: Colors.white))
+                    ? const Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(
+                                  strokeWidth: 2, color: Colors.white)),
+                          SizedBox(width: 10),
+                          Text('Queueing update...'),
+                        ],
+                      )
                     : const Text('Send to all guests'),
               ),
             ),
@@ -17269,7 +18385,12 @@ const _kHoneymoonTypeMeta = {
 };
 
 const _kHoneymoonBudgetCategories = [
-  'Transportation', 'Accommodation', 'Food & Dining', 'Activities', 'Shopping', 'Other',
+  'Transportation',
+  'Accommodation',
+  'Food & Dining',
+  'Activities',
+  'Shopping',
+  'Other',
 ];
 
 const _kHoneymoonCurrencies = ['USD', 'EUR', 'GBP'];
@@ -17278,8 +18399,10 @@ InputDecoration _pickerDropdownDecoration() => InputDecoration(
       filled: true,
       fillColor: AppTheme.udoCardFill,
       contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
-      border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide.none),
-      enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide.none),
+      border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14), borderSide: BorderSide.none),
+      enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14), borderSide: BorderSide.none),
     );
 
 String _honeymoonImageUrl(String? url) {
@@ -17291,8 +18414,10 @@ double _honeymoonProgress(HoneymoonState state) {
   final items = state.items;
   final tasks = state.checklistTasks;
   final ratios = <double>[
-    if (items.isNotEmpty) items.where((i) => i['status'] == 'confirmed').length / items.length,
-    if (tasks.isNotEmpty) tasks.where((t) => t['completed'] == true).length / tasks.length,
+    if (items.isNotEmpty)
+      items.where((i) => i['status'] == 'confirmed').length / items.length,
+    if (tasks.isNotEmpty)
+      tasks.where((t) => t['completed'] == true).length / tasks.length,
   ];
   if (ratios.isEmpty) return 0;
   return ratios.reduce((a, b) => a + b) / ratios.length;
@@ -17307,7 +18432,8 @@ class _HoneymoonTab extends ConsumerWidget {
     final state = ref.watch(honeymoonProvider);
 
     if (state.isLoading) {
-      return const Center(child: CircularProgressIndicator(color: AppTheme.udoGreen));
+      return const Center(
+          child: CircularProgressIndicator(color: AppTheme.udoGreen));
     }
 
     return ListView(
@@ -17317,8 +18443,13 @@ class _HoneymoonTab extends ConsumerWidget {
           Container(
             margin: const EdgeInsets.only(bottom: 12),
             padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(color: UdoDesign.rose.withValues(alpha: 0.08), borderRadius: BorderRadius.circular(14), border: Border.all(color: UdoDesign.rose.withValues(alpha: 0.18))),
-            child: Text("Couldn't load honeymoon planning data.", style: UdoDesign.sans(size: 13, color: UdoDesign.rose)),
+            decoration: BoxDecoration(
+                color: UdoDesign.rose.withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(14),
+                border:
+                    Border.all(color: UdoDesign.rose.withValues(alpha: 0.18))),
+            child: Text("Couldn't load honeymoon planning data.",
+                style: UdoDesign.sans(size: 13, color: UdoDesign.rose)),
           ),
         _HoneymoonHeroCard(state: state),
         const SizedBox(height: 14),
@@ -17343,9 +18474,12 @@ class _HoneymoonHeroCard extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final trip = state.trip;
-    final hasDestination = (trip?['destination'] as String?)?.isNotEmpty == true;
-    final destination = hasDestination ? trip!['destination'] as String : 'Destination not set';
-    final dateLine = (trip?['departure_date'] != null && trip?['return_date'] != null)
+    final hasDestination =
+        (trip?['destination'] as String?)?.isNotEmpty == true;
+    final destination =
+        hasDestination ? trip!['destination'] as String : 'Destination not set';
+    final dateLine = (trip?['departure_date'] != null &&
+            trip?['return_date'] != null)
         ? '${DateFormat('MMM d').format(DateTime.parse(trip!['departure_date'] as String))} - ${DateFormat('MMM d, yyyy').format(DateTime.parse(trip['return_date'] as String))}'
         : 'Dates not selected';
     final progress = _honeymoonProgress(state);
@@ -17359,7 +18493,10 @@ class _HoneymoonHeroCard extends ConsumerWidget {
         if (coverUrl.isNotEmpty)
           ClipRRect(
             borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-            child: Image.network(coverUrl, height: 110, width: double.infinity, fit: BoxFit.cover,
+            child: Image.network(coverUrl,
+                height: 110,
+                width: double.infinity,
+                fit: BoxFit.cover,
                 errorBuilder: (_, __, ___) => const SizedBox.shrink()),
           ),
         Padding(
@@ -17369,26 +18506,46 @@ class _HoneymoonHeroCard extends ConsumerWidget {
               value: progress,
               size: 60,
               color: Colors.white,
-              center: Text('${(progress * 100).round()}%', style: UdoDesign.sans(size: 12, weight: FontWeight.w800, color: Colors.white)),
+              center: Text('${(progress * 100).round()}%',
+                  style: UdoDesign.sans(
+                      size: 12, weight: FontWeight.w800, color: Colors.white)),
             ),
             const SizedBox(width: 14),
-            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(destination, maxLines: 1, overflow: TextOverflow.ellipsis, style: UdoDesign.serif(size: 19, weight: FontWeight.w700, color: Colors.white)),
-              const SizedBox(height: 4),
-              Text(dateLine, style: UdoDesign.sans(size: 12, color: Colors.white.withValues(alpha: 0.85))),
-              if (travelersCount > 0) ...[
-                const SizedBox(height: 2),
-                Text('$travelersCount Traveler${travelersCount == 1 ? '' : 's'}', style: UdoDesign.sans(size: 12, color: Colors.white.withValues(alpha: 0.85))),
-              ],
-            ])),
+            Expanded(
+                child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                  Text(destination,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: UdoDesign.serif(
+                          size: 19,
+                          weight: FontWeight.w700,
+                          color: Colors.white)),
+                  const SizedBox(height: 4),
+                  Text(dateLine,
+                      style: UdoDesign.sans(
+                          size: 12,
+                          color: Colors.white.withValues(alpha: 0.85))),
+                  if (travelersCount > 0) ...[
+                    const SizedBox(height: 2),
+                    Text(
+                        '$travelersCount Traveler${travelersCount == 1 ? '' : 's'}',
+                        style: UdoDesign.sans(
+                            size: 12,
+                            color: Colors.white.withValues(alpha: 0.85))),
+                  ],
+                ])),
             IconButton(
               onPressed: () => _showTripSheet(context, ref),
-              icon: const Icon(Icons.edit_outlined, color: Colors.white, size: 18),
+              icon: const Icon(Icons.edit_outlined,
+                  color: Colors.white, size: 18),
               tooltip: 'Edit trip',
             ),
             IconButton(
               onPressed: () => _pickCoverPhoto(context, ref),
-              icon: const Icon(Icons.add_a_photo_outlined, color: Colors.white, size: 18),
+              icon: const Icon(Icons.add_a_photo_outlined,
+                  color: Colors.white, size: 18),
               tooltip: 'Cover photo',
             ),
           ]),
@@ -17399,9 +18556,12 @@ class _HoneymoonHeroCard extends ConsumerWidget {
             width: double.infinity,
             child: OutlinedButton.icon(
               onPressed: () => _showItinerary(context, state),
-              icon: const Icon(Icons.arrow_forward, size: 16, color: Colors.white),
-              label: const Text('View Itinerary', style: TextStyle(color: Colors.white)),
-              style: OutlinedButton.styleFrom(side: const BorderSide(color: Colors.white54)),
+              icon: const Icon(Icons.arrow_forward,
+                  size: 16, color: Colors.white),
+              label: const Text('View Itinerary',
+                  style: TextStyle(color: Colors.white)),
+              style: OutlinedButton.styleFrom(
+                  side: const BorderSide(color: Colors.white54)),
             ),
           ),
         ),
@@ -17413,20 +18573,26 @@ class _HoneymoonHeroCard extends ConsumerWidget {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
-      builder: (_) => _EditTripSheet(notifier: ref.read(honeymoonProvider.notifier), trip: state.trip),
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+      builder: (_) => _EditTripSheet(
+          notifier: ref.read(honeymoonProvider.notifier), trip: state.trip),
     );
   }
 
   Future<void> _pickCoverPhoto(BuildContext context, WidgetRef ref) async {
-    final picked = await ImagePicker().pickImage(source: ImageSource.gallery, imageQuality: 85);
+    final picked = await ImagePicker()
+        .pickImage(source: ImageSource.gallery, imageQuality: 85);
     if (picked == null) return;
     final bytes = await picked.readAsBytes();
     if (!context.mounted) return;
-    final ok = await ref.read(honeymoonProvider.notifier).uploadCoverPhoto(bytes, picked.name);
+    final ok = await ref
+        .read(honeymoonProvider.notifier)
+        .uploadCoverPhoto(bytes, picked.name);
     if (!context.mounted) return;
     if (!ok) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Couldn't upload photo. Try again.")));
+      ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Couldn't upload photo. Try again.")));
     }
   }
 
@@ -17434,7 +18600,8 @@ class _HoneymoonHeroCard extends ConsumerWidget {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
       builder: (_) => _HoneymoonItinerarySheet(state: state),
     );
   }
@@ -17447,12 +18614,14 @@ class _HoneymoonStatRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final items = state.items;
-    final budgetTotal = state.budgetItems.fold<double>(0, (sum, b) => sum + _asDouble(b['estimated_amount']));
+    final budgetTotal = state.budgetItems
+        .fold<double>(0, (sum, b) => sum + _asDouble(b['estimated_amount']));
 
     Widget tile(String type) {
       final meta = _kHoneymoonTypeMeta[type]!;
       final typeItems = items.where((i) => i['type'] == type).toList();
-      final confirmed = typeItems.where((i) => i['status'] == 'confirmed').length;
+      final confirmed =
+          typeItems.where((i) => i['status'] == 'confirmed').length;
       return Expanded(
         child: UdoCard(
           margin: const EdgeInsets.symmetric(horizontal: 4),
@@ -17460,9 +18629,13 @@ class _HoneymoonStatRow extends StatelessWidget {
           child: Column(children: [
             Icon(meta.$2, size: 18, color: UdoDesign.sage),
             const SizedBox(height: 6),
-            Text('$confirmed / ${typeItems.length}', style: UdoDesign.sans(size: 13, weight: FontWeight.w800)),
-            Text(meta.$1, style: UdoDesign.sans(size: 10, color: UdoDesign.muted)),
-            Text(meta.$3, style: UdoDesign.sans(size: 9, color: UdoDesign.sage, weight: FontWeight.w600)),
+            Text('$confirmed / ${typeItems.length}',
+                style: UdoDesign.sans(size: 13, weight: FontWeight.w800)),
+            Text(meta.$1,
+                style: UdoDesign.sans(size: 10, color: UdoDesign.muted)),
+            Text(meta.$3,
+                style: UdoDesign.sans(
+                    size: 9, color: UdoDesign.sage, weight: FontWeight.w600)),
           ]),
         ),
       );
@@ -17477,10 +18650,15 @@ class _HoneymoonStatRow extends StatelessWidget {
           margin: const EdgeInsets.symmetric(horizontal: 4),
           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
           child: Column(children: [
-            const Icon(Icons.account_balance_wallet_outlined, size: 18, color: UdoDesign.gold),
+            const Icon(Icons.account_balance_wallet_outlined,
+                size: 18, color: UdoDesign.gold),
             const SizedBox(height: 6),
-            Text(_money(budgetTotal), maxLines: 1, overflow: TextOverflow.ellipsis, style: UdoDesign.sans(size: 13, weight: FontWeight.w800)),
-            Text('Budget', style: UdoDesign.sans(size: 10, color: UdoDesign.muted)),
+            Text(_money(budgetTotal),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: UdoDesign.sans(size: 13, weight: FontWeight.w800)),
+            Text('Budget',
+                style: UdoDesign.sans(size: 10, color: UdoDesign.muted)),
           ]),
         ),
       ),
@@ -17498,8 +18676,12 @@ class _HoneymoonStatusBadge extends StatelessWidget {
     final color = confirmed ? const Color(0xFF22C55E) : Colors.orange;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-      decoration: BoxDecoration(color: color.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(20)),
-      child: Text(confirmed ? 'Confirmed' : 'Pending', style: TextStyle(fontSize: 10, color: color, fontWeight: FontWeight.w600)),
+      decoration: BoxDecoration(
+          color: color.withValues(alpha: 0.1),
+          borderRadius: BorderRadius.circular(20)),
+      child: Text(confirmed ? 'Confirmed' : 'Pending',
+          style: TextStyle(
+              fontSize: 10, color: color, fontWeight: FontWeight.w600)),
     );
   }
 }
@@ -17512,13 +18694,13 @@ class _HoneymoonUpcomingPlansCard extends ConsumerWidget {
     final today = DateTime.now();
     final todayOnly = DateTime(today.year, today.month, today.day);
     final sorted = [...state.items]..sort((a, b) {
-      final da = DateTime.tryParse(a['date'] as String? ?? '');
-      final db = DateTime.tryParse(b['date'] as String? ?? '');
-      if (da == null && db == null) return 0;
-      if (da == null) return 1;
-      if (db == null) return -1;
-      return da.compareTo(db);
-    });
+        final da = DateTime.tryParse(a['date'] as String? ?? '');
+        final db = DateTime.tryParse(b['date'] as String? ?? '');
+        if (da == null && db == null) return 0;
+        if (da == null) return 1;
+        if (db == null) return -1;
+        return da.compareTo(db);
+      });
     final upcoming = sorted.where((i) {
       final d = DateTime.tryParse(i['date'] as String? ?? '');
       return d == null || !d.isBefore(todayOnly);
@@ -17532,11 +18714,18 @@ class _HoneymoonUpcomingPlansCard extends ConsumerWidget {
     return UdoCard(
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
-          Expanded(child: Text('Upcoming Plans', style: UdoDesign.sans(size: 15, weight: FontWeight.w700))),
-          TextButton(onPressed: () => _showItinerary(context), child: const Text('View All', style: TextStyle(fontSize: 12))),
+          Expanded(
+              child: Text('Upcoming Plans',
+                  style: UdoDesign.sans(size: 15, weight: FontWeight.w700))),
+          TextButton(
+              onPressed: () => _showItinerary(context),
+              child: const Text('View All', style: TextStyle(fontSize: 12))),
         ]),
         if (upcoming.isEmpty)
-          Padding(padding: const EdgeInsets.symmetric(vertical: 8), child: Text('No plans added yet.', style: UdoDesign.sans(size: 12, color: UdoDesign.muted)))
+          Padding(
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              child: Text('No plans added yet.',
+                  style: UdoDesign.sans(size: 12, color: UdoDesign.muted)))
         else
           for (final item in upcoming)
             InkWell(
@@ -17544,18 +18733,33 @@ class _HoneymoonUpcomingPlansCard extends ConsumerWidget {
               child: Padding(
                 padding: const EdgeInsets.symmetric(vertical: 8),
                 child: Row(children: [
-                  Icon(_kHoneymoonTypeMeta[item['type']]?.$2 ?? Icons.event_outlined, size: 18, color: UdoDesign.sage),
+                  Icon(
+                      _kHoneymoonTypeMeta[item['type']]?.$2 ??
+                          Icons.event_outlined,
+                      size: 18,
+                      color: UdoDesign.sage),
                   const SizedBox(width: 10),
                   Expanded(
-                    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                      Text(item['title'] as String? ?? '', maxLines: 1, overflow: TextOverflow.ellipsis, style: UdoDesign.sans(size: 13, weight: FontWeight.w600)),
-                      if (item['date'] != null)
-                        Text(DateFormat('MMM d, yyyy').format(DateTime.parse(item['date'] as String)), style: UdoDesign.sans(size: 11, color: UdoDesign.muted)),
-                    ]),
+                    child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(item['title'] as String? ?? '',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: UdoDesign.sans(
+                                  size: 13, weight: FontWeight.w600)),
+                          if (item['date'] != null)
+                            Text(
+                                DateFormat('MMM d, yyyy').format(
+                                    DateTime.parse(item['date'] as String)),
+                                style: UdoDesign.sans(
+                                    size: 11, color: UdoDesign.muted)),
+                        ]),
                   ),
                   _HoneymoonStatusBadge(item['status'] as String?),
                   const SizedBox(width: 6),
-                  const Icon(Icons.chevron_right, size: 16, color: AppTheme.udoTextSecondary),
+                  const Icon(Icons.chevron_right,
+                      size: 16, color: AppTheme.udoTextSecondary),
                 ]),
               ),
             ),
@@ -17572,15 +18776,18 @@ class _HoneymoonUpcomingPlansCard extends ConsumerWidget {
     );
   }
 
-  void _showAddPlanSheet(BuildContext context, WidgetRef ref, {Map<String, dynamic>? item}) {
-    Navigator.of(context).push(MaterialPageRoute(builder: (_) => _AddHoneymoonPlanScreen(state: state, item: item)));
+  void _showAddPlanSheet(BuildContext context, WidgetRef ref,
+      {Map<String, dynamic>? item}) {
+    Navigator.of(context).push(MaterialPageRoute(
+        builder: (_) => _AddHoneymoonPlanScreen(state: state, item: item)));
   }
 
   void _showItinerary(BuildContext context) {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
       builder: (_) => _HoneymoonItinerarySheet(state: state),
     );
   }
@@ -17592,14 +18799,22 @@ class _AddHoneymoonPlanScreen extends ConsumerStatefulWidget {
   const _AddHoneymoonPlanScreen({required this.state, this.item});
 
   @override
-  ConsumerState<_AddHoneymoonPlanScreen> createState() => _AddHoneymoonPlanScreenState();
+  ConsumerState<_AddHoneymoonPlanScreen> createState() =>
+      _AddHoneymoonPlanScreenState();
 }
 
-class _AddHoneymoonPlanScreenState extends ConsumerState<_AddHoneymoonPlanScreen> {
-  late final _title = TextEditingController(text: widget.item?['title'] as String? ?? '');
-  late final _location = TextEditingController(text: (widget.item?['details'] as Map?)?['location']?.toString() ?? '');
-  late final _notes = TextEditingController(text: (widget.item?['details'] as Map?)?['notes']?.toString() ?? '');
-  late final _cost = TextEditingController(text: widget.item?['cost'] != null ? _asDouble(widget.item!['cost']).toStringAsFixed(2) : '');
+class _AddHoneymoonPlanScreenState
+    extends ConsumerState<_AddHoneymoonPlanScreen> {
+  late final _title =
+      TextEditingController(text: widget.item?['title'] as String? ?? '');
+  late final _location = TextEditingController(
+      text: (widget.item?['details'] as Map?)?['location']?.toString() ?? '');
+  late final _notes = TextEditingController(
+      text: (widget.item?['details'] as Map?)?['notes']?.toString() ?? '');
+  late final _cost = TextEditingController(
+      text: widget.item?['cost'] != null
+          ? _asDouble(widget.item!['cost']).toStringAsFixed(2)
+          : '');
   late String _type = widget.item?['type'] as String? ?? 'flight';
   String? _category;
   late String _currency;
@@ -17620,7 +18835,10 @@ class _AddHoneymoonPlanScreenState extends ConsumerState<_AddHoneymoonPlanScreen
     final rawDate = widget.item?['date'] as String?;
     _date = rawDate != null ? DateTime.tryParse(rawDate) : null;
     _time = _parseTimeOfDay(widget.item?['time'] as String?);
-    _travelerIds = (widget.item?['traveler_ids'] as List?)?.map((id) => id.toString()).toSet() ?? {};
+    _travelerIds = (widget.item?['traveler_ids'] as List?)
+            ?.map((id) => id.toString())
+            .toSet() ??
+        {};
   }
 
   @override
@@ -17642,7 +18860,8 @@ class _AddHoneymoonPlanScreenState extends ConsumerState<_AddHoneymoonPlanScreen
     return TimeOfDay(hour: h, minute: m);
   }
 
-  String _fmtTimeOfDay(TimeOfDay t) => '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}';
+  String _fmtTimeOfDay(TimeOfDay t) =>
+      '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}';
 
   Future<void> _submit() async {
     if (_title.text.trim().isEmpty) {
@@ -17660,7 +18879,9 @@ class _AddHoneymoonPlanScreenState extends ConsumerState<_AddHoneymoonPlanScreen
       'title': _title.text.trim(),
       'date': _date != null ? _formatDate(_date!) : null,
       'time': _time != null ? _fmtTimeOfDay(_time!) : null,
-      'cost': _cost.text.trim().isNotEmpty ? double.tryParse(_cost.text.trim()) : null,
+      'cost': _cost.text.trim().isNotEmpty
+          ? double.tryParse(_cost.text.trim())
+          : null,
       'traveler_ids': _travelerIds.map(int.parse).toList(),
       'details': {
         if (_location.text.trim().isNotEmpty) 'location': _location.text.trim(),
@@ -17685,15 +18906,19 @@ class _AddHoneymoonPlanScreenState extends ConsumerState<_AddHoneymoonPlanScreen
 
   Future<void> _delete() async {
     Navigator.pop(context);
-    await ref.read(honeymoonProvider.notifier).deleteItem(widget.item!['id'] as int);
+    await ref
+        .read(honeymoonProvider.notifier)
+        .deleteItem(widget.item!['id'] as int);
   }
 
   void _addTraveler() {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
-      builder: (_) => _AddHoneymoonTravelerSheet(notifier: ref.read(honeymoonProvider.notifier)),
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+      builder: (_) => _AddHoneymoonTravelerSheet(
+          notifier: ref.read(honeymoonProvider.notifier)),
     );
   }
 
@@ -17707,14 +18932,27 @@ class _AddHoneymoonPlanScreenState extends ConsumerState<_AddHoneymoonPlanScreen
           margin: const EdgeInsets.symmetric(horizontal: 4),
           padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 6),
           decoration: BoxDecoration(
-            color: selected ? AppTheme.udoGreen.withValues(alpha: 0.08) : Colors.white,
+            color: selected
+                ? AppTheme.udoGreen.withValues(alpha: 0.08)
+                : Colors.white,
             borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: selected ? AppTheme.udoGreen : AppTheme.udoBorder, width: selected ? 1.5 : 1),
+            border: Border.all(
+                color: selected ? AppTheme.udoGreen : AppTheme.udoBorder,
+                width: selected ? 1.5 : 1),
           ),
           child: Column(children: [
-            Icon(meta.$2, size: 20, color: selected ? AppTheme.udoGreen : AppTheme.udoTextSecondary),
+            Icon(meta.$2,
+                size: 20,
+                color:
+                    selected ? AppTheme.udoGreen : AppTheme.udoTextSecondary),
             const SizedBox(height: 6),
-            Text(meta.$1, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: selected ? AppTheme.udoGreen : AppTheme.udoTextPrimary)),
+            Text(meta.$1,
+                style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    color: selected
+                        ? AppTheme.udoGreen
+                        : AppTheme.udoTextPrimary)),
           ]),
         ),
       ),
@@ -17724,8 +18962,11 @@ class _AddHoneymoonPlanScreenState extends ConsumerState<_AddHoneymoonPlanScreen
   @override
   Widget build(BuildContext context) {
     final trip = widget.state.trip;
-    final destination = (trip?['destination'] as String?)?.isNotEmpty == true ? trip!['destination'] as String : 'Not set';
-    final dateLine = (trip?['departure_date'] != null && trip?['return_date'] != null)
+    final destination = (trip?['destination'] as String?)?.isNotEmpty == true
+        ? trip!['destination'] as String
+        : 'Not set';
+    final dateLine = (trip?['departure_date'] != null &&
+            trip?['return_date'] != null)
         ? '${DateFormat('MMM d').format(DateTime.parse(trip!['departure_date'] as String))} - ${DateFormat('MMM d').format(DateTime.parse(trip['return_date'] as String))}'
         : 'Not set';
     final travelers = widget.state.travelers;
@@ -17737,214 +18978,392 @@ class _AddHoneymoonPlanScreenState extends ConsumerState<_AddHoneymoonPlanScreen
           Padding(
             padding: const EdgeInsets.fromLTRB(4, 8, 16, 8),
             child: Row(children: [
-              IconButton(onPressed: () => Navigator.pop(context), icon: const Icon(Icons.arrow_back)),
-              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text(_isEdit ? 'Edit Plan' : 'Add Plan', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
-                const Text('This will update your plan, budget, and traveler details.', style: TextStyle(fontSize: 11, color: AppTheme.udoTextSecondary)),
-              ])),
-              IconButton(onPressed: () => Navigator.pop(context), icon: const Icon(Icons.close)),
+              IconButton(
+                  onPressed: () => Navigator.pop(context),
+                  icon: const Icon(Icons.arrow_back)),
+              Expanded(
+                  child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                    Text(_isEdit ? 'Edit Plan' : 'Add Plan',
+                        style: const TextStyle(
+                            fontSize: 18, fontWeight: FontWeight.w600)),
+                    const Text(
+                        'This will update your plan, budget, and traveler details.',
+                        style: TextStyle(
+                            fontSize: 11, color: AppTheme.udoTextSecondary)),
+                  ])),
+              IconButton(
+                  onPressed: () => Navigator.pop(context),
+                  icon: const Icon(Icons.close)),
             ]),
           ),
           Expanded(
             child: SingleChildScrollView(
               padding: const EdgeInsets.fromLTRB(20, 4, 20, 20),
-              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Row(children: [
-                  Expanded(child: _TripContextChip(icon: Icons.calendar_today_outlined, label: 'Trip Dates', value: dateLine)),
-                  const SizedBox(width: 8),
-                  Expanded(child: _TripContextChip(icon: Icons.place_outlined, label: 'Destination', value: destination)),
-                  const SizedBox(width: 8),
-                  Expanded(child: _TripContextChip(icon: Icons.groups_outlined, label: 'Travelers', value: '${travelers.length} Traveler${travelers.length == 1 ? '' : 's'}')),
-                ]),
-                const SizedBox(height: 20),
-                const Text('What would you like to add?', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
-                const SizedBox(height: 10),
-                Row(children: [for (final type in _kHoneymoonTypeMeta.keys) _typeCard(type)]),
-                const SizedBox(height: 20),
-                Text('Plan Details', style: UdoDesign.sans(size: 15, weight: FontWeight.w700)),
-                const SizedBox(height: 10),
-                const Text('Type of Plan', style: TextStyle(fontSize: 12, color: AppTheme.udoTextSecondary)),
-                const SizedBox(height: 4),
-                DropdownButtonFormField<String>(
-                  initialValue: _type,
-                  decoration: _pickerDropdownDecoration(),
-                  items: [for (final entry in _kHoneymoonTypeMeta.entries) DropdownMenuItem(value: entry.key, child: Text(entry.value.$1))],
-                  onChanged: (v) => setState(() => _type = v ?? _type),
-                ),
-                const SizedBox(height: 12),
-                const Text('Title', style: TextStyle(fontSize: 12, color: AppTheme.udoTextSecondary)),
-                const SizedBox(height: 4),
-                _GField(_type == 'flight' ? 'e.g. Flight to Bali' : _type == 'accommodation' ? 'e.g. Resort name' : 'e.g. Snorkeling trip', _title),
-                const SizedBox(height: 12),
-                Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Expanded(
-                    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                      const Text('Date', style: TextStyle(fontSize: 12, color: AppTheme.udoTextSecondary)),
-                      const SizedBox(height: 4),
-                      GestureDetector(
-                        onTap: () async {
-                          final picked = await showDatePicker(context: context, initialDate: _date ?? DateTime.now(), firstDate: DateTime.now().subtract(const Duration(days: 365)), lastDate: DateTime.now().add(const Duration(days: 3650)));
-                          if (picked != null) setState(() => _date = picked);
-                        },
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-                          decoration: BoxDecoration(color: AppTheme.udoCardFill, borderRadius: BorderRadius.circular(14)),
-                          child: Row(children: [
-                            const Icon(Icons.calendar_today_outlined, size: 14, color: AppTheme.udoTextSecondary),
-                            const SizedBox(width: 8),
-                            Expanded(child: Text(_date == null ? 'Select date' : DateFormat('MMM d, yyyy').format(_date!), style: const TextStyle(fontSize: 12), overflow: TextOverflow.ellipsis)),
-                          ]),
-                        ),
-                      ),
+              child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(children: [
+                      Expanded(
+                          child: _TripContextChip(
+                              icon: Icons.calendar_today_outlined,
+                              label: 'Trip Dates',
+                              value: dateLine)),
+                      const SizedBox(width: 8),
+                      Expanded(
+                          child: _TripContextChip(
+                              icon: Icons.place_outlined,
+                              label: 'Destination',
+                              value: destination)),
+                      const SizedBox(width: 8),
+                      Expanded(
+                          child: _TripContextChip(
+                              icon: Icons.groups_outlined,
+                              label: 'Travelers',
+                              value:
+                                  '${travelers.length} Traveler${travelers.length == 1 ? '' : 's'}')),
                     ]),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                      const Text('Time (optional)', style: TextStyle(fontSize: 12, color: AppTheme.udoTextSecondary)),
-                      const SizedBox(height: 4),
-                      GestureDetector(
-                        onTap: () async {
-                          final picked = await showTimePicker(context: context, initialTime: _time ?? TimeOfDay.now());
-                          if (picked != null) setState(() => _time = picked);
-                        },
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-                          decoration: BoxDecoration(color: AppTheme.udoCardFill, borderRadius: BorderRadius.circular(14)),
-                          child: Row(children: [
-                            const Icon(Icons.schedule_outlined, size: 14, color: AppTheme.udoTextSecondary),
-                            const SizedBox(width: 8),
-                            Expanded(child: Text(_time == null ? 'Select time' : _time!.format(context), style: const TextStyle(fontSize: 12), overflow: TextOverflow.ellipsis)),
-                          ]),
-                        ),
-                      ),
+                    const SizedBox(height: 20),
+                    const Text('What would you like to add?',
+                        style: TextStyle(
+                            fontSize: 14, fontWeight: FontWeight.w600)),
+                    const SizedBox(height: 10),
+                    Row(children: [
+                      for (final type in _kHoneymoonTypeMeta.keys)
+                        _typeCard(type)
                     ]),
-                  ),
-                ]),
-                const SizedBox(height: 12),
-                const Text('Location / Details', style: TextStyle(fontSize: 12, color: AppTheme.udoTextSecondary)),
-                const SizedBox(height: 4),
-                _GField('e.g. Ngurah Rai International Airport (DPS)', _location),
-                const SizedBox(height: 12),
-                const Text('Notes (optional)', style: TextStyle(fontSize: 12, color: AppTheme.udoTextSecondary)),
-                const SizedBox(height: 4),
-                _GField('Add any additional notes...', _notes, maxLines: 3),
-                const SizedBox(height: 20),
-                Text('Budget', style: UdoDesign.sans(size: 15, weight: FontWeight.w700)),
-                const SizedBox(height: 10),
-                Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Expanded(
-                    flex: 3,
-                    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                      const Text('Estimated Cost (optional)', style: TextStyle(fontSize: 12, color: AppTheme.udoTextSecondary)),
-                      const SizedBox(height: 4),
-                      Row(children: [
-                        SizedBox(
-                          width: 78,
-                          child: DropdownButtonFormField<String>(
-                            initialValue: _currency,
-                            decoration: _pickerDropdownDecoration(),
-                            items: [for (final c in _kHoneymoonCurrencies) DropdownMenuItem(value: c, child: Text(c, style: const TextStyle(fontSize: 12)))],
-                            onChanged: (v) => setState(() => _currency = v ?? _currency),
+                    const SizedBox(height: 20),
+                    Text('Plan Details',
+                        style:
+                            UdoDesign.sans(size: 15, weight: FontWeight.w700)),
+                    const SizedBox(height: 10),
+                    const Text('Type of Plan',
+                        style: TextStyle(
+                            fontSize: 12, color: AppTheme.udoTextSecondary)),
+                    const SizedBox(height: 4),
+                    DropdownButtonFormField<String>(
+                      initialValue: _type,
+                      decoration: _pickerDropdownDecoration(),
+                      items: [
+                        for (final entry in _kHoneymoonTypeMeta.entries)
+                          DropdownMenuItem(
+                              value: entry.key, child: Text(entry.value.$1))
+                      ],
+                      onChanged: (v) => setState(() => _type = v ?? _type),
+                    ),
+                    const SizedBox(height: 12),
+                    const Text('Title',
+                        style: TextStyle(
+                            fontSize: 12, color: AppTheme.udoTextSecondary)),
+                    const SizedBox(height: 4),
+                    _GField(
+                        _type == 'flight'
+                            ? 'e.g. Flight to Bali'
+                            : _type == 'accommodation'
+                                ? 'e.g. Resort name'
+                                : 'e.g. Snorkeling trip',
+                        _title),
+                    const SizedBox(height: 12),
+                    Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(
+                            child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const Text('Date',
+                                      style: TextStyle(
+                                          fontSize: 12,
+                                          color: AppTheme.udoTextSecondary)),
+                                  const SizedBox(height: 4),
+                                  GestureDetector(
+                                    onTap: () async {
+                                      final picked = await showDatePicker(
+                                          context: context,
+                                          initialDate: _date ?? DateTime.now(),
+                                          firstDate: DateTime.now().subtract(
+                                              const Duration(days: 365)),
+                                          lastDate: DateTime.now()
+                                              .add(const Duration(days: 3650)));
+                                      if (picked != null)
+                                        setState(() => _date = picked);
+                                    },
+                                    child: Container(
+                                      padding: const EdgeInsets.symmetric(
+                                          horizontal: 14, vertical: 14),
+                                      decoration: BoxDecoration(
+                                          color: AppTheme.udoCardFill,
+                                          borderRadius:
+                                              BorderRadius.circular(14)),
+                                      child: Row(children: [
+                                        const Icon(
+                                            Icons.calendar_today_outlined,
+                                            size: 14,
+                                            color: AppTheme.udoTextSecondary),
+                                        const SizedBox(width: 8),
+                                        Expanded(
+                                            child: Text(
+                                                _date == null
+                                                    ? 'Select date'
+                                                    : DateFormat('MMM d, yyyy')
+                                                        .format(_date!),
+                                                style: const TextStyle(
+                                                    fontSize: 12),
+                                                overflow:
+                                                    TextOverflow.ellipsis)),
+                                      ]),
+                                    ),
+                                  ),
+                                ]),
                           ),
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(child: _GField('0.00', _cost, type: const TextInputType.numberWithOptions(decimal: true))),
-                      ]),
-                    ]),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    flex: 2,
-                    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                      const Text('Category', style: TextStyle(fontSize: 12, color: AppTheme.udoTextSecondary)),
-                      const SizedBox(height: 4),
-                      DropdownButtonFormField<String>(
-                        initialValue: _category,
-                        decoration: _pickerDropdownDecoration(),
-                        items: [for (final c in _kHoneymoonBudgetCategories) DropdownMenuItem(value: c, child: Text(c, style: const TextStyle(fontSize: 12)))],
-                        onChanged: (v) => setState(() => _category = v),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const Text('Time (optional)',
+                                      style: TextStyle(
+                                          fontSize: 12,
+                                          color: AppTheme.udoTextSecondary)),
+                                  const SizedBox(height: 4),
+                                  GestureDetector(
+                                    onTap: () async {
+                                      final picked = await showTimePicker(
+                                          context: context,
+                                          initialTime:
+                                              _time ?? TimeOfDay.now());
+                                      if (picked != null)
+                                        setState(() => _time = picked);
+                                    },
+                                    child: Container(
+                                      padding: const EdgeInsets.symmetric(
+                                          horizontal: 14, vertical: 14),
+                                      decoration: BoxDecoration(
+                                          color: AppTheme.udoCardFill,
+                                          borderRadius:
+                                              BorderRadius.circular(14)),
+                                      child: Row(children: [
+                                        const Icon(Icons.schedule_outlined,
+                                            size: 14,
+                                            color: AppTheme.udoTextSecondary),
+                                        const SizedBox(width: 8),
+                                        Expanded(
+                                            child: Text(
+                                                _time == null
+                                                    ? 'Select time'
+                                                    : _time!.format(context),
+                                                style: const TextStyle(
+                                                    fontSize: 12),
+                                                overflow:
+                                                    TextOverflow.ellipsis)),
+                                      ]),
+                                    ),
+                                  ),
+                                ]),
+                          ),
+                        ]),
+                    const SizedBox(height: 12),
+                    const Text('Location / Details',
+                        style: TextStyle(
+                            fontSize: 12, color: AppTheme.udoTextSecondary)),
+                    const SizedBox(height: 4),
+                    _GField('e.g. Ngurah Rai International Airport (DPS)',
+                        _location),
+                    const SizedBox(height: 12),
+                    const Text('Notes (optional)',
+                        style: TextStyle(
+                            fontSize: 12, color: AppTheme.udoTextSecondary)),
+                    const SizedBox(height: 4),
+                    _GField('Add any additional notes...', _notes, maxLines: 3),
+                    const SizedBox(height: 20),
+                    Text('Budget',
+                        style:
+                            UdoDesign.sans(size: 15, weight: FontWeight.w700)),
+                    const SizedBox(height: 10),
+                    Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(
+                            flex: 3,
+                            child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const Text('Estimated Cost (optional)',
+                                      style: TextStyle(
+                                          fontSize: 12,
+                                          color: AppTheme.udoTextSecondary)),
+                                  const SizedBox(height: 4),
+                                  Row(children: [
+                                    SizedBox(
+                                      width: 78,
+                                      child: DropdownButtonFormField<String>(
+                                        initialValue: _currency,
+                                        decoration: _pickerDropdownDecoration(),
+                                        items: [
+                                          for (final c in _kHoneymoonCurrencies)
+                                            DropdownMenuItem(
+                                                value: c,
+                                                child: Text(c,
+                                                    style: const TextStyle(
+                                                        fontSize: 12)))
+                                        ],
+                                        onChanged: (v) => setState(
+                                            () => _currency = v ?? _currency),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Expanded(
+                                        child: _GField('0.00', _cost,
+                                            type: const TextInputType
+                                                .numberWithOptions(
+                                                decimal: true))),
+                                  ]),
+                                ]),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            flex: 2,
+                            child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const Text('Category',
+                                      style: TextStyle(
+                                          fontSize: 12,
+                                          color: AppTheme.udoTextSecondary)),
+                                  const SizedBox(height: 4),
+                                  DropdownButtonFormField<String>(
+                                    initialValue: _category,
+                                    decoration: _pickerDropdownDecoration(),
+                                    items: [
+                                      for (final c
+                                          in _kHoneymoonBudgetCategories)
+                                        DropdownMenuItem(
+                                            value: c,
+                                            child: Text(c,
+                                                style: const TextStyle(
+                                                    fontSize: 12)))
+                                    ],
+                                    onChanged: (v) =>
+                                        setState(() => _category = v),
+                                  ),
+                                ]),
+                          ),
+                        ]),
+                    const SizedBox(height: 6),
+                    const Text('This will be added to your honeymoon budget.',
+                        style: TextStyle(
+                            fontSize: 11, color: AppTheme.udoTextSecondary)),
+                    const SizedBox(height: 20),
+                    Row(children: [
+                      Expanded(
+                          child: Text('Travelers',
+                              style: UdoDesign.sans(
+                                  size: 15, weight: FontWeight.w700))),
+                      TextButton(
+                        onPressed: () => setState(() {
+                          if (_travelerIds.length == travelers.length) {
+                            _travelerIds.clear();
+                          } else {
+                            _travelerIds
+                              ..clear()
+                              ..addAll(
+                                  travelers.map((t) => t['id'].toString()));
+                          }
+                        }),
+                        child: const Text('Select All',
+                            style: TextStyle(fontSize: 12)),
                       ),
                     ]),
-                  ),
-                ]),
-                const SizedBox(height: 6),
-                const Text('This will be added to your honeymoon budget.', style: TextStyle(fontSize: 11, color: AppTheme.udoTextSecondary)),
-                const SizedBox(height: 20),
-                Row(children: [
-                  Expanded(child: Text('Travelers', style: UdoDesign.sans(size: 15, weight: FontWeight.w700))),
-                  TextButton(
-                    onPressed: () => setState(() {
-                      if (_travelerIds.length == travelers.length) {
-                        _travelerIds.clear();
-                      } else {
-                        _travelerIds
-                          ..clear()
-                          ..addAll(travelers.map((t) => t['id'].toString()));
-                      }
-                    }),
-                    child: const Text('Select All', style: TextStyle(fontSize: 12)),
-                  ),
-                ]),
-                const Text('Who is this plan for?', style: TextStyle(fontSize: 12, color: AppTheme.udoTextSecondary)),
-                const SizedBox(height: 10),
-                Wrap(spacing: 8, runSpacing: 8, children: [
-                  for (final t in travelers)
-                    FilterChip(
-                      avatar: CircleAvatar(radius: 10, backgroundColor: UdoDesign.sage, child: Text((t['name'] as String? ?? '?')[0].toUpperCase(), style: const TextStyle(color: Colors.white, fontSize: 10))),
-                      label: Text('${t['name']}${(t['role'] as String?)?.isNotEmpty == true ? '\n${t['role']}' : ''}', style: const TextStyle(fontSize: 11)),
-                      selected: _travelerIds.contains(t['id'].toString()),
-                      onSelected: (sel) => setState(() {
-                        final id = t['id'].toString();
-                        if (sel) {
-                          _travelerIds.add(id);
-                        } else {
-                          _travelerIds.remove(id);
-                        }
-                      }),
-                      selectedColor: AppTheme.udoGreen.withValues(alpha: 0.15),
+                    const Text('Who is this plan for?',
+                        style: TextStyle(
+                            fontSize: 12, color: AppTheme.udoTextSecondary)),
+                    const SizedBox(height: 10),
+                    Wrap(spacing: 8, runSpacing: 8, children: [
+                      for (final t in travelers)
+                        FilterChip(
+                          avatar: CircleAvatar(
+                              radius: 10,
+                              backgroundColor: UdoDesign.sage,
+                              child: Text(
+                                  (t['name'] as String? ?? '?')[0]
+                                      .toUpperCase(),
+                                  style: const TextStyle(
+                                      color: Colors.white, fontSize: 10))),
+                          label: Text(
+                              '${t['name']}${(t['role'] as String?)?.isNotEmpty == true ? '\n${t['role']}' : ''}',
+                              style: const TextStyle(fontSize: 11)),
+                          selected: _travelerIds.contains(t['id'].toString()),
+                          onSelected: (sel) => setState(() {
+                            final id = t['id'].toString();
+                            if (sel) {
+                              _travelerIds.add(id);
+                            } else {
+                              _travelerIds.remove(id);
+                            }
+                          }),
+                          selectedColor:
+                              AppTheme.udoGreen.withValues(alpha: 0.15),
+                        ),
+                      ActionChip(
+                        avatar: const Icon(Icons.add, size: 14),
+                        label: const Text('Add other traveler',
+                            style: TextStyle(fontSize: 11)),
+                        onPressed: _addTraveler,
+                      ),
+                    ]),
+                    if (_error != null) ...[
+                      const SizedBox(height: 12),
+                      Text(_error!,
+                          style: const TextStyle(
+                              fontSize: 12, color: AppTheme.udoCrimson)),
+                    ],
+                    const SizedBox(height: 20),
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton(
+                        onPressed: _saving ? null : _submit,
+                        style: ElevatedButton.styleFrom(
+                            minimumSize: const Size(double.infinity, 52),
+                            backgroundColor: AppTheme.udoGreen,
+                            foregroundColor: Colors.white),
+                        child: _saving
+                            ? const SizedBox(
+                                width: 20,
+                                height: 20,
+                                child: CircularProgressIndicator(
+                                    color: Colors.white, strokeWidth: 2))
+                            : Text(_isEdit ? 'Save Changes' : 'Add Plan'),
+                      ),
                     ),
-                  ActionChip(
-                    avatar: const Icon(Icons.add, size: 14),
-                    label: const Text('Add other traveler', style: TextStyle(fontSize: 11)),
-                    onPressed: _addTraveler,
-                  ),
-                ]),
-                if (_error != null) ...[
-                  const SizedBox(height: 12),
-                  Text(_error!, style: const TextStyle(fontSize: 12, color: AppTheme.udoCrimson)),
-                ],
-                const SizedBox(height: 20),
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    onPressed: _saving ? null : _submit,
-                    style: ElevatedButton.styleFrom(minimumSize: const Size(double.infinity, 52), backgroundColor: AppTheme.udoGreen, foregroundColor: Colors.white),
-                    child: _saving
-                        ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                        : Text(_isEdit ? 'Save Changes' : 'Add Plan'),
-                  ),
-                ),
-                if (_isEdit) ...[
-                  const SizedBox(height: 8),
-                  SizedBox(
-                    width: double.infinity,
-                    child: OutlinedButton.icon(
-                      onPressed: _delete,
-                      icon: const Icon(Icons.delete_outline, size: 16, color: Colors.red),
-                      label: const Text('Delete Plan', style: TextStyle(color: Colors.red)),
-                      style: OutlinedButton.styleFrom(side: const BorderSide(color: Colors.red)),
+                    if (_isEdit) ...[
+                      const SizedBox(height: 8),
+                      SizedBox(
+                        width: double.infinity,
+                        child: OutlinedButton.icon(
+                          onPressed: _delete,
+                          icon: const Icon(Icons.delete_outline,
+                              size: 16, color: Colors.red),
+                          label: const Text('Delete Plan',
+                              style: TextStyle(color: Colors.red)),
+                          style: OutlinedButton.styleFrom(
+                              side: const BorderSide(color: Colors.red)),
+                        ),
+                      ),
+                    ],
+                    const SizedBox(height: 8),
+                    const Center(
+                      child: Padding(
+                        padding: EdgeInsets.symmetric(horizontal: 12),
+                        child: Text(
+                            'This will be added to your Plan, update your Budget, and sync with Travelers.',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                                fontSize: 11,
+                                color: AppTheme.udoTextSecondary)),
+                      ),
                     ),
-                  ),
-                ],
-                const SizedBox(height: 8),
-                const Center(
-                  child: Padding(
-                    padding: EdgeInsets.symmetric(horizontal: 12),
-                    child: Text('This will be added to your Plan, update your Budget, and sync with Travelers.', textAlign: TextAlign.center, style: TextStyle(fontSize: 11, color: AppTheme.udoTextSecondary)),
-                  ),
-                ),
-              ]),
+                  ]),
             ),
           ),
         ]),
@@ -17957,17 +19376,27 @@ class _TripContextChip extends StatelessWidget {
   final IconData icon;
   final String label;
   final String value;
-  const _TripContextChip({required this.icon, required this.label, required this.value});
+  const _TripContextChip(
+      {required this.icon, required this.label, required this.value});
 
   @override
   Widget build(BuildContext context) => Container(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
-        decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(14), border: Border.all(color: AppTheme.udoBorder)),
+        decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: AppTheme.udoBorder)),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Icon(icon, size: 16, color: AppTheme.udoTextSecondary),
           const SizedBox(height: 6),
-          Text(label, style: const TextStyle(fontSize: 10, color: AppTheme.udoTextSecondary)),
-          Text(value, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600)),
+          Text(label,
+              style: const TextStyle(
+                  fontSize: 10, color: AppTheme.udoTextSecondary)),
+          Text(value,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style:
+                  const TextStyle(fontSize: 11, fontWeight: FontWeight.w600)),
         ]),
       );
 }
@@ -17979,71 +19408,103 @@ class _HoneymoonBudgetCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final spent = state.budgetItems.fold<double>(0, (sum, b) => sum + _asDouble(b['paid_amount']));
-    final estimated = state.budgetItems.fold<double>(0, (sum, b) => sum + _asDouble(b['estimated_amount']));
+    final spent = state.budgetItems
+        .fold<double>(0, (sum, b) => sum + _asDouble(b['paid_amount']));
+    final estimated = state.budgetItems
+        .fold<double>(0, (sum, b) => sum + _asDouble(b['estimated_amount']));
     final tripTotal = _asDouble(state.trip?['total_budget']);
     final total = tripTotal > 0 ? tripTotal : estimated;
     final remaining = (total - spent).clamp(0, double.infinity).toDouble();
 
     return UdoCard(
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text('Budget Overview', style: UdoDesign.sans(size: 15, weight: FontWeight.w700)),
+        Text('Budget Overview',
+            style: UdoDesign.sans(size: 15, weight: FontWeight.w700)),
         const SizedBox(height: 12),
         Row(children: [
-          SizedBox(width: 84, height: 84, child: CustomPaint(painter: _HoneymoonBudgetDonutPainter(spent: spent, remaining: remaining))),
+          SizedBox(
+              width: 84,
+              height: 84,
+              child: CustomPaint(
+                  painter: _HoneymoonBudgetDonutPainter(
+                      spent: spent, remaining: remaining))),
           const SizedBox(width: 16),
-          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            _budgetLegendRow('Spent', spent, const Color(0xFFC9867A)),
-            const SizedBox(height: 6),
-            _budgetLegendRow('Remaining', remaining, AppTheme.udoBorder),
-            const SizedBox(height: 6),
-            _budgetLegendRow('Total', total, null),
-          ])),
+          Expanded(
+              child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                _budgetLegendRow('Spent', spent, const Color(0xFFC9867A)),
+                const SizedBox(height: 6),
+                _budgetLegendRow('Remaining', remaining, AppTheme.udoBorder),
+                const SizedBox(height: 6),
+                _budgetLegendRow('Total', total, null),
+              ])),
         ]),
         const SizedBox(height: 14),
-        SizedBox(width: double.infinity, child: OutlinedButton(onPressed: onViewBudget, child: const Text('View Budget'))),
+        SizedBox(
+            width: double.infinity,
+            child: OutlinedButton(
+                onPressed: onViewBudget, child: const Text('View Budget'))),
       ]),
     );
   }
 
-  Widget _budgetLegendRow(String label, double amount, Color? dotColor) => Row(children: [
-    if (dotColor != null) ...[
-      Container(width: 8, height: 8, decoration: BoxDecoration(color: dotColor, shape: BoxShape.circle)),
-      const SizedBox(width: 6),
-    ],
-    Text(label, style: UdoDesign.sans(size: 12, color: UdoDesign.muted)),
-    const Spacer(),
-    Text(_money(amount), style: UdoDesign.sans(size: 12, weight: FontWeight.w700)),
-  ]);
+  Widget _budgetLegendRow(String label, double amount, Color? dotColor) =>
+      Row(children: [
+        if (dotColor != null) ...[
+          Container(
+              width: 8,
+              height: 8,
+              decoration:
+                  BoxDecoration(color: dotColor, shape: BoxShape.circle)),
+          const SizedBox(width: 6),
+        ],
+        Text(label, style: UdoDesign.sans(size: 12, color: UdoDesign.muted)),
+        const Spacer(),
+        Text(_money(amount),
+            style: UdoDesign.sans(size: 12, weight: FontWeight.w700)),
+      ]);
 }
 
 class _HoneymoonBudgetDonutPainter extends CustomPainter {
   final double spent;
   final double remaining;
-  const _HoneymoonBudgetDonutPainter({required this.spent, required this.remaining});
+  const _HoneymoonBudgetDonutPainter(
+      {required this.spent, required this.remaining});
 
   @override
   void paint(Canvas canvas, Size size) {
     const strokeWidth = 12.0;
-    final rect = Rect.fromLTWH(strokeWidth / 2, strokeWidth / 2, size.width - strokeWidth, size.height - strokeWidth);
+    final rect = Rect.fromLTWH(strokeWidth / 2, strokeWidth / 2,
+        size.width - strokeWidth, size.height - strokeWidth);
     final total = spent + remaining;
     if (total <= 0) {
-      final paint = Paint()..color = AppTheme.udoBorder..style = PaintingStyle.stroke..strokeWidth = strokeWidth;
+      final paint = Paint()
+        ..color = AppTheme.udoBorder
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = strokeWidth;
       canvas.drawArc(rect, 0, 2 * pi, false, paint);
       return;
     }
     var startAngle = -pi / 2;
-    for (final segment in [(spent, const Color(0xFFC9867A)), (remaining, AppTheme.udoBorder)]) {
+    for (final segment in [
+      (spent, const Color(0xFFC9867A)),
+      (remaining, AppTheme.udoBorder)
+    ]) {
       if (segment.$1 <= 0) continue;
       final sweep = (segment.$1 / total) * 2 * pi;
-      final paint = Paint()..color = segment.$2..style = PaintingStyle.stroke..strokeWidth = strokeWidth;
+      final paint = Paint()
+        ..color = segment.$2
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = strokeWidth;
       canvas.drawArc(rect, startAngle, sweep, false, paint);
       startAngle += sweep;
     }
   }
 
   @override
-  bool shouldRepaint(covariant _HoneymoonBudgetDonutPainter oldDelegate) => oldDelegate.spent != spent || oldDelegate.remaining != remaining;
+  bool shouldRepaint(covariant _HoneymoonBudgetDonutPainter oldDelegate) =>
+      oldDelegate.spent != spent || oldDelegate.remaining != remaining;
 }
 
 class _HoneymoonTravelersCard extends ConsumerWidget {
@@ -18056,24 +19517,47 @@ class _HoneymoonTravelersCard extends ConsumerWidget {
     return UdoCard(
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
-          Expanded(child: Text('Travelers', style: UdoDesign.sans(size: 15, weight: FontWeight.w700))),
+          Expanded(
+              child: Text('Travelers',
+                  style: UdoDesign.sans(size: 15, weight: FontWeight.w700))),
         ]),
         if (travelers.isEmpty)
-          Padding(padding: const EdgeInsets.symmetric(vertical: 8), child: Text('No travelers added yet.', style: UdoDesign.sans(size: 12, color: UdoDesign.muted)))
+          Padding(
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              child: Text('No travelers added yet.',
+                  style: UdoDesign.sans(size: 12, color: UdoDesign.muted)))
         else
           for (final t in travelers)
             Padding(
               padding: const EdgeInsets.symmetric(vertical: 6),
               child: Row(children: [
-                CircleAvatar(radius: 16, backgroundColor: UdoDesign.sage, child: Text(_travelerInitial(t['name'] as String?), style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w700))),
+                CircleAvatar(
+                    radius: 16,
+                    backgroundColor: UdoDesign.sage,
+                    child: Text(_travelerInitial(t['name'] as String?),
+                        style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 13,
+                            fontWeight: FontWeight.w700))),
                 const SizedBox(width: 10),
-                Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text(t['name'] as String? ?? '', style: UdoDesign.sans(size: 13, weight: FontWeight.w600)),
-                  if ((t['role'] as String?)?.isNotEmpty == true) Text(t['role'] as String, style: UdoDesign.sans(size: 11, color: UdoDesign.muted)),
-                ])),
+                Expanded(
+                    child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                      Text(t['name'] as String? ?? '',
+                          style: UdoDesign.sans(
+                              size: 13, weight: FontWeight.w600)),
+                      if ((t['role'] as String?)?.isNotEmpty == true)
+                        Text(t['role'] as String,
+                            style: UdoDesign.sans(
+                                size: 11, color: UdoDesign.muted)),
+                    ])),
                 GestureDetector(
-                  onTap: () => ref.read(honeymoonProvider.notifier).removeTraveler(t['id'] as int),
-                  child: const Icon(Icons.close, size: 16, color: AppTheme.udoTextSecondary),
+                  onTap: () => ref
+                      .read(honeymoonProvider.notifier)
+                      .removeTraveler(t['id'] as int),
+                  child: const Icon(Icons.close,
+                      size: 16, color: AppTheme.udoTextSecondary),
                 ),
               ]),
             ),
@@ -18087,14 +19571,17 @@ class _HoneymoonTravelersCard extends ConsumerWidget {
     );
   }
 
-  String _travelerInitial(String? name) => (name == null || name.isEmpty) ? '?' : name[0].toUpperCase();
+  String _travelerInitial(String? name) =>
+      (name == null || name.isEmpty) ? '?' : name[0].toUpperCase();
 
   void _showInviteSheet(BuildContext context, WidgetRef ref) {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
-      builder: (_) => _AddHoneymoonTravelerSheet(notifier: ref.read(honeymoonProvider.notifier)),
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+      builder: (_) => _AddHoneymoonTravelerSheet(
+          notifier: ref.read(honeymoonProvider.notifier)),
     );
   }
 }
@@ -18104,10 +19591,12 @@ class _AddHoneymoonTravelerSheet extends StatefulWidget {
   const _AddHoneymoonTravelerSheet({required this.notifier});
 
   @override
-  State<_AddHoneymoonTravelerSheet> createState() => _AddHoneymoonTravelerSheetState();
+  State<_AddHoneymoonTravelerSheet> createState() =>
+      _AddHoneymoonTravelerSheetState();
 }
 
-class _AddHoneymoonTravelerSheetState extends State<_AddHoneymoonTravelerSheet> {
+class _AddHoneymoonTravelerSheetState
+    extends State<_AddHoneymoonTravelerSheet> {
   final _name = TextEditingController();
   final _role = TextEditingController();
   bool _saving = false;
@@ -18129,7 +19618,8 @@ class _AddHoneymoonTravelerSheetState extends State<_AddHoneymoonTravelerSheet> 
       _saving = true;
       _error = null;
     });
-    final ok = await widget.notifier.addTraveler(name: _name.text.trim(), role: _role.text.trim());
+    final ok = await widget.notifier
+        .addTraveler(name: _name.text.trim(), role: _role.text.trim());
     if (!mounted) return;
     if (ok) {
       Navigator.pop(context);
@@ -18143,32 +19633,56 @@ class _AddHoneymoonTravelerSheetState extends State<_AddHoneymoonTravelerSheet> 
 
   @override
   Widget build(BuildContext context) => Padding(
-        padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+        padding:
+            EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
         child: SafeArea(
           child: Padding(
             padding: const EdgeInsets.fromLTRB(20, 24, 20, 20),
-            child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Row(children: [
-                const Expanded(child: Text('Invite Traveler', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600))),
-                IconButton(onPressed: () => Navigator.pop(context), icon: const Icon(Icons.close), padding: EdgeInsets.zero),
-              ]),
-              const SizedBox(height: 4),
-              const Text('Adds them to your trip — no invite email is sent.', style: TextStyle(fontSize: 12, color: AppTheme.udoTextSecondary)),
-              const SizedBox(height: 14),
-              _GField('Name', _name),
-              const SizedBox(height: 10),
-              _GField('Role (e.g. Lead Traveler)', _role),
-              if (_error != null) ...[
-                const SizedBox(height: 10),
-                Text(_error!, style: const TextStyle(fontSize: 12, color: AppTheme.udoCrimson)),
-              ],
-              const SizedBox(height: 16),
-              ElevatedButton(
-                onPressed: _saving ? null : _submit,
-                style: ElevatedButton.styleFrom(minimumSize: const Size(double.infinity, 52), backgroundColor: AppTheme.udoGreen, foregroundColor: Colors.white),
-                child: _saving ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2)) : const Text('Add'),
-              ),
-            ]),
+            child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(children: [
+                    const Expanded(
+                        child: Text('Invite Traveler',
+                            style: TextStyle(
+                                fontSize: 18, fontWeight: FontWeight.w600))),
+                    IconButton(
+                        onPressed: () => Navigator.pop(context),
+                        icon: const Icon(Icons.close),
+                        padding: EdgeInsets.zero),
+                  ]),
+                  const SizedBox(height: 4),
+                  const Text(
+                      'Adds them to your trip — no invite email is sent.',
+                      style: TextStyle(
+                          fontSize: 12, color: AppTheme.udoTextSecondary)),
+                  const SizedBox(height: 14),
+                  _GField('Name', _name),
+                  const SizedBox(height: 10),
+                  _GField('Role (e.g. Lead Traveler)', _role),
+                  if (_error != null) ...[
+                    const SizedBox(height: 10),
+                    Text(_error!,
+                        style: const TextStyle(
+                            fontSize: 12, color: AppTheme.udoCrimson)),
+                  ],
+                  const SizedBox(height: 16),
+                  ElevatedButton(
+                    onPressed: _saving ? null : _submit,
+                    style: ElevatedButton.styleFrom(
+                        minimumSize: const Size(double.infinity, 52),
+                        backgroundColor: AppTheme.udoGreen,
+                        foregroundColor: Colors.white),
+                    child: _saving
+                        ? const SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(
+                                color: Colors.white, strokeWidth: 2))
+                        : const Text('Add'),
+                  ),
+                ]),
           ),
         ),
       );
@@ -18187,16 +19701,26 @@ class _HoneymoonChecklistCard extends ConsumerWidget {
     return UdoCard(
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
-          Expanded(child: Text('Checklist', style: UdoDesign.sans(size: 15, weight: FontWeight.w700))),
-          TextButton(onPressed: () => _showChecklist(context), child: const Text('View Checklist', style: TextStyle(fontSize: 12))),
+          Expanded(
+              child: Text('Checklist',
+                  style: UdoDesign.sans(size: 15, weight: FontWeight.w700))),
+          TextButton(
+              onPressed: () => _showChecklist(context),
+              child:
+                  const Text('View Checklist', style: TextStyle(fontSize: 12))),
         ]),
         const SizedBox(height: 8),
         ClipRRect(
           borderRadius: BorderRadius.circular(6),
-          child: LinearProgressIndicator(value: pct, minHeight: 8, backgroundColor: AppTheme.udoBorder, color: AppTheme.udoGreen),
+          child: LinearProgressIndicator(
+              value: pct,
+              minHeight: 8,
+              backgroundColor: AppTheme.udoBorder,
+              color: AppTheme.udoGreen),
         ),
         const SizedBox(height: 6),
-        Text('$done of ${tasks.length} tasks completed', style: UdoDesign.sans(size: 12, color: UdoDesign.muted)),
+        Text('$done of ${tasks.length} tasks completed',
+            style: UdoDesign.sans(size: 12, color: UdoDesign.muted)),
       ]),
     );
   }
@@ -18205,7 +19729,8 @@ class _HoneymoonChecklistCard extends ConsumerWidget {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
       builder: (_) => const _HoneymoonChecklistSheet(),
     );
   }
@@ -18215,25 +19740,43 @@ class _HoneymoonChecklistSheet extends ConsumerStatefulWidget {
   const _HoneymoonChecklistSheet();
 
   @override
-  ConsumerState<_HoneymoonChecklistSheet> createState() => _HoneymoonChecklistSheetState();
+  ConsumerState<_HoneymoonChecklistSheet> createState() =>
+      _HoneymoonChecklistSheetState();
 }
 
-class _HoneymoonChecklistSheetState extends ConsumerState<_HoneymoonChecklistSheet> {
+class _HoneymoonChecklistSheetState
+    extends ConsumerState<_HoneymoonChecklistSheet> {
   final _newTask = TextEditingController();
+  final _newTaskFocus = FocusNode();
   bool _adding = false;
 
   @override
   void dispose() {
     _newTask.dispose();
+    _newTaskFocus.dispose();
     super.dispose();
   }
 
   Future<void> _addTask() async {
-    if (_newTask.text.trim().isEmpty) return;
+    if (_newTask.text.trim().isEmpty) {
+      _newTaskFocus.requestFocus();
+      ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Type a checklist item first.')));
+      return;
+    }
     setState(() => _adding = true);
-    await ref.read(honeymoonProvider.notifier).addChecklistTask(_newTask.text.trim());
-    _newTask.clear();
-    if (mounted) setState(() => _adding = false);
+    final ok = await ref
+        .read(honeymoonProvider.notifier)
+        .addChecklistTask(_newTask.text.trim());
+    if (!mounted) return;
+    if (ok) {
+      _newTask.clear();
+      _newTaskFocus.requestFocus();
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text("Couldn't add this checklist item. Try again.")));
+    }
+    setState(() => _adding = false);
   }
 
   @override
@@ -18245,43 +19788,73 @@ class _HoneymoonChecklistSheetState extends ConsumerState<_HoneymoonChecklistShe
       maxChildSize: 0.95,
       builder: (_, ctrl) => Column(children: [
         Container(
-          decoration: const BoxDecoration(color: Colors.white, borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+          decoration: const BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
           padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
           child: Row(children: [
-            const Expanded(child: Text('Checklist', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600))),
-            IconButton(onPressed: () => Navigator.pop(context), icon: const Icon(Icons.close), padding: EdgeInsets.zero),
+            const Expanded(
+                child: Text('Checklist',
+                    style:
+                        TextStyle(fontSize: 18, fontWeight: FontWeight.w600))),
+            IconButton(
+                onPressed: () => Navigator.pop(context),
+                icon: const Icon(Icons.close),
+                padding: EdgeInsets.zero),
           ]),
         ),
         const Divider(height: 1),
         Expanded(
-          child: ListView(controller: ctrl, padding: const EdgeInsets.fromLTRB(20, 8, 20, 20), children: [
-            if (tasks.isEmpty)
-              const Padding(padding: EdgeInsets.symmetric(vertical: 16), child: Text('No checklist items yet.', style: TextStyle(fontSize: 13, color: AppTheme.udoTextSecondary)))
-            else
-              for (final task in tasks)
-                CheckboxListTile(
-                  contentPadding: EdgeInsets.zero,
-                  value: task['completed'] == true,
-                  onChanged: (v) => ref.read(honeymoonProvider.notifier).toggleChecklistTask(task['id'] as int, v ?? false),
-                  title: Text(task['title'] as String? ?? '', style: const TextStyle(fontSize: 13)),
-                  controlAffinity: ListTileControlAffinity.leading,
-                  activeColor: AppTheme.udoGreen,
-                  secondary: IconButton(
-                    onPressed: () => ref.read(honeymoonProvider.notifier).deleteChecklistTask(task['id'] as int),
-                    icon: const Icon(Icons.delete_outline, size: 18, color: AppTheme.udoTextSecondary),
-                  ),
-                ),
-          ]),
+          child: ListView(
+              controller: ctrl,
+              padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
+              children: [
+                if (tasks.isEmpty)
+                  const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 16),
+                      child: Text('No checklist items yet.',
+                          style: TextStyle(
+                              fontSize: 13, color: AppTheme.udoTextSecondary)))
+                else
+                  for (final task in tasks)
+                    CheckboxListTile(
+                      contentPadding: EdgeInsets.zero,
+                      value: task['completed'] == true,
+                      onChanged: (v) => ref
+                          .read(honeymoonProvider.notifier)
+                          .toggleChecklistTask(task['id'] as int, v ?? false),
+                      title: Text(task['title'] as String? ?? '',
+                          style: const TextStyle(fontSize: 13)),
+                      controlAffinity: ListTileControlAffinity.leading,
+                      activeColor: AppTheme.udoGreen,
+                      secondary: IconButton(
+                        onPressed: () => ref
+                            .read(honeymoonProvider.notifier)
+                            .deleteChecklistTask(task['id'] as int),
+                        icon: const Icon(Icons.delete_outline,
+                            size: 18, color: AppTheme.udoTextSecondary),
+                      ),
+                    ),
+              ]),
         ),
         const Divider(height: 1),
         Padding(
-          padding: EdgeInsets.fromLTRB(20, 12, 20, 12 + MediaQuery.of(context).viewInsets.bottom),
+          padding: EdgeInsets.fromLTRB(
+              20, 12, 20, 12 + MediaQuery.of(context).viewInsets.bottom),
           child: Row(children: [
-            Expanded(child: _GField('Add a checklist item', _newTask)),
+            Expanded(
+                child: _GField('Add a checklist item', _newTask,
+                    focusNode: _newTaskFocus, onSubmitted: (_) => _addTask())),
             const SizedBox(width: 8),
             IconButton.filled(
               onPressed: _adding ? null : _addTask,
-              icon: _adding ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : const Icon(Icons.add),
+              icon: _adding
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(
+                          strokeWidth: 2, color: Colors.white))
+                  : const Icon(Icons.add),
               style: IconButton.styleFrom(backgroundColor: AppTheme.udoGreen),
             ),
           ]),
@@ -18298,13 +19871,13 @@ class _HoneymoonItinerarySheet extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final sorted = [...state.items]..sort((a, b) {
-      final da = DateTime.tryParse(a['date'] as String? ?? '');
-      final db = DateTime.tryParse(b['date'] as String? ?? '');
-      if (da == null && db == null) return 0;
-      if (da == null) return 1;
-      if (db == null) return -1;
-      return da.compareTo(db);
-    });
+        final da = DateTime.tryParse(a['date'] as String? ?? '');
+        final db = DateTime.tryParse(b['date'] as String? ?? '');
+        if (da == null && db == null) return 0;
+        if (da == null) return 1;
+        if (db == null) return -1;
+        return da.compareTo(db);
+      });
 
     return DraggableScrollableSheet(
       expand: false,
@@ -18312,40 +19885,77 @@ class _HoneymoonItinerarySheet extends StatelessWidget {
       maxChildSize: 0.95,
       builder: (_, ctrl) => Column(children: [
         Container(
-          decoration: const BoxDecoration(color: Colors.white, borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+          decoration: const BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
           padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
           child: Row(children: [
-            const Expanded(child: Text('Itinerary', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600))),
-            IconButton(onPressed: () => Navigator.pop(context), icon: const Icon(Icons.close), padding: EdgeInsets.zero),
+            const Expanded(
+                child: Text('Itinerary',
+                    style:
+                        TextStyle(fontSize: 18, fontWeight: FontWeight.w600))),
+            IconButton(
+                onPressed: () => Navigator.pop(context),
+                icon: const Icon(Icons.close),
+                padding: EdgeInsets.zero),
           ]),
         ),
         const Divider(height: 1),
         Expanded(
           child: sorted.isEmpty
-              ? const Center(child: Text('No plans added yet.', style: TextStyle(fontSize: 13, color: AppTheme.udoTextSecondary)))
-              : ListView(controller: ctrl, padding: const EdgeInsets.fromLTRB(20, 12, 20, 20), children: [
-                  for (final item in sorted)
-                    Builder(builder: (context) {
-                      return InkWell(
-                        onTap: () {
-                          Navigator.pop(context);
-                          Navigator.of(context).push(MaterialPageRoute(builder: (_) => _AddHoneymoonPlanScreen(state: state, item: item)));
-                        },
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 10),
-                          child: Row(children: [
-                            Icon(_kHoneymoonTypeMeta[item['type']]?.$2 ?? Icons.event_outlined, size: 18, color: AppTheme.udoGreen),
-                            const SizedBox(width: 12),
-                            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                              Text(item['title'] as String? ?? '', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
-                              Text(item['date'] != null ? DateFormat('EEE, MMM d, yyyy').format(DateTime.parse(item['date'] as String)) : 'No date', style: const TextStyle(fontSize: 11, color: AppTheme.udoTextSecondary)),
-                            ])),
-                            _HoneymoonStatusBadge(item['status'] as String?),
-                          ]),
-                        ),
-                      );
-                    }),
-                ]),
+              ? const Center(
+                  child: Text('No plans added yet.',
+                      style: TextStyle(
+                          fontSize: 13, color: AppTheme.udoTextSecondary)))
+              : ListView(
+                  controller: ctrl,
+                  padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
+                  children: [
+                      for (final item in sorted)
+                        Builder(builder: (context) {
+                          return InkWell(
+                            onTap: () {
+                              Navigator.pop(context);
+                              Navigator.of(context).push(MaterialPageRoute(
+                                  builder: (_) => _AddHoneymoonPlanScreen(
+                                      state: state, item: item)));
+                            },
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(vertical: 10),
+                              child: Row(children: [
+                                Icon(
+                                    _kHoneymoonTypeMeta[item['type']]?.$2 ??
+                                        Icons.event_outlined,
+                                    size: 18,
+                                    color: AppTheme.udoGreen),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                    child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                      Text(item['title'] as String? ?? '',
+                                          style: const TextStyle(
+                                              fontSize: 13,
+                                              fontWeight: FontWeight.w600)),
+                                      Text(
+                                          item['date'] != null
+                                              ? DateFormat('EEE, MMM d, yyyy')
+                                                  .format(DateTime.parse(
+                                                      item['date'] as String))
+                                              : 'No date',
+                                          style: const TextStyle(
+                                              fontSize: 11,
+                                              color:
+                                                  AppTheme.udoTextSecondary)),
+                                    ])),
+                                _HoneymoonStatusBadge(
+                                    item['status'] as String?),
+                              ]),
+                            ),
+                          );
+                        }),
+                    ]),
         ),
       ]),
     );
@@ -18361,9 +19971,14 @@ class _EditTripSheet extends StatefulWidget {
 }
 
 class _EditTripSheetState extends State<_EditTripSheet> {
-  late final _destination = TextEditingController(text: widget.trip?['destination'] as String? ?? '');
-  late final _status = TextEditingController(text: widget.trip?['status'] as String? ?? '');
-  late final _totalBudget = TextEditingController(text: widget.trip?['total_budget'] != null ? _asDouble(widget.trip!['total_budget']).toStringAsFixed(2) : '');
+  late final _destination =
+      TextEditingController(text: widget.trip?['destination'] as String? ?? '');
+  late final _status =
+      TextEditingController(text: widget.trip?['status'] as String? ?? '');
+  late final _totalBudget = TextEditingController(
+      text: widget.trip?['total_budget'] != null
+          ? _asDouble(widget.trip!['total_budget']).toStringAsFixed(2)
+          : '');
   DateTime? _departure;
   DateTime? _return;
   bool _saving = false;
@@ -18380,60 +19995,113 @@ class _EditTripSheetState extends State<_EditTripSheet> {
 
   @override
   Widget build(BuildContext context) => Padding(
-        padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+        padding:
+            EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
         child: SafeArea(
           child: SingleChildScrollView(
             padding: const EdgeInsets.fromLTRB(20, 24, 20, 20),
-            child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Row(children: [
-                const Expanded(child: Text('Plan honeymoon', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600))),
-                IconButton(onPressed: () => Navigator.pop(context), icon: const Icon(Icons.close), padding: EdgeInsets.zero),
-              ]),
-              const SizedBox(height: 14),
-              _GField('Destination', _destination),
-              const SizedBox(height: 10),
-              Row(children: [
-                Expanded(
-                    child: InkWell(
-                  onTap: () async {
-                    final picked = await showDatePicker(context: context, initialDate: _departure ?? DateTime.now(), firstDate: DateTime.now().subtract(const Duration(days: 365)), lastDate: DateTime.now().add(const Duration(days: 3650)));
-                    if (picked != null) setState(() => _departure = picked);
-                  },
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-                    decoration: BoxDecoration(color: AppTheme.udoCardFill, borderRadius: BorderRadius.circular(14)),
-                    child: Text(_departure == null ? 'Departure' : DateFormat('MMM d, yyyy').format(_departure!), style: const TextStyle(fontSize: 13, color: AppTheme.udoTextSecondary)),
+            child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(children: [
+                    const Expanded(
+                        child: Text('Plan honeymoon',
+                            style: TextStyle(
+                                fontSize: 18, fontWeight: FontWeight.w600))),
+                    IconButton(
+                        onPressed: () => Navigator.pop(context),
+                        icon: const Icon(Icons.close),
+                        padding: EdgeInsets.zero),
+                  ]),
+                  const SizedBox(height: 14),
+                  _GField('Destination', _destination),
+                  const SizedBox(height: 10),
+                  Row(children: [
+                    Expanded(
+                        child: InkWell(
+                      onTap: () async {
+                        final picked = await showDatePicker(
+                            context: context,
+                            initialDate: _departure ?? DateTime.now(),
+                            firstDate: DateTime.now()
+                                .subtract(const Duration(days: 365)),
+                            lastDate:
+                                DateTime.now().add(const Duration(days: 3650)));
+                        if (picked != null) setState(() => _departure = picked);
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 14, vertical: 14),
+                        decoration: BoxDecoration(
+                            color: AppTheme.udoCardFill,
+                            borderRadius: BorderRadius.circular(14)),
+                        child: Text(
+                            _departure == null
+                                ? 'Departure'
+                                : DateFormat('MMM d, yyyy').format(_departure!),
+                            style: const TextStyle(
+                                fontSize: 13,
+                                color: AppTheme.udoTextSecondary)),
+                      ),
+                    )),
+                    const SizedBox(width: 8),
+                    Expanded(
+                        child: InkWell(
+                      onTap: () async {
+                        final picked = await showDatePicker(
+                            context: context,
+                            initialDate: _return ?? DateTime.now(),
+                            firstDate: DateTime.now()
+                                .subtract(const Duration(days: 365)),
+                            lastDate:
+                                DateTime.now().add(const Duration(days: 3650)));
+                        if (picked != null) setState(() => _return = picked);
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 14, vertical: 14),
+                        decoration: BoxDecoration(
+                            color: AppTheme.udoCardFill,
+                            borderRadius: BorderRadius.circular(14)),
+                        child: Text(
+                            _return == null
+                                ? 'Return'
+                                : DateFormat('MMM d, yyyy').format(_return!),
+                            style: const TextStyle(
+                                fontSize: 13,
+                                color: AppTheme.udoTextSecondary)),
+                      ),
+                    )),
+                  ]),
+                  const SizedBox(height: 10),
+                  _GField('Total budget (optional)', _totalBudget,
+                      type:
+                          const TextInputType.numberWithOptions(decimal: true)),
+                  const SizedBox(height: 10),
+                  _GField('Status (optional)', _status),
+                  if (_error != null) ...[
+                    const SizedBox(height: 10),
+                    Text(_error!,
+                        style: const TextStyle(
+                            fontSize: 12, color: AppTheme.udoCrimson)),
+                  ],
+                  const SizedBox(height: 16),
+                  ElevatedButton(
+                    onPressed: _saving ? null : _submit,
+                    style: ElevatedButton.styleFrom(
+                        minimumSize: const Size(double.infinity, 52),
+                        backgroundColor: AppTheme.udoGreen,
+                        foregroundColor: Colors.white),
+                    child: _saving
+                        ? const SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(
+                                color: Colors.white, strokeWidth: 2))
+                        : const Text('Save'),
                   ),
-                )),
-                const SizedBox(width: 8),
-                Expanded(
-                    child: InkWell(
-                  onTap: () async {
-                    final picked = await showDatePicker(context: context, initialDate: _return ?? DateTime.now(), firstDate: DateTime.now().subtract(const Duration(days: 365)), lastDate: DateTime.now().add(const Duration(days: 3650)));
-                    if (picked != null) setState(() => _return = picked);
-                  },
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-                    decoration: BoxDecoration(color: AppTheme.udoCardFill, borderRadius: BorderRadius.circular(14)),
-                    child: Text(_return == null ? 'Return' : DateFormat('MMM d, yyyy').format(_return!), style: const TextStyle(fontSize: 13, color: AppTheme.udoTextSecondary)),
-                  ),
-                )),
-              ]),
-              const SizedBox(height: 10),
-              _GField('Total budget (optional)', _totalBudget, type: const TextInputType.numberWithOptions(decimal: true)),
-              const SizedBox(height: 10),
-              _GField('Status (optional)', _status),
-              if (_error != null) ...[
-                const SizedBox(height: 10),
-                Text(_error!, style: const TextStyle(fontSize: 12, color: AppTheme.udoCrimson)),
-              ],
-              const SizedBox(height: 16),
-              ElevatedButton(
-                onPressed: _saving ? null : _submit,
-                style: ElevatedButton.styleFrom(minimumSize: const Size(double.infinity, 52), backgroundColor: AppTheme.udoGreen, foregroundColor: Colors.white),
-                child: _saving ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2)) : const Text('Save'),
-              ),
-            ]),
+                ]),
           ),
         ),
       );
@@ -18451,7 +20119,8 @@ class _EditTripSheetState extends State<_EditTripSheet> {
       'destination': _destination.text.trim(),
       if (_departure != null) 'departure_date': _formatDate(_departure!),
       if (_return != null) 'return_date': _formatDate(_return!),
-      if (_totalBudget.text.trim().isNotEmpty) 'total_budget': double.tryParse(_totalBudget.text.trim()),
+      if (_totalBudget.text.trim().isNotEmpty)
+        'total_budget': double.tryParse(_totalBudget.text.trim()),
       if (_status.text.trim().isNotEmpty) 'status': _status.text.trim(),
     });
     if (!mounted) return;
@@ -18476,66 +20145,55 @@ class _EditTripSheetState extends State<_EditTripSheet> {
 
 // ── WEDDING PARTY TAB (links to full screen) ───────────────────────────────────
 
-class _WeddingPartyTab extends ConsumerWidget {
+class _WeddingPartyTab extends StatelessWidget {
   const _WeddingPartyTab();
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final party = ref.watch(weddingPartyProvider);
-    final members = party.members;
-    final attireReady =
-        members.where((m) => m['attire_status'] == 'ready').length;
-    final rehearsalConfirmed =
-        members.where((m) => m['rehearsal_status'] == 'confirmed').length;
-    final openResponsibilities =
-        party.responsibilities.where((r) => r['status'] != 'done').length;
-    final travelConfirmed = members
-        .where((m) =>
-            m['hotel_assignment_id'] != null ||
-            m['transport_assignment_id'] != null)
-        .length;
-    final readyCount = members.where((m) {
-      final attire = m['attire_status'] == 'ready';
-      final rehearsal = m['rehearsal_status'] == 'confirmed';
-      final travel = m['travel_required'] != true ||
-          m['hotel_assignment_id'] != null ||
-          m['transport_assignment_id'] != null;
-      return attire && rehearsal && travel;
-    }).length;
-    final priorityTasks = [...party.responsibilities]..sort((a, b) =>
-        (a['due_date'] ?? '9999')
-            .toString()
-            .compareTo((b['due_date'] ?? '9999').toString()));
-    return WeddingPartyOverview(
-      isLoading: party.isLoading,
-      error: party.membersError,
-      members: members,
-      responsibilities: party.responsibilities,
-      buzzes: party.buzzes,
-      timelineItems: party.timelineItems,
-      accommodations: party.accommodations,
-      transportGroups: party.transportGroups,
-      files: party.files,
-      attireReady: attireReady,
-      rehearsalConfirmed: rehearsalConfirmed,
-      travelConfirmed: travelConfirmed,
-      readyCount: readyCount,
-      openResponsibilities: openResponsibilities,
-      priorityTasks: priorityTasks
-          .where((task) => task['status'] != 'done')
-          .take(3)
-          .cast<Map<String, dynamic>>()
-          .toList(),
-      initialsFor: _initials,
-      onOpenModule: (_) => context.push('/wedding-party'),
-    );
-  }
 
-  String _initials(Map<String, dynamic> m) {
-    final first = (m['first_name'] as String? ?? '').trim();
-    final last = (m['last_name'] as String? ?? '').trim();
-    if (first.isEmpty && last.isEmpty) return '?';
-    return '${first.isNotEmpty ? first[0] : ''}${last.isNotEmpty ? last[0] : ''}'
-        .toUpperCase();
+  @override
+  Widget build(BuildContext context) {
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(18, 16, 18, 120),
+      children: [
+        UdoCard(
+          padding: const EdgeInsets.all(22),
+          child:
+              Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Container(
+              width: 46,
+              height: 46,
+              decoration: BoxDecoration(
+                color: UdoDesign.rose.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: const Icon(Icons.groups_2_outlined, color: UdoDesign.rose),
+            ),
+            const SizedBox(height: 16),
+            Text('Wedding Party planning', style: UdoDesign.serif(size: 28)),
+            const SizedBox(height: 8),
+            Text(
+              'This section now lives in the full Wedding Party module so Overview, People, Responsibilities, Rehearsal, Travel, and Files stay in one place.',
+              style: UdoDesign.sans(
+                  size: 13, color: UdoDesign.muted, height: 1.45),
+            ),
+            const SizedBox(height: 18),
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton.icon(
+                onPressed: () => context.push('/wedding-party?tab=overview'),
+                icon: const Icon(Icons.event_note_outlined, size: 16),
+                label: const Text('Open Detailed Planning'),
+                style: FilledButton.styleFrom(
+                  backgroundColor: UdoDesign.rose,
+                  foregroundColor: Colors.white,
+                  minimumSize: const Size(double.infinity, 48),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12)),
+                ),
+              ),
+            ),
+          ]),
+        ),
+      ],
+    );
   }
 }
 
@@ -18559,6 +20217,18 @@ class _DetailsTab extends ConsumerWidget {
 
     String dash(dynamic v) =>
         (v == null || (v is String && v.isEmpty)) ? 'Not set' : v.toString();
+    String displayDate(dynamic v) {
+      if (v == null || (v is String && v.trim().isEmpty)) return 'Not set';
+      final formatted = udo_dates.formatApiDate(v);
+      return formatted.isEmpty ? 'Not set' : formatted;
+    }
+
+    String displayTime(dynamic v) {
+      if (v == null || (v is String && v.trim().isEmpty)) return 'Not set';
+      final formatted = udo_dates.formatApiTime(v);
+      return formatted.isEmpty ? 'Not set' : formatted;
+    }
+
     dynamic setting(String key) {
       final settings = wedding['settings'] is Map
           ? Map<String, dynamic>.from(wedding['settings'] as Map)
@@ -18571,24 +20241,24 @@ class _DetailsTab extends ConsumerWidget {
         .join(', ');
     final fields = [
       _ProfileField(Icons.calendar_today_outlined, 'Wedding date',
-          dash(wedding['event_date']), wedding['event_date']),
+          displayDate(wedding['event_date']), wedding['event_date']),
       _ProfileField(Icons.favorite_border_outlined, 'Wedding type',
           dash(setting('wedding_type')), setting('wedding_type')),
       _ProfileField(Icons.location_on_outlined, 'Ceremony venue',
           dash(wedding['primary_venue_name']), wedding['primary_venue_name']),
       _ProfileField(Icons.schedule_outlined, 'Ceremony time',
-          dash(setting('ceremony_time')), setting('ceremony_time')),
+          displayTime(setting('ceremony_time')), setting('ceremony_time')),
       _ProfileField(
           Icons.apartment_outlined,
           'Reception venue',
           dash(setting('reception_venue_name')),
           setting('reception_venue_name')),
       _ProfileField(Icons.schedule_outlined, 'Reception time',
-          dash(setting('reception_time')), setting('reception_time')),
+          displayTime(setting('reception_time')), setting('reception_time')),
       _ProfileField(Icons.location_city_outlined, 'Destination',
           destination.isEmpty ? 'Not set' : destination, destination),
       _ProfileField(Icons.event_available_outlined, 'RSVP deadline',
-          dash(wedding['rsvp_deadline']), wedding['rsvp_deadline']),
+          displayDate(wedding['rsvp_deadline']), wedding['rsvp_deadline']),
       _ProfileField(Icons.groups_outlined, 'Guest count',
           dash(setting('guest_count')), setting('guest_count')),
       _ProfileField(Icons.language_outlined, 'Wedding website',
@@ -18623,7 +20293,9 @@ class _DetailsTab extends ConsumerWidget {
       guestCount: dash(setting('guest_count')),
       budgetStatus: () {
         final raw = setting('total_budget');
-        final amount = raw is num ? raw.toDouble() : double.tryParse(raw?.toString() ?? '');
+        final amount = raw is num
+            ? raw.toDouble()
+            : double.tryParse(raw?.toString() ?? '');
         return (amount != null && amount > 0) ? _money(amount) : 'Not set';
       }(),
       onComplete: () =>
@@ -18644,7 +20316,7 @@ class _DetailsTab extends ConsumerWidget {
           (
             Icons.calendar_today_outlined,
             'Wedding date',
-            dash(wedding['event_date'])
+            displayDate(wedding['event_date'])
           ),
           (
             Icons.location_on_outlined,
@@ -18659,7 +20331,7 @@ class _DetailsTab extends ConsumerWidget {
           (
             Icons.event_available_outlined,
             'RSVP deadline',
-            dash(wedding['rsvp_deadline'])
+            displayDate(wedding['rsvp_deadline'])
           ),
           (Icons.tag_outlined, 'Wedding hashtag', dash(wedding['hashtag'])),
         ])
@@ -18731,35 +20403,101 @@ class _ProfileField {
 }
 
 const _weddingTypeOptions = [
-  'Traditional Wedding', 'Modern Wedding', 'Classic Elegant', 'Luxury Wedding',
-  'Destination Wedding', 'Beach Wedding', 'Garden Wedding', 'Church Wedding',
-  'Civil Ceremony', 'Courthouse Wedding', 'Intimate Wedding', 'Micro Wedding',
-  'Elopement', 'Black Tie', 'Formal Wedding', 'Semi-Formal Wedding',
-  'Casual Wedding', 'Boho Wedding', 'Rustic Wedding', 'Barn Wedding',
-  'Vintage Wedding', 'Glamorous Wedding', 'Minimalist Wedding', 'Industrial Wedding',
-  'Tropical Wedding', 'Cultural Wedding', 'Fusion Wedding', 'Multicultural Wedding',
-  'LGBTQ+ Wedding', 'Vow Renewal', 'Adventure Wedding', 'Weekend Wedding',
-  'Festival Wedding', 'Winery/Vineyard Wedding', 'Estate Wedding', 'Hotel Ballroom Wedding',
-  'All-Inclusive Resort Wedding', 'Cruise Wedding', 'Custom',
+  'Traditional Wedding',
+  'Modern Wedding',
+  'Classic Elegant',
+  'Luxury Wedding',
+  'Destination Wedding',
+  'Beach Wedding',
+  'Garden Wedding',
+  'Church Wedding',
+  'Civil Ceremony',
+  'Courthouse Wedding',
+  'Intimate Wedding',
+  'Micro Wedding',
+  'Elopement',
+  'Black Tie',
+  'Formal Wedding',
+  'Semi-Formal Wedding',
+  'Casual Wedding',
+  'Boho Wedding',
+  'Rustic Wedding',
+  'Barn Wedding',
+  'Vintage Wedding',
+  'Glamorous Wedding',
+  'Minimalist Wedding',
+  'Industrial Wedding',
+  'Tropical Wedding',
+  'Cultural Wedding',
+  'Fusion Wedding',
+  'Multicultural Wedding',
+  'LGBTQ+ Wedding',
+  'Vow Renewal',
+  'Adventure Wedding',
+  'Weekend Wedding',
+  'Festival Wedding',
+  'Winery/Vineyard Wedding',
+  'Estate Wedding',
+  'Hotel Ballroom Wedding',
+  'All-Inclusive Resort Wedding',
+  'Cruise Wedding',
+  'Custom',
 ];
 
 const _planningApproachOptions = [
-  'Planning Ourselves', 'Mostly DIY', 'DIY with Family Support', 'DIY with Friends',
-  'Day-of Coordinator', 'Month-of Coordinator', 'Partial Wedding Planner', 'Full-Service Wedding Planner',
-  'Venue Coordinator', 'Destination Wedding Specialist', 'Bride Leads Planning', 'Groom Leads Planning',
-  'Planning Together Equally', 'Parent-Led Planning', 'Planner + Couple Collaboration', 'Luxury Concierge Planning',
-  'Religious Organization Assisted', 'Custom',
+  'Planning Ourselves',
+  'Mostly DIY',
+  'DIY with Family Support',
+  'DIY with Friends',
+  'Day-of Coordinator',
+  'Month-of Coordinator',
+  'Partial Wedding Planner',
+  'Full-Service Wedding Planner',
+  'Venue Coordinator',
+  'Destination Wedding Specialist',
+  'Bride Leads Planning',
+  'Groom Leads Planning',
+  'Planning Together Equally',
+  'Parent-Led Planning',
+  'Planner + Couple Collaboration',
+  'Luxury Concierge Planning',
+  'Religious Organization Assisted',
+  'Custom',
 ];
 
 const _dressCodeOptionsList = [
-  'White Tie', 'Black Tie', 'Black Tie Optional', 'Formal / Evening Wear',
-  'Cocktail Attire', 'Semi-Formal', 'Dressy Casual', 'Smart Casual',
-  'Casual', 'Business Casual', 'Beach Formal', 'Beach Casual',
-  'Tropical Formal', 'Tropical Chic', 'Garden Party', 'Resort Elegant',
-  'Island Elegant', 'Boho Chic', 'Rustic Chic', 'Festive',
-  'Cultural Attire Encouraged', 'Traditional National Dress', 'Colour Theme Required', 'All Black',
-  'All White', 'Neutral Tones', 'Pastel Colours', 'Jewel Tones',
-  'Floral Attire Welcome', 'No Denim', 'Comfortable Shoes Recommended', 'Custom Dress Code',
+  'White Tie',
+  'Black Tie',
+  'Black Tie Optional',
+  'Formal / Evening Wear',
+  'Cocktail Attire',
+  'Semi-Formal',
+  'Dressy Casual',
+  'Smart Casual',
+  'Casual',
+  'Business Casual',
+  'Beach Formal',
+  'Beach Casual',
+  'Tropical Formal',
+  'Tropical Chic',
+  'Garden Party',
+  'Resort Elegant',
+  'Island Elegant',
+  'Boho Chic',
+  'Rustic Chic',
+  'Festive',
+  'Cultural Attire Encouraged',
+  'Traditional National Dress',
+  'Colour Theme Required',
+  'All Black',
+  'All White',
+  'Neutral Tones',
+  'Pastel Colours',
+  'Jewel Tones',
+  'Floral Attire Welcome',
+  'No Denim',
+  'Comfortable Shoes Recommended',
+  'Custom Dress Code',
 ];
 
 class _EditWeddingDetailsSheet extends StatefulWidget {
@@ -18830,9 +20568,10 @@ class _EditWeddingDetailsSheetState extends State<_EditWeddingDetailsSheet> {
     _country.text = value('country');
     _venueStatus.text = value('venue_status');
     _planningApproach.text = value('planning_approach');
-    _planningApproachSelection = _planningApproachOptions.contains(_planningApproach.text)
-        ? _planningApproach.text
-        : (_planningApproach.text.isNotEmpty ? 'Custom' : null);
+    _planningApproachSelection =
+        _planningApproachOptions.contains(_planningApproach.text)
+            ? _planningApproach.text
+            : (_planningApproach.text.isNotEmpty ? 'Custom' : null);
     _ceremonyVenue.text = value('primary_venue_name');
     _ceremonyTime.text = value('ceremony_time');
     _venueAddress.text = value('primary_venue_address');
@@ -18902,14 +20641,29 @@ class _EditWeddingDetailsSheetState extends State<_EditWeddingDetailsSheet> {
         initialValue: selection,
         isExpanded: true,
         decoration: InputDecoration(
+          labelText: label,
+          floatingLabelBehavior: FloatingLabelBehavior.always,
           hintText: label,
-          hintStyle: const TextStyle(color: AppTheme.udoTextSecondary, fontSize: 13),
+          hintStyle:
+              const TextStyle(color: AppTheme.udoTextSecondary, fontSize: 13),
+          labelStyle:
+              const TextStyle(color: AppTheme.udoTextSecondary, fontSize: 12),
           filled: true,
           fillColor: AppTheme.udoCardFill,
-          border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide.none),
-          contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+          border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(14),
+              borderSide: BorderSide.none),
+          contentPadding:
+              const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
         ),
-        items: [for (final o in options) DropdownMenuItem(value: o, child: Text(o, style: const TextStyle(fontSize: 13), overflow: TextOverflow.ellipsis))],
+        items: [
+          for (final o in options)
+            DropdownMenuItem(
+                value: o,
+                child: Text(o,
+                    style: const TextStyle(fontSize: 13),
+                    overflow: TextOverflow.ellipsis))
+        ],
         onChanged: (v) => setState(() {
           onSelectionChanged(v);
           if (v != null && v != customSentinel) controller.text = v;
@@ -19225,7 +20979,7 @@ class _WeddingProfilePage extends StatelessWidget {
               .toList(),
         ),
         _WeddingProfileSection(
-          title: 'Guest Experience',
+          title: 'Guest Portal',
           icon: Icons.groups_outlined,
           color: UdoDesign.blue,
           onEdit: onComplete,
@@ -19262,7 +21016,7 @@ class _WeddingProfilePage extends StatelessWidget {
             const SizedBox(width: 10),
             Expanded(
               child: Text(
-                  'These details feed guest communications, planning, live mode, and wedding story.',
+                  'Keep this profile current so invites, guest updates, live wedding details, and your wedding story stay accurate.',
                   style: UdoDesign.sans(size: 12.5, color: UdoDesign.muted)),
             ),
           ]),
@@ -19301,7 +21055,7 @@ class _WeddingProfileHero extends StatelessWidget {
                 Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               const UdoBadge(
                   label: 'Source of truth',
-                  color: UdoDesign.gold,
+                  color: Colors.white,
                   background: Color(0x22FFFFFF)),
               const SizedBox(height: 12),
               Text('Wedding Profile',
@@ -19347,7 +21101,7 @@ class _WeddingProfileHero extends StatelessWidget {
                   foregroundColor: Colors.white,
                   side: const BorderSide(color: Colors.white54),
                   minimumSize: const Size(0, 46)),
-              child: const Text('Preview'),
+              child: const Text('View guest portal'),
             ),
           ),
         ]),
@@ -19568,17 +21322,26 @@ class _GField extends StatelessWidget {
   final TextEditingController ctrl;
   final TextInputType? type;
   final int maxLines;
-  const _GField(this.label, this.ctrl, {this.type, this.maxLines = 1});
+  final FocusNode? focusNode;
+  final ValueChanged<String>? onSubmitted;
+  const _GField(this.label, this.ctrl,
+      {this.type, this.maxLines = 1, this.focusNode, this.onSubmitted});
 
   @override
   Widget build(BuildContext context) => TextField(
         controller: ctrl,
+        focusNode: focusNode,
         keyboardType: type,
         maxLines: maxLines,
+        onSubmitted: onSubmitted,
         decoration: InputDecoration(
+          labelText: label,
+          floatingLabelBehavior: FloatingLabelBehavior.always,
           hintText: label,
           hintStyle:
               const TextStyle(color: AppTheme.udoTextSecondary, fontSize: 14),
+          labelStyle:
+              const TextStyle(color: AppTheme.udoTextSecondary, fontSize: 12),
           filled: true,
           fillColor: AppTheme.udoCardFill,
           border: OutlineInputBorder(

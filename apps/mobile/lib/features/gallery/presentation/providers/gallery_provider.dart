@@ -7,6 +7,7 @@ class GalleryState {
   final bool isLoading;
   final List<Map<String, dynamic>> assets;
   final Map<String, dynamic> summary;
+  final List<Map<String, dynamic>> albums;
   final String? error;
   final String? uploadLinkUrl;
   final bool? pinterestConfigured;
@@ -19,6 +20,7 @@ class GalleryState {
     this.isLoading = false,
     this.assets = const [],
     this.summary = const {},
+    this.albums = const [],
     this.error,
     this.uploadLinkUrl,
     this.pinterestConfigured,
@@ -32,6 +34,7 @@ class GalleryState {
     bool? isLoading,
     List<Map<String, dynamic>>? assets,
     Map<String, dynamic>? summary,
+    List<Map<String, dynamic>>? albums,
     String? error,
     String? uploadLinkUrl,
     bool? pinterestConfigured,
@@ -44,6 +47,7 @@ class GalleryState {
         isLoading: isLoading ?? this.isLoading,
         assets: assets ?? this.assets,
         summary: summary ?? this.summary,
+        albums: albums ?? this.albums,
         error: error ?? this.error,
         uploadLinkUrl: uploadLinkUrl ?? this.uploadLinkUrl,
         pinterestConfigured: pinterestConfigured ?? this.pinterestConfigured,
@@ -63,10 +67,16 @@ class GalleryNotifier extends StateNotifier<GalleryState> {
   Future<void> _load() async {
     try {
       final assetsRes = await _api.get('/gallery') as Map<String, dynamic>;
-      final summaryRes = await _api.get('/gallery/summary') as Map<String, dynamic>;
-      final assets = (assetsRes['data'] as List? ?? []).cast<Map<String, dynamic>>();
-      final summary = summaryRes['data'] is Map ? Map<String, dynamic>.from(summaryRes['data'] as Map) : <String, dynamic>{};
-      state = state.copyWith(isLoading: false, assets: assets, summary: summary);
+      final summaryRes =
+          await _api.get('/gallery/summary') as Map<String, dynamic>;
+      final assets =
+          (assetsRes['data'] as List? ?? []).cast<Map<String, dynamic>>();
+      final summary = summaryRes['data'] is Map
+          ? Map<String, dynamic>.from(summaryRes['data'] as Map)
+          : <String, dynamic>{};
+      final albums = await _loadAlbums();
+      state = state.copyWith(
+          isLoading: false, assets: assets, summary: summary, albums: albums);
     } catch (e) {
       state = state.copyWith(isLoading: false, error: e.toString());
     }
@@ -75,7 +85,10 @@ class GalleryNotifier extends StateNotifier<GalleryState> {
   Future<void> approve(int id) async {
     try {
       await _api.patch('/gallery/$id', data: {'approved': true});
-      state = state.copyWith(assets: state.assets.map((a) => a['id'] == id ? {...a, 'approved': true} : a).toList());
+      state = state.copyWith(
+          assets: state.assets
+              .map((a) => a['id'] == id ? {...a, 'approved': true} : a)
+              .toList());
       await refresh();
     } catch (_) {}
   }
@@ -99,7 +112,16 @@ class GalleryNotifier extends StateNotifier<GalleryState> {
     final next = !(current['is_featured'] == true);
     try {
       await _api.post('/gallery/$id/feature', data: {'is_featured': next});
-      state = state.copyWith(assets: state.assets.map((a) => a['id'] == id ? {...a, 'is_featured': next, 'approved': next ? true : a['approved']} : a).toList());
+      state = state.copyWith(
+          assets: state.assets
+              .map((a) => a['id'] == id
+                  ? {
+                      ...a,
+                      'is_featured': next,
+                      'approved': next ? true : a['approved']
+                    }
+                  : a)
+              .toList());
       await refresh();
     } catch (_) {}
   }
@@ -109,7 +131,10 @@ class GalleryNotifier extends StateNotifier<GalleryState> {
     final next = !(current['is_saved'] == true);
     try {
       await _api.patch('/gallery/$id', data: {'is_saved': next});
-      state = state.copyWith(assets: state.assets.map((a) => a['id'] == id ? {...a, 'is_saved': next} : a).toList());
+      state = state.copyWith(
+          assets: state.assets
+              .map((a) => a['id'] == id ? {...a, 'is_saved': next} : a)
+              .toList());
       await refresh();
     } catch (_) {}
   }
@@ -121,10 +146,12 @@ class GalleryNotifier extends StateNotifier<GalleryState> {
         'file': MultipartFile.fromBytes(bytes, filename: file.name),
         'album': album,
       });
-      final res = await _api.post('/gallery', data: formData) as Map<String, dynamic>;
+      final res =
+          await _api.post('/gallery', data: formData) as Map<String, dynamic>;
       final asset = res['data'] as Map<String, dynamic>? ?? {};
       if (asset.isNotEmpty) {
         state = state.copyWith(assets: [...state.assets, asset]);
+        await refresh();
       }
       return asset.isNotEmpty ? asset : null;
     } catch (_) {
@@ -134,10 +161,46 @@ class GalleryNotifier extends StateNotifier<GalleryState> {
 
   Future<void> refresh() => _load();
 
+  Future<List<Map<String, dynamic>>> _loadAlbums() async {
+    try {
+      final albumsRes =
+          await _api.get('/gallery/albums') as Map<String, dynamic>;
+      return (albumsRes['data'] as List? ?? []).cast<Map<String, dynamic>>();
+    } catch (_) {
+      return state.albums;
+    }
+  }
+
+  Future<bool> createAlbum({
+    required String name,
+    String? description,
+  }) async {
+    try {
+      final res = await _api.post('/gallery/albums', data: {
+        'name': name,
+        if (description != null && description.trim().isNotEmpty)
+          'description': description.trim(),
+      }) as Map<String, dynamic>;
+      final album = res['data'] as Map<String, dynamic>? ?? {};
+      if (album.isNotEmpty) {
+        final next = [
+          ...state.albums.where((a) => a['id'] != album['id']),
+          album,
+        ];
+        state = state.copyWith(albums: next);
+      }
+      await refresh();
+      return album.isNotEmpty;
+    } catch (_) {
+      return false;
+    }
+  }
+
   Future<void> fetchUploadLink() async {
     if (state.uploadLinkUrl != null) return;
     try {
-      final res = await _api.get('/gallery/upload-link') as Map<String, dynamic>;
+      final res =
+          await _api.get('/gallery/upload-link') as Map<String, dynamic>;
       final data = res['data'] as Map<String, dynamic>?;
       final url = data?['url'] as String?;
       if (url != null) state = state.copyWith(uploadLinkUrl: url);
@@ -147,7 +210,10 @@ class GalleryNotifier extends StateNotifier<GalleryState> {
   Future<bool> setBoardName(int id, String? boardName) async {
     try {
       await _api.patch('/gallery/$id', data: {'board_name': boardName});
-      state = state.copyWith(assets: state.assets.map((a) => a['id'] == id ? {...a, 'board_name': boardName} : a).toList());
+      state = state.copyWith(
+          assets: state.assets
+              .map((a) => a['id'] == id ? {...a, 'board_name': boardName} : a)
+              .toList());
       return true;
     } catch (_) {
       return false;
@@ -157,7 +223,10 @@ class GalleryNotifier extends StateNotifier<GalleryState> {
   Future<bool> setCategory(int id, String? category) async {
     try {
       await _api.patch('/gallery/$id', data: {'category': category});
-      state = state.copyWith(assets: state.assets.map((a) => a['id'] == id ? {...a, 'category': category} : a).toList());
+      state = state.copyWith(
+          assets: state.assets
+              .map((a) => a['id'] == id ? {...a, 'category': category} : a)
+              .toList());
       return true;
     } catch (_) {
       return false;
@@ -167,7 +236,10 @@ class GalleryNotifier extends StateNotifier<GalleryState> {
   Future<bool> setJourneyStage(int id, String? stage) async {
     try {
       await _api.patch('/gallery/$id', data: {'journey_stage': stage});
-      state = state.copyWith(assets: state.assets.map((a) => a['id'] == id ? {...a, 'journey_stage': stage} : a).toList());
+      state = state.copyWith(
+          assets: state.assets
+              .map((a) => a['id'] == id ? {...a, 'journey_stage': stage} : a)
+              .toList());
       await refresh();
       return true;
     } catch (_) {
@@ -207,8 +279,12 @@ class GalleryNotifier extends StateNotifier<GalleryState> {
     state = state.copyWith(isLoadingPinterest: true);
     try {
       final res = await _api.get('/pinterest/boards') as Map<String, dynamic>;
-      final boards = (res['data'] as List).whereType<Map>().map((e) => Map<String, dynamic>.from(e)).toList();
-      state = state.copyWith(isLoadingPinterest: false, pinterestBoards: boards);
+      final boards = (res['data'] as List)
+          .whereType<Map>()
+          .map((e) => Map<String, dynamic>.from(e))
+          .toList();
+      state =
+          state.copyWith(isLoadingPinterest: false, pinterestBoards: boards);
     } catch (e) {
       state = state.copyWith(isLoadingPinterest: false, error: e.toString());
     }
@@ -216,8 +292,12 @@ class GalleryNotifier extends StateNotifier<GalleryState> {
 
   Future<int> importPinterestBoard(String boardId) async {
     try {
-      final res = await _api.post('/pinterest/boards/$boardId/import') as Map<String, dynamic>;
-      final imported = (res['data'] as List).whereType<Map>().map((e) => Map<String, dynamic>.from(e)).toList();
+      final res = await _api.post('/pinterest/boards/$boardId/import')
+          as Map<String, dynamic>;
+      final imported = (res['data'] as List)
+          .whereType<Map>()
+          .map((e) => Map<String, dynamic>.from(e))
+          .toList();
       state = state.copyWith(assets: [...state.assets, ...imported]);
       return res['imported'] as int? ?? imported.length;
     } catch (_) {
@@ -233,6 +313,7 @@ class GalleryNotifier extends StateNotifier<GalleryState> {
       isLoading: state.isLoading,
       assets: state.assets,
       summary: state.summary,
+      albums: state.albums,
       uploadLinkUrl: state.uploadLinkUrl,
       pinterestConfigured: state.pinterestConfigured,
       pinterestConnected: false,
@@ -242,6 +323,7 @@ class GalleryNotifier extends StateNotifier<GalleryState> {
   }
 }
 
-final galleryProvider = StateNotifierProvider<GalleryNotifier, GalleryState>((ref) {
+final galleryProvider =
+    StateNotifierProvider<GalleryNotifier, GalleryState>((ref) {
   return GalleryNotifier(ref.read(apiClientProvider));
 });

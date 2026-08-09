@@ -72,14 +72,16 @@ class SeatingPlannerNotifier extends StateNotifier<SeatingPlannerState> {
     }
   }
 
-  Future<bool> addTable() async {
+  Future<Map<String, dynamic>?> addTable({Map<String, dynamic>? data}) async {
     state = state.copyWith(isSaving: true, error: null);
     try {
-      final res = await _api.post('/seating/tables', data: {
-        'name': 'Table ${state.tables.length + 1}',
-        'shape': 'round',
-        'capacity': 8,
-      }) as Map<String, dynamic>;
+      final res = await _api.post('/seating/tables',
+          data: data ??
+              {
+                'name': 'Table ${state.tables.length + 1}',
+                'shape': 'round',
+                'capacity': 8,
+              }) as Map<String, dynamic>;
       final created = Map<String, dynamic>.from(res['data'] as Map);
       state = state.copyWith(
         tables: [...state.tables, created],
@@ -87,10 +89,10 @@ class SeatingPlannerNotifier extends StateNotifier<SeatingPlannerState> {
         error: null,
       );
       await refresh();
-      return true;
+      return created;
     } catch (e) {
       state = state.copyWith(isSaving: false, error: e.toString());
-      return false;
+      return null;
     }
   }
 

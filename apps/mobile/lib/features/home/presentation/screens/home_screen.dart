@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../../../../shared/widgets/udo_design_system.dart';
+import '../../../more/presentation/providers/notifications_provider.dart';
 import '../../../more/presentation/screens/more_screen.dart'
     show WeddingSettingsSheet;
+import '../../../more/presentation/screens/notifications_screen.dart';
 import '../providers/home_provider.dart';
 import 'editorial_home.dart';
 
@@ -16,6 +17,7 @@ class HomeScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final state = ref.watch(homeProvider);
     final notifier = ref.read(homeProvider.notifier);
+    final notificationCount = ref.watch(notificationsProvider).totalActive;
 
     return Scaffold(
       backgroundColor: UdoDesign.bg,
@@ -27,9 +29,11 @@ class HomeScreen extends ConsumerWidget {
             : EditorialHome(
                 state: state,
                 onProfileTap: () => _openWeddingSettings(context),
-                onNotificationTap: () => context.push('/more'),
+                onNotificationTap: () => Navigator.of(context).push(
+                    MaterialPageRoute(builder: (_) => const NotificationsScreen())),
                 onSettingsTap: () => _openWeddingSettings(context),
                 onEditCoverPhoto: () => _editCoverPhoto(context, notifier),
+                notificationCount: notificationCount,
               ),
       ),
     );

@@ -114,7 +114,10 @@ class _MainScaffoldState extends State<MainScaffold> {
 
   bool _shouldUseShellSwipe(String location) {
     if (location == '/plan') return false;
-    return _activeTabIndex(location) != -1;
+    if (_activeTabIndex(location) != -1) return true;
+    // Shell pages with no bottom-tab of their own (e.g. /registry) still
+    // swipe back to whichever tab was active before opening them.
+    return _lastTabIndex != null;
   }
 
   int _activeTabIndex(String location) {
@@ -132,14 +135,31 @@ class _MainScaffoldState extends State<MainScaffold> {
     _lastTabIndex = activeIndex;
   }
 
-  void _navigateTo(String path) {
+  Future<void> _navigateTo(String path) async {
     final index = _tabs.indexWhere((tab) => tab.path == path);
     final currentLocation = GoRouterState.of(context).matchedLocation;
-    if (index == _lastTabIndex && currentLocation == path) return;
+    if (index == _lastTabIndex && currentLocation == path) {
+      if (path == '/live') {
+        context.go('/live?reset=${DateTime.now().millisecondsSinceEpoch}');
+      }
+      return;
+    }
+    if (ModalRoute.of(context)?.isCurrent == false) {
+      await Navigator.of(context).maybePop();
+      if (!mounted) return;
+    }
     context.go(path);
   }
 
   void _goBackSection(int activeIndex) {
+    if (activeIndex == -1) {
+      // On a tab-less shell page (e.g. /registry): swipe back to the tab
+      // that was active before this page was opened.
+      final last = _lastTabIndex;
+      if (last == null || last < 0 || last >= _tabs.length) return;
+      context.go(_tabs[last].path);
+      return;
+    }
     if (activeIndex <= 0) return;
     final previous =
         _tabHistory.isNotEmpty ? _tabHistory.removeLast() : activeIndex - 1;

@@ -2,10 +2,10 @@ import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:pdf/pdf.dart';
+import 'package:photo_view/photo_view.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 import 'package:qr_flutter/qr_flutter.dart';
@@ -32,7 +32,6 @@ class _GalleryScreenState extends ConsumerState<GalleryScreen>
     _GalleryPageMeta('Overview', Icons.auto_awesome_mosaic_outlined),
     _GalleryPageMeta('Albums', Icons.photo_library_outlined),
     _GalleryPageMeta('Favourites', Icons.favorite_border),
-    _GalleryPageMeta('Wedding Story', Icons.auto_stories_outlined),
     _GalleryPageMeta('Archive', Icons.archive_outlined),
     _GalleryPageMeta('Highlights', Icons.stars_outlined),
   ];
@@ -40,7 +39,7 @@ class _GalleryScreenState extends ConsumerState<GalleryScreen>
   @override
   void initState() {
     super.initState();
-    _tabs = TabController(length: 6, vsync: this);
+    _tabs = TabController(length: _pages.length, vsync: this);
     _tabs.addListener(() {
       if (mounted) setState(() {});
     });
@@ -81,7 +80,6 @@ class _GalleryScreenState extends ConsumerState<GalleryScreen>
                           _InspirationTab(state: state, notifier: notifier),
                           _GuestUploadsTab(state: state, notifier: notifier),
                           _SavedTab(state: state, notifier: notifier),
-                          const _WeddingStoryTab(),
                           _ArchiveTab(state: state, notifier: notifier),
                           _MomentsTab(state: state, notifier: notifier),
                         ],
@@ -122,7 +120,7 @@ class _GalleryScreenState extends ConsumerState<GalleryScreen>
   }
 }
 
-// ── HEADER ─────────────────────────────────────────────────────────────────────
+// â”€â”€ HEADER â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 const _galleryAccent = Color(0xFF6E5F7A);
 
@@ -236,7 +234,6 @@ class _GalleryWorkspaceDrawer extends StatelessWidget {
       '${state.assets.length} total',
       '$inspiration boards',
       '$uploads uploads',
-      'Story',
       '$archived hidden',
       '$moments moments',
     ];
@@ -448,7 +445,7 @@ class _GallerySearchSheetState extends State<_GallerySearchSheet> {
   }
 }
 
-// ── SHARED THUMBNAIL ───────────────────────────────────────────────────────────
+// â”€â”€ SHARED THUMBNAIL â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 String _resolveUrl(String? url) {
   if (url == null || url.isEmpty) return '';
@@ -557,7 +554,8 @@ class _AssetThumb extends ConsumerWidget {
                 ? () => _openVideoPlayer(context, url)
                 : type == 'voice'
                     ? () => _openVoicePlayer(context, url)
-                    : null,
+                    : () => _openPhotoViewer(
+                        context, _resolveUrl(asset['url'] as String?)),
             onLongPress: () => _showTagMilestoneSheet(context, ref, asset),
             child: Container(
               color: AppTheme.udoCardFill,
@@ -703,6 +701,12 @@ class _AssetThumb extends ConsumerWidget {
     );
   }
 
+  void _openPhotoViewer(BuildContext context, String url) {
+    if (url.isEmpty) return;
+    Navigator.of(context)
+        .push(MaterialPageRoute(builder: (_) => _PhotoViewerScreen(url: url)));
+  }
+
   void _openVideoPlayer(BuildContext context, String url) {
     if (url.isEmpty) return;
     Navigator.of(context)
@@ -718,6 +722,31 @@ class _AssetThumb extends ConsumerWidget {
       builder: (_) => _VoicePlayerSheet(url: url),
     );
   }
+}
+
+class _PhotoViewerScreen extends StatelessWidget {
+  final String url;
+  const _PhotoViewerScreen({required this.url});
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+        backgroundColor: Colors.black,
+        appBar: AppBar(
+            backgroundColor: Colors.black,
+            foregroundColor: Colors.white,
+            elevation: 0),
+        body: PhotoView(
+          imageProvider: NetworkImage(url),
+          backgroundDecoration: const BoxDecoration(color: Colors.black),
+          minScale: PhotoViewComputedScale.contained,
+          maxScale: PhotoViewComputedScale.covered * 3,
+          loadingBuilder: (context, event) => const Center(
+              child: CircularProgressIndicator(color: Colors.white)),
+          errorBuilder: (context, error, stack) => const Center(
+              child: Text("Couldn't load this photo.",
+                  style: TextStyle(color: Colors.white))),
+        ),
+      );
 }
 
 class _VideoPlayerScreen extends StatefulWidget {
@@ -798,14 +827,17 @@ class _VoicePlayerSheetState extends State<_VoicePlayerSheet> {
   void initState() {
     super.initState();
     _player.setUrl(widget.url).then((_) {
-      if (mounted) setState(() => _loading = false);
+      if (mounted) {
+        setState(() => _loading = false);
+      }
       _player.play();
     }).catchError((_) {
-      if (mounted)
+      if (mounted) {
         setState(() {
           _loading = false;
           _failed = true;
         });
+      }
     });
   }
 
@@ -868,7 +900,7 @@ Widget _emptyState(IconData icon, String title, String subtitle) => Container(
       ])),
     );
 
-// ── INSPIRATION TAB ────────────────────────────────────────────────────────────
+// â”€â”€ INSPIRATION TAB â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 String _boardTimeAgo(String? iso) {
   if (iso == null) return '';
@@ -909,7 +941,7 @@ class _InspirationTabState extends ConsumerState<_InspirationTab>
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    // The user completes the Pinterest OAuth flow in an external browser —
+    // The user completes the Pinterest OAuth flow in an external browser â€”
     // re-check connection status when they switch back to the app.
     if (state == AppLifecycleState.resumed) {
       widget.notifier.fetchPinterestStatus();
@@ -1138,7 +1170,7 @@ class _InspirationTabState extends ConsumerState<_InspirationTab>
                                         overflow: TextOverflow.ellipsis),
                                     const SizedBox(height: 2),
                                     Text(
-                                        '${boardItems.length} image${boardItems.length == 1 ? '' : 's'} · ${_boardTimeAgo(cover['created_at'] as String?)}',
+                                        '${boardItems.length} image${boardItems.length == 1 ? '' : 's'} Â· ${_boardTimeAgo(cover['created_at'] as String?)}',
                                         style: const TextStyle(
                                             fontSize: 11,
                                             color: AppTheme.udoTextSecondary)),
@@ -1153,6 +1185,227 @@ class _InspirationTabState extends ConsumerState<_InspirationTab>
       ],
     );
   }
+}
+
+class _AlbumCard extends StatelessWidget {
+  final Map<String, dynamic> album;
+  const _AlbumCard({required this.album});
+
+  @override
+  Widget build(BuildContext context) {
+    final name = (album['name'] as String?)?.trim() ?? 'Untitled album';
+    final description = (album['description'] as String?)?.trim();
+    final count = album['asset_count'] is int
+        ? album['asset_count'] as int
+        : int.tryParse('${album['asset_count']}') ?? 0;
+    final cover = _resolveUrl(album['cover_thumbnail_url'] as String?);
+
+    return Container(
+      decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: AppTheme.udoBorder)),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(16),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Expanded(
+            child: Container(
+              width: double.infinity,
+              color: AppTheme.udoCardFill,
+              child: cover.isEmpty
+                  ? const Icon(Icons.photo_album_outlined,
+                      color: AppTheme.udoGreen, size: 38)
+                  : Image.network(
+                      cover,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) => const Icon(
+                          Icons.photo_album_outlined,
+                          color: AppTheme.udoGreen,
+                          size: 38),
+                    ),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.all(10),
+            child:
+                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                      fontSize: 14, fontWeight: FontWeight.w600)),
+              const SizedBox(height: 3),
+              Text(
+                  description?.isNotEmpty == true
+                      ? description!
+                      : '$count item${count == 1 ? '' : 's'}',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                      fontSize: 11, color: AppTheme.udoTextSecondary)),
+            ]),
+          ),
+        ]),
+      ),
+    );
+  }
+}
+
+class _CreateAlbumSheet extends StatefulWidget {
+  final GalleryNotifier notifier;
+  const _CreateAlbumSheet({required this.notifier});
+
+  @override
+  State<_CreateAlbumSheet> createState() => _CreateAlbumSheetState();
+}
+
+class _CreateAlbumSheetState extends State<_CreateAlbumSheet> {
+  final _nameCtrl = TextEditingController();
+  final _descriptionCtrl = TextEditingController();
+  bool _saving = false;
+
+  @override
+  void dispose() {
+    _nameCtrl.dispose();
+    _descriptionCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _save() async {
+    final name = _nameCtrl.text.trim();
+    if (name.isEmpty) return;
+    setState(() => _saving = true);
+    final ok = await widget.notifier.createAlbum(
+      name: name,
+      description: _descriptionCtrl.text,
+    );
+    if (!mounted) return;
+    setState(() => _saving = false);
+    if (ok) {
+      Navigator.pop(context);
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('Album created.')));
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Could not create album.')));
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => SafeArea(
+        child: SingleChildScrollView(
+          padding: EdgeInsets.only(
+              bottom: MediaQuery.of(context).viewInsets.bottom + 8,
+              left: 20,
+              right: 20,
+              top: 24),
+          child:
+              Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Row(children: [
+              const Expanded(
+                  child: Text('New album',
+                      style: TextStyle(
+                          fontSize: 18, fontWeight: FontWeight.w600))),
+              IconButton(
+                  onPressed: () => Navigator.pop(context),
+                  icon: const Icon(Icons.close),
+                  padding: EdgeInsets.zero),
+            ]),
+            const SizedBox(height: 16),
+            const Text('Album name',
+                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500)),
+            const SizedBox(height: 6),
+            TextField(
+              controller: _nameCtrl,
+              textInputAction: TextInputAction.next,
+              decoration: _sheetInputDecoration('e.g. Reception'),
+            ),
+            const SizedBox(height: 14),
+            const Text('Description',
+                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500)),
+            const SizedBox(height: 6),
+            TextField(
+              controller: _descriptionCtrl,
+              minLines: 2,
+              maxLines: 4,
+              decoration: _sheetInputDecoration('Optional note for this album'),
+            ),
+            const SizedBox(height: 20),
+            ElevatedButton(
+              onPressed: _saving ? null : _save,
+              style: ElevatedButton.styleFrom(
+                  minimumSize: const Size(double.infinity, 52),
+                  backgroundColor: AppTheme.udoGreen,
+                  foregroundColor: Colors.white),
+              child: _saving
+                  ? const SizedBox(
+                      height: 20,
+                      width: 20,
+                      child: CircularProgressIndicator(
+                          color: Colors.white, strokeWidth: 2))
+                  : const Text('Create album'),
+            ),
+          ]),
+        ),
+      );
+}
+
+InputDecoration _sheetInputDecoration(String hint) => InputDecoration(
+      hintText: hint,
+      filled: true,
+      fillColor: AppTheme.udoCardFill,
+      border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14), borderSide: BorderSide.none),
+      enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14), borderSide: BorderSide.none),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+    );
+
+List<Map<String, dynamic>> _galleryAlbumSummaries(GalleryState state) {
+  final keyed = <String, Map<String, dynamic>>{};
+  for (final album in state.albums) {
+    final name = (album['name'] as String?)?.trim();
+    if (name == null || name.isEmpty) continue;
+    keyed[name.toLowerCase()] = {...album, 'name': name};
+  }
+  for (final asset in state.assets) {
+    final name = (asset['board_name'] as String?)?.trim();
+    if (name == null || name.isEmpty) continue;
+    final key = name.toLowerCase();
+    final existing = keyed[key] ?? {'name': name, 'asset_count': 0};
+    if (keyed.containsKey(key)) {
+      keyed[key] = {
+        ...existing,
+        'cover_thumbnail_url': existing['cover_thumbnail_url'] ??
+            asset['thumbnail_url'] ??
+            asset['url'],
+      };
+      continue;
+    }
+    final count = existing['asset_count'] is int
+        ? existing['asset_count'] as int
+        : int.tryParse('${existing['asset_count']}') ?? 0;
+    keyed[key] = {
+      ...existing,
+      'asset_count': count + 1,
+      'cover_thumbnail_url': existing['cover_thumbnail_url'] ??
+          asset['thumbnail_url'] ??
+          asset['url'],
+    };
+  }
+  final values = keyed.values.toList();
+  values.sort((a, b) => '${a['name']}'.compareTo('${b['name']}'));
+  return values;
+}
+
+void _showCreateAlbumSheet(BuildContext context, GalleryNotifier notifier) {
+  showModalBottomSheet(
+    context: context,
+    isScrollControlled: true,
+    shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+    builder: (_) => _CreateAlbumSheet(notifier: notifier),
+  );
 }
 
 class _GalleryOverviewHero extends StatelessWidget {
@@ -1325,7 +1578,7 @@ class _PinterestCard extends StatelessWidget {
 
     if (configured == false) {
       // The doc's own explicit ask: a graceful fallback when Pinterest
-      // integration isn't set up — no dead-end button, just honest copy.
+      // integration isn't set up â€” no dead-end button, just honest copy.
       title = 'Pinterest boards';
       subtitle =
           'Pinterest integration is not yet configured for this wedding.';
@@ -1472,7 +1725,7 @@ class _PinterestBoardsSheet extends ConsumerWidget {
   }
 }
 
-// ── MOMENTS TAB ────────────────────────────────────────────────────────────────
+// â”€â”€ MOMENTS TAB â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 class _MomentsTab extends StatelessWidget {
   final GalleryState state;
@@ -1550,7 +1803,7 @@ class _MomentsTab extends StatelessWidget {
   }
 }
 
-// ── GUEST UPLOADS TAB ──────────────────────────────────────────────────────────
+// â”€â”€ GUEST UPLOADS TAB â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 class _GuestUploadsTab extends ConsumerStatefulWidget {
   final GalleryState state;
@@ -1580,10 +1833,47 @@ class _GuestUploadsTabState extends ConsumerState<_GuestUploadsTab> {
     final videoCount = uploads.where((a) => a['type'] == 'video').length;
     final voiceCount = uploads.where((a) => a['type'] == 'voice').length;
     final url = state.uploadLinkUrl;
+    final albums = _galleryAlbumSummaries(state);
 
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
+        _GallerySectionHero(
+          icon: Icons.photo_library_outlined,
+          title: 'Albums',
+          body:
+              'Create named albums for ceremony, reception, family, details and guest memories.',
+          badge: '${albums.length} album${albums.length == 1 ? '' : 's'}',
+        ),
+        const SizedBox(height: 16),
+        ElevatedButton.icon(
+          onPressed: () => _showCreateAlbumSheet(context, notifier),
+          icon: const Icon(Icons.create_new_folder_outlined, size: 18),
+          label: const Text('New album'),
+          style: ElevatedButton.styleFrom(
+              minimumSize: const Size(double.infinity, 50),
+              backgroundColor: AppTheme.udoGreen,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14))),
+        ),
+        const SizedBox(height: 16),
+        if (albums.isEmpty)
+          _emptyState(Icons.photo_album_outlined, 'No albums yet',
+              'Create albums like Ceremony, Reception, Family and Guest uploads.')
+        else
+          GridView.builder(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 2,
+                mainAxisSpacing: 10,
+                crossAxisSpacing: 10,
+                childAspectRatio: 1.05),
+            itemCount: albums.length,
+            itemBuilder: (_, i) => _AlbumCard(album: albums[i]),
+          ),
+        const SizedBox(height: 16),
         _GallerySectionHero(
           icon: Icons.cloud_upload_outlined,
           title: 'Guest uploads',
@@ -1592,7 +1882,7 @@ class _GuestUploadsTabState extends ConsumerState<_GuestUploadsTab> {
           badge: url == null ? 'Preparing link' : 'QR ready',
         ),
         const SizedBox(height: 16),
-        // QR code share card — a real, scannable wedding-wide upload link.
+        // QR code share card â€” a real, scannable wedding-wide upload link.
         Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
@@ -1604,7 +1894,7 @@ class _GuestUploadsTabState extends ConsumerState<_GuestUploadsTab> {
                 style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500)),
             const SizedBox(height: 4),
             const Text(
-                'Scan to share photos, videos, or voice messages from the venue — no app or invite needed.',
+                'Scan to share photos, videos, or voice messages from the venue â€” no app or invite needed.',
                 textAlign: TextAlign.center,
                 style: TextStyle(
                     fontSize: 12,
@@ -1694,7 +1984,7 @@ class _GuestUploadsTabState extends ConsumerState<_GuestUploadsTab> {
                   _boardTimeAgo(uploads[i]['created_at'] as String?),
                 ]
                     .where((s) => s != null && (s as String).isNotEmpty)
-                    .join(' · '),
+                    .join(' Â· '),
                 style: const TextStyle(
                     fontSize: 9, color: AppTheme.udoTextSecondary),
                 maxLines: 1,
@@ -1733,7 +2023,7 @@ class _UploadStatChip extends StatelessWidget {
       );
 }
 
-// ── SAVED TAB ──────────────────────────────────────────────────────────────────
+// â”€â”€ SAVED TAB â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 class _SavedTab extends StatelessWidget {
   final GalleryState state;
@@ -1849,7 +2139,7 @@ class _MemoryBookSheetState extends ConsumerState<_MemoryBookSheet> {
             const SizedBox(height: 16),
             if (photos.isEmpty && nonPhotos.isEmpty)
               const Text(
-                  'No saved photos yet — save some from your Gallery first.',
+                  'No saved photos yet â€” save some from your Gallery first.',
                   style:
                       TextStyle(fontSize: 12, color: AppTheme.udoTextSecondary))
             else ...[
@@ -1968,7 +2258,7 @@ class _MemoryBookSheetState extends ConsumerState<_MemoryBookSheet> {
                         fontSize: 28, fontWeight: pw.FontWeight.bold)),
                 pw.SizedBox(height: 20),
                 pw.Text(
-                    '${imageWidgets.length} photo(s) · ${speeches.length} speech(es) · ${vows.length} vow(s) · ${guestbookMessages.length} message(s)',
+                    '${imageWidgets.length} photo(s) Â· ${speeches.length} speech(es) Â· ${vows.length} vow(s) Â· ${guestbookMessages.length} message(s)',
                     style: const pw.TextStyle(fontSize: 12)),
               ]),
         ),
@@ -2018,7 +2308,7 @@ class _MemoryBookSheetState extends ConsumerState<_MemoryBookSheet> {
                     pw.Padding(
                         padding: const pw.EdgeInsets.only(bottom: 8),
                         child: pw.Text(
-                            '"${m['message']}" — ${m['guest_name'] ?? 'A guest'}',
+                            '"${m['message']}" â€” ${m['guest_name'] ?? 'A guest'}',
                             style: const pw.TextStyle(fontSize: 11))),
                 ]));
       }
@@ -2028,20 +2318,23 @@ class _MemoryBookSheetState extends ConsumerState<_MemoryBookSheet> {
       if (mounted && failedDownloads > 0) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
             content: Text(failedDownloads == photos.length
-                ? "None of the $failedDownloads photo(s) could be downloaded — check your connection and try again."
+                ? "None of the $failedDownloads photo(s) could be downloaded â€” check your connection and try again."
                 : '$failedDownloads of ${photos.length} photo(s) couldn\'t be downloaded and were skipped.')));
       }
     } catch (_) {
-      if (mounted)
+      if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
             content: Text("Couldn't generate the memory book. Try again.")));
+      }
     } finally {
-      if (mounted) setState(() => _generating = false);
+      if (mounted) {
+        setState(() => _generating = false);
+      }
     }
   }
 }
 
-// ── ARCHIVE TAB ────────────────────────────────────────────────────────────────
+// â”€â”€ ARCHIVE TAB â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 class _ArchiveTab extends StatefulWidget {
   final GalleryState state;
@@ -2079,7 +2372,7 @@ class _ArchiveTabState extends State<_ArchiveTab> {
           badge: '${journeyAssets.length + archived.length} items',
         ),
         const SizedBox(height: 16),
-        const Text('Archive – Our Journey',
+        const Text('Archive â€“ Our Journey',
             style: TextStyle(
                 fontFamily: 'Playfair',
                 fontSize: 20,
@@ -2096,7 +2389,7 @@ class _ArchiveTabState extends State<_ArchiveTab> {
                 color: AppTheme.udoCardFill,
                 borderRadius: BorderRadius.circular(14)),
             child: const Text(
-                'Long-press any photo to tag it with a milestone — Engagement, Planning, Wedding Weekend, Honeymoon, or Anniversary.',
+                'Long-press any photo to tag it with a milestone â€” Engagement, Planning, Wedding Weekend, Honeymoon, or Anniversary.',
                 style: TextStyle(
                     fontSize: 12,
                     color: AppTheme.udoTextSecondary,
@@ -2241,78 +2534,7 @@ class _JourneyStageChip extends StatelessWidget {
   }
 }
 
-class _WeddingStoryTab extends StatelessWidget {
-  const _WeddingStoryTab();
-
-  @override
-  Widget build(BuildContext context) {
-    return ListView(
-      padding: const EdgeInsets.all(16),
-      children: [
-        Container(
-          padding: const EdgeInsets.all(20),
-          decoration: BoxDecoration(
-              gradient: LinearGradient(colors: [
-                AppTheme.udoGreen,
-                AppTheme.udoGreen.withValues(alpha: 0.8)
-              ], begin: Alignment.topLeft, end: Alignment.bottomRight),
-              borderRadius: BorderRadius.circular(20)),
-          child:
-              Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            const Icon(Icons.auto_stories_outlined,
-                color: Colors.white, size: 28),
-            const SizedBox(height: 12),
-            const Text('Our Wedding Story',
-                style: TextStyle(
-                    fontFamily: 'Playfair',
-                    color: Colors.white,
-                    fontSize: 22,
-                    fontWeight: FontWeight.w500)),
-            const SizedBox(height: 6),
-            const Text(
-                'Engagement, planning, the big day, and beyond — all in one place.',
-                style: TextStyle(
-                    color: Colors.white70, fontSize: 13, height: 1.4)),
-            const SizedBox(height: 16),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton.icon(
-                onPressed: () => context.push('/wedding-story'),
-                icon: const Icon(Icons.play_circle_outline, size: 18),
-                label: const Text('View full Wedding Story'),
-                style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.white,
-                    foregroundColor: AppTheme.udoGreen,
-                    minimumSize: const Size(double.infinity, 46)),
-              ),
-            ),
-          ]),
-        ),
-        const SizedBox(height: 12),
-        Container(
-          padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(
-              color: AppTheme.udoCardFill,
-              borderRadius: BorderRadius.circular(14)),
-          child: const Row(children: [
-            Icon(Icons.info_outline,
-                size: 16, color: AppTheme.udoTextSecondary),
-            SizedBox(width: 8),
-            Expanded(
-                child: Text(
-                    'Tag photos with a milestone in the Archive tab to build out your journey timeline.',
-                    style: TextStyle(
-                        fontSize: 12,
-                        color: AppTheme.udoTextSecondary,
-                        height: 1.4))),
-          ]),
-        ),
-      ],
-    );
-  }
-}
-
-// ── UPLOAD MODAL ───────────────────────────────────────────────────────────────
+// â”€â”€ UPLOAD MODAL â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 class _UploadModal extends StatefulWidget {
   final GalleryNotifier notifier;
@@ -2339,6 +2561,14 @@ class _UploadModalState extends State<_UploadModal> {
       .toSet()
       .toList();
 
+  List<String> get _albumNames => widget.state.albums
+      .map((a) => (a['name'] as String?)?.trim())
+      .where((name) => name != null && name.isNotEmpty)
+      .cast<String>()
+      .toSet()
+      .toList()
+    ..sort();
+
   bool get _pickedIsVideo {
     final name = _pickedFile?.name.toLowerCase() ?? '';
     return name.endsWith('.mp4') || name.endsWith('.mov');
@@ -2358,19 +2588,20 @@ class _UploadModalState extends State<_UploadModal> {
     if (_pickedFile == null) return;
     setState(() => _loading = true);
     final asset = await widget.notifier.upload(_pickedFile!, _album);
-    if (asset != null &&
-        _album == 'inspiration' &&
-        _boardCtrl.text.trim().isNotEmpty) {
-      await widget.notifier
-          .setBoardName(asset['id'] as int, _boardCtrl.text.trim());
+    if (asset != null && _boardCtrl.text.trim().isNotEmpty) {
+      await widget.notifier.setBoardName(
+        asset['id'] as int,
+        _boardCtrl.text.trim(),
+      );
     }
     setState(() => _loading = false);
     if (mounted) {
-      if (asset != null)
+      if (asset != null) {
         Navigator.pop(context);
-      else
+      } else {
         ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('Upload failed. Please try again.')));
+      }
     }
   }
 
@@ -2408,7 +2639,7 @@ class _UploadModalState extends State<_UploadModal> {
                   style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500)),
               const SizedBox(height: 6),
               DropdownButtonFormField<String>(
-                value: _album,
+                initialValue: _album,
                 decoration: _dropDec(),
                 items: const [
                   DropdownMenuItem(value: 'moments', child: Text('Moments')),
@@ -2418,6 +2649,26 @@ class _UploadModalState extends State<_UploadModal> {
                 ],
                 onChanged: (v) => setState(() => _album = v ?? 'moments'),
               ),
+              if (_albumNames.isNotEmpty) ...[
+                const SizedBox(height: 16),
+                const Text('Save into album (optional)',
+                    style:
+                        TextStyle(fontSize: 14, fontWeight: FontWeight.w500)),
+                const SizedBox(height: 8),
+                Wrap(
+                    spacing: 6,
+                    runSpacing: 6,
+                    children: _albumNames
+                        .map((name) => ChoiceChip(
+                              label: Text(name),
+                              selected: _boardCtrl.text.trim() == name,
+                              selectedColor:
+                                  AppTheme.udoGreen.withValues(alpha: 0.16),
+                              onSelected: (_) =>
+                                  setState(() => _boardCtrl.text = name),
+                            ))
+                        .toList()),
+              ],
               if (_album == 'inspiration') ...[
                 const SizedBox(height: 16),
                 const Text('Board (optional)',

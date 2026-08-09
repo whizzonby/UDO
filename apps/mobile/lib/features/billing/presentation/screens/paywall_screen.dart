@@ -91,7 +91,7 @@ class PaywallScreen extends ConsumerWidget {
                             'Recommendations, timeline checks and decision support.'),
                     _FeatureLine(
                         icon: Icons.public_outlined,
-                        title: 'Guest experience',
+                        title: 'Guest portal',
                         detail:
                             'RSVP, logistics, registry, photos and guest portal flows.'),
                     _FeatureLine(
@@ -108,13 +108,6 @@ class PaywallScreen extends ConsumerWidget {
             _StoreStatePanel(billing: billing),
             const SizedBox(height: 18),
             _PurchaseActions(billing: billing, ref: ref),
-            const SizedBox(height: 14),
-            Text(
-              'Purchase verification is handled securely with the app store and Udo account backend.',
-              textAlign: TextAlign.center,
-              style: UdoDesign.sans(
-                  size: 12, color: UdoDesign.muted, height: 1.35),
-            ),
           ],
         ),
       ),

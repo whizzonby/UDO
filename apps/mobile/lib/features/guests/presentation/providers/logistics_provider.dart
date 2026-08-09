@@ -87,7 +87,9 @@ class LogisticsNotifier extends StateNotifier<LogisticsState> {
   /// Returns an empty list on any failure (missing API key, network error) —
   /// the hotel search field is a nice-to-have and should silently fall back
   /// to plain typing rather than surface an error.
-  Future<List<Map<String, dynamic>>> searchPlaces(String query, String sessionToken, {String? type}) async {
+  Future<List<Map<String, dynamic>>> searchPlaces(
+      String query, String sessionToken,
+      {String? type}) async {
     try {
       final res = await _api.get('/places/search', query: {
         'query': query,
@@ -103,7 +105,8 @@ class LogisticsNotifier extends StateNotifier<LogisticsState> {
     }
   }
 
-  Future<Map<String, dynamic>?> fetchPlaceDetails(String placeId, String sessionToken) async {
+  Future<Map<String, dynamic>?> fetchPlaceDetails(
+      String placeId, String sessionToken) async {
     try {
       final res = await _api.get('/places/$placeId', query: {
         'session_token': sessionToken,
@@ -153,10 +156,15 @@ class LogisticsNotifier extends StateNotifier<LogisticsState> {
     }
   }
 
-  Future<bool> assignAccommodation(int accommodationId, int guestId) async {
+  Future<bool> assignAccommodation(int accommodationId, int guestId,
+      {String? roomLabel}) async {
     try {
-      await _api.post('/logistics/accommodation/$accommodationId/assign',
-          data: {'guest_id': guestId});
+      await _api
+          .post('/logistics/accommodation/$accommodationId/assign', data: {
+        'guest_id': guestId,
+        if (roomLabel != null && roomLabel.trim().isNotEmpty)
+          'room_label': roomLabel.trim(),
+      });
       await _load();
       return true;
     } catch (e) {

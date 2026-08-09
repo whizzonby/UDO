@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 import '../../data/auth_models.dart';
+import '../../../../core/errors/app_exception.dart';
 import '../../../../core/network/auth_service.dart';
 
 enum AuthStatus { loading, authenticated, unauthenticated }
@@ -29,17 +30,27 @@ class AuthNotifier extends StateNotifier<AuthState> {
   }
 
   Future<void> _init() async {
+    // A saved session with no network hiccup resolves in well under 100ms,
+    // which flashes the branded /splash screen for a single frame before
+    // jumping to /login or /home. Holding it on screen for a minimum beat
+    // makes the launch feel intentional instead of a flicker — real slow
+    // paths (the 3s/8s timeouts below) are unaffected since they already
+    // take longer than this floor.
+    final minSplash = Future.delayed(const Duration(milliseconds: 1800));
     try {
       final token =
           await _authService.getToken().timeout(const Duration(seconds: 3));
       if (token == null) {
+        await minSplash;
         state = AuthState.unauthenticated;
         return;
       }
       final user = await _authService.me().timeout(const Duration(seconds: 8));
       await _authService.saveSession(token, user);
+      await minSplash;
       state = AuthState(status: AuthStatus.authenticated, user: user);
     } catch (_) {
+      await minSplash;
       state = AuthState.unauthenticated;
     }
   }
@@ -66,7 +77,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
     } catch (e) {
       final message = e.toString().contains('Null check operator')
           ? 'Google sign-in is not fully configured yet. Please sign in with email and password.'
-          : e.toString();
+          : humanizeError(e);
       state = AuthState(status: AuthStatus.unauthenticated, error: message);
       return null;
     }
@@ -90,7 +101,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
       state = AuthState(status: AuthStatus.authenticated, user: res.user);
       return null;
     } catch (e) {
-      return e.toString();
+      return humanizeError(e);
     }
   }
 
@@ -114,7 +125,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
       state = AuthState(status: AuthStatus.authenticated, user: user);
       return null;
     } catch (e) {
-      return e.toString();
+      return humanizeError(e);
     }
   }
 
@@ -137,7 +148,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
       state = AuthState(status: AuthStatus.authenticated, user: res.user);
     } catch (e) {
       state =
-          AuthState(status: AuthStatus.unauthenticated, error: e.toString());
+          AuthState(status: AuthStatus.unauthenticated, error: humanizeError(e));
     }
   }
 
@@ -170,7 +181,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
       state = AuthState(status: AuthStatus.authenticated, user: res.user);
     } catch (e) {
       state =
-          AuthState(status: AuthStatus.unauthenticated, error: e.toString());
+          AuthState(status: AuthStatus.unauthenticated, error: humanizeError(e));
     }
   }
 
@@ -194,7 +205,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
       state = AuthState(status: AuthStatus.authenticated, user: res.user);
     } catch (e) {
       state =
-          AuthState(status: AuthStatus.unauthenticated, error: e.toString());
+          AuthState(status: AuthStatus.unauthenticated, error: humanizeError(e));
     }
   }
 
@@ -211,7 +222,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
       await _authService.saveSession(token, user);
       state = AuthState(status: AuthStatus.authenticated, user: user);
     } catch (e) {
-      state = state.copyWith(error: e.toString());
+      state = state.copyWith(error: humanizeError(e));
     }
   }
 
@@ -221,7 +232,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
       await refreshUser();
       return true;
     } catch (e) {
-      state = state.copyWith(error: e.toString());
+      state = state.copyWith(error: humanizeError(e));
       return false;
     }
   }
@@ -245,7 +256,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
       state = AuthState(status: AuthStatus.authenticated, user: user);
       return true;
     } catch (e) {
-      state = state.copyWith(error: e.toString());
+      state = state.copyWith(error: humanizeError(e));
       return false;
     }
   }
@@ -265,7 +276,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
       state = AuthState(status: AuthStatus.authenticated, user: user);
       return true;
     } catch (e) {
-      state = state.copyWith(error: e.toString());
+      state = state.copyWith(error: humanizeError(e));
       return false;
     }
   }
@@ -282,7 +293,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
       );
       return null;
     } catch (e) {
-      return e.toString();
+      return humanizeError(e);
     }
   }
 
@@ -295,7 +306,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
       state = AuthState.unauthenticated;
       return null;
     } catch (e) {
-      return e.toString();
+      return humanizeError(e);
     }
   }
 

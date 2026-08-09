@@ -75,16 +75,19 @@ final routerProvider = Provider<GoRouter>((ref) {
         return '/login';
       }
 
-      // Authenticated
-      if (!authState.user!.onboardingCompleted && loc != '/onboarding') {
-        return '/onboarding';
+      // Authenticated. These two gates must be mutually exclusive — each
+      // returns early so a user who is both not-onboarded and not-lifetime
+      // can't ping-pong between /onboarding and /paywall forever (each gate
+      // used to only exclude its own target route, not the other's).
+      if (!authState.user!.onboardingCompleted) {
+        return loc == '/onboarding' ? null : '/onboarding';
       }
 
       final isLifetime = authState.user!.subscription?['plan'] == 'lifetime';
-      if (!isLifetime && loc != '/paywall') {
-        return '/paywall';
+      if (!isLifetime) {
+        return loc == '/paywall' ? null : '/paywall';
       }
-      if (isLifetime && loc == '/paywall') {
+      if (loc == '/paywall') {
         return '/home';
       }
 
@@ -115,7 +118,9 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/paywall', builder: (_, __) => const PaywallScreen()),
       GoRoute(
           path: '/wedding-party',
-          builder: (_, __) => const WeddingPartyScreen()),
+          builder: (_, state) => WeddingPartyScreen(
+                initialTab: state.uri.queryParameters['tab'],
+              )),
       GoRoute(
           path: '/your-vision', builder: (_, __) => const YourVisionScreen()),
       GoRoute(
@@ -133,6 +138,7 @@ final routerProvider = Provider<GoRouter>((ref) {
               path: '/plan',
               builder: (_, state) => PlanScreen(
                     initialSection: state.uri.queryParameters['section'],
+                    initialAction: state.uri.queryParameters['action'],
                   )),
           GoRoute(
               path: '/plan/seating', builder: (_, __) => const SeatingScreen()),
@@ -150,7 +156,11 @@ final routerProvider = Provider<GoRouter>((ref) {
               path: '/guests/:id',
               builder: (_, state) => GuestProfileScreen(
                   guestId: int.parse(state.pathParameters['id']!))),
-          GoRoute(path: '/live', builder: (_, __) => const LiveScreen()),
+          GoRoute(
+              path: '/live',
+              builder: (_, state) => LiveScreen(
+                    resetToken: state.uri.queryParameters['reset'],
+                  )),
           GoRoute(path: '/gallery', builder: (_, __) => const GalleryScreen()),
           GoRoute(
               path: '/registry', builder: (_, __) => const RegistryScreen()),

@@ -47,7 +47,8 @@ class AiAssistantState {
 class AiAssistantNotifier extends StateNotifier<AiAssistantState> {
   final ApiClient _api;
 
-  AiAssistantNotifier(this._api) : super(const AiAssistantState(isLoading: true)) {
+  AiAssistantNotifier(this._api)
+      : super(const AiAssistantState(isLoading: true)) {
     refresh();
   }
 
@@ -91,8 +92,9 @@ class AiAssistantNotifier extends StateNotifier<AiAssistantState> {
     );
 
     try {
-      final res = await _api.post('/ai-assistant/chat', data: {'message': trimmed})
-          as Map<String, dynamic>;
+      final res =
+          await _api.post('/ai-assistant/chat', data: {'message': trimmed})
+              as Map<String, dynamic>;
       final log = res['data'] as Map<String, dynamic>;
       final usage = res['usage'] as Map<String, dynamic>? ?? {};
       final used = (usage['used'] as num?)?.toInt() ?? state.usageUsed;
@@ -109,7 +111,8 @@ class AiAssistantNotifier extends StateNotifier<AiAssistantState> {
       return null;
     } catch (e) {
       final message = e.toString();
-      final isLimitError = message.contains('plan limit') || message.contains('402');
+      final isLimitError =
+          message.contains('plan limit') || message.contains('402');
       // Drop the optimistic message that never got a real reply.
       final messages = [...state.messages]..removeLast();
       state = state.copyWith(
@@ -118,12 +121,13 @@ class AiAssistantNotifier extends StateNotifier<AiAssistantState> {
         limitReached: isLimitError ? true : state.limitReached,
       );
       return isLimitError
-          ? "You've used all your AI assistant questions for this month."
+          ? "You've used all your Udo AI questions for this month."
           : message;
     }
   }
 
-  List<Map<String, dynamic>> _toMessages(List<Map<String, dynamic>> logs) => logs;
+  List<Map<String, dynamic>> _toMessages(List<Map<String, dynamic>> logs) =>
+      logs;
 }
 
 // ── PROVIDER ───────────────────────────────────────────────────────────────────

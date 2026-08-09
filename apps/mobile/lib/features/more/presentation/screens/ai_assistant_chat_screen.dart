@@ -43,7 +43,8 @@ class _AiAssistantChatScreenState extends ConsumerState<AiAssistantChatScreen> {
     if (text.trim().isEmpty) return;
     _ctrl.clear();
     _scrollToBottom();
-    final error = await ref.read(aiAssistantProvider.notifier).sendMessage(text);
+    final error =
+        await ref.read(aiAssistantProvider.notifier).sendMessage(text);
     if (!mounted) return;
     _scrollToBottom();
     if (error != null && !ref.read(aiAssistantProvider).limitReached) {
@@ -61,7 +62,8 @@ class _AiAssistantChatScreenState extends ConsumerState<AiAssistantChatScreen> {
         widget.initialPrompt != null &&
         widget.initialPrompt!.trim().isNotEmpty) {
       _sentInitialPrompt = true;
-      WidgetsBinding.instance.addPostFrameCallback((_) => _send(widget.initialPrompt));
+      WidgetsBinding.instance
+          .addPostFrameCallback((_) => _send(widget.initialPrompt));
     }
 
     return Scaffold(
@@ -70,7 +72,7 @@ class _AiAssistantChatScreenState extends ConsumerState<AiAssistantChatScreen> {
         backgroundColor: Colors.white,
         elevation: 0,
         foregroundColor: UdoDesign.text,
-        title: const Text('AI Wedding Assistant',
+        title: const Text('Udo AI',
             style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
         actions: [
           Padding(
@@ -83,7 +85,9 @@ class _AiAssistantChatScreenState extends ConsumerState<AiAssistantChatScreen> {
                 style: UdoDesign.sans(
                     size: 12,
                     weight: FontWeight.w700,
-                    color: state.limitReached ? AppTheme.udoCrimson : UdoDesign.muted),
+                    color: state.limitReached
+                        ? AppTheme.udoCrimson
+                        : UdoDesign.muted),
               ),
             ),
           ),
@@ -92,24 +96,22 @@ class _AiAssistantChatScreenState extends ConsumerState<AiAssistantChatScreen> {
       body: Column(children: [
         Expanded(
           child: state.isLoading
-              ? const Center(
-                  child: CircularProgressIndicator(color: _aiAccent))
+              ? const Center(child: CircularProgressIndicator(color: _aiAccent))
               : state.messages.isEmpty
                   ? Center(
                       child: Padding(
                         padding: const EdgeInsets.all(32),
-                        child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              const Icon(Icons.auto_awesome_outlined,
-                                  size: 40, color: UdoDesign.muted),
-                              const SizedBox(height: 12),
-                              Text(
-                                  'Ask about your guests, budget, tasks, timeline or seating.',
-                                  textAlign: TextAlign.center,
-                                  style: UdoDesign.sans(
-                                      size: 13, color: UdoDesign.muted)),
-                            ]),
+                        child:
+                            Column(mainAxisSize: MainAxisSize.min, children: [
+                          const Icon(Icons.auto_awesome_outlined,
+                              size: 40, color: UdoDesign.muted),
+                          const SizedBox(height: 12),
+                          Text(
+                              'Ask about planning, guests, budget, travel, honeymoon, timelines or seating.',
+                              textAlign: TextAlign.center,
+                              style: UdoDesign.sans(
+                                  size: 13, color: UdoDesign.muted)),
+                        ]),
                       ),
                     )
                   : ListView.builder(
@@ -127,7 +129,8 @@ class _AiAssistantChatScreenState extends ConsumerState<AiAssistantChatScreen> {
                               const SizedBox(height: 8),
                               if (response != null)
                                 _ChatBubble(text: response, isUser: false)
-                              else if (state.isSending && index == state.messages.length - 1)
+                              else if (state.isSending &&
+                                  index == state.messages.length - 1)
                                 const _ChatTypingBubble(),
                               const SizedBox(height: 12),
                             ]);
@@ -139,10 +142,13 @@ class _AiAssistantChatScreenState extends ConsumerState<AiAssistantChatScreen> {
             width: double.infinity,
             padding: const EdgeInsets.all(16),
             color: AppTheme.udoCrimson.withValues(alpha: 0.08),
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text("You've reached this month's AI assistant limit.",
+            child:
+                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text("You've reached this month's Udo AI limit.",
                   style: UdoDesign.sans(
-                      size: 13, weight: FontWeight.w700, color: AppTheme.udoCrimson)),
+                      size: 13,
+                      weight: FontWeight.w700,
+                      color: AppTheme.udoCrimson)),
               const SizedBox(height: 4),
               Text('Upgrade your plan for more questions each month.',
                   style: UdoDesign.sans(size: 12, color: UdoDesign.sub)),
@@ -170,17 +176,19 @@ class _AiAssistantChatScreenState extends ConsumerState<AiAssistantChatScreen> {
                     textInputAction: TextInputAction.send,
                     onSubmitted: (_) => _send(),
                     decoration: InputDecoration(
-                      hintText: 'Ask Udo anything about your wedding...',
+                      hintText: 'Ask Udo AI about your wedding or travel...',
                       filled: true,
                       fillColor: Colors.white,
                       border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(20),
-                          borderSide: const BorderSide(color: UdoDesign.border)),
+                          borderSide:
+                              const BorderSide(color: UdoDesign.border)),
                       enabledBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(20),
-                          borderSide: const BorderSide(color: UdoDesign.border)),
-                      contentPadding:
-                          const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                          borderSide:
+                              const BorderSide(color: UdoDesign.border)),
+                      contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 16, vertical: 12),
                     ),
                   ),
                 ),
@@ -194,7 +202,8 @@ class _AiAssistantChatScreenState extends ConsumerState<AiAssistantChatScreen> {
                           height: 16,
                           child: CircularProgressIndicator(
                               strokeWidth: 2, color: Colors.white))
-                      : const Icon(Icons.arrow_upward, color: Colors.white, size: 18),
+                      : const Icon(Icons.arrow_upward,
+                          color: Colors.white, size: 18),
                 ),
               ]),
             ),
@@ -256,7 +265,8 @@ class _ChatTypingBubble extends StatelessWidget {
           child: const SizedBox(
               width: 16,
               height: 16,
-              child: CircularProgressIndicator(strokeWidth: 2, color: _aiAccent)),
+              child:
+                  CircularProgressIndicator(strokeWidth: 2, color: _aiAccent)),
         ),
       );
 }

@@ -36,8 +36,13 @@ class OnboardingAnswers {
   String guestTravel = 'Mixed';
   List<String> travelSupport = [];
 
-  // Guest experience
-  List<String> guestExperience = ['Children included', 'Accommodation required', 'Transport required', 'Meal selection required'];
+  // Guest portal
+  List<String> guestExperience = [
+    'Children included',
+    'Accommodation required',
+    'Transport required',
+    'Meal selection required'
+  ];
   int guestCount = 100;
 
   // Budget
@@ -48,7 +53,7 @@ class OnboardingAnswers {
   String budgetConfidence = 'Moderately defined';
 
   // Priorities
-  List<String> priorities = ['Guest experience', 'Food & beverage quality'];
+  List<String> priorities = ['Guest portal', 'Food & beverage quality'];
 
   // Food & dining
   String diningStyle = 'Formal plated';
@@ -109,7 +114,9 @@ class OnboardingAnswers {
         'couple_name': coupleName,
         'role': role,
         'decision_style': decisionStyle,
-        'collaborators': collaborators.map((c) => {'name': c.name, 'email': c.email, 'role': c.role}).toList(),
+        'collaborators': collaborators
+            .map((c) => {'name': c.name, 'email': c.email, 'role': c.role})
+            .toList(),
         'planning_approach': planningApproach,
         'planner_email': plannerEmail.isEmpty ? null : plannerEmail,
         'wedding_type': weddingType,
@@ -157,7 +164,8 @@ class OnboardingAnswers {
         'celebration_atmosphere': celebrationAtmosphere,
         'planning_support_style': planningSupportStyle,
         'planning_honeymoon': planningHoneymoon,
-        'honeymoon_destination': honeymoonDestination.isEmpty ? null : honeymoonDestination,
+        'honeymoon_destination':
+            honeymoonDestination.isEmpty ? null : honeymoonDestination,
         'honeymoon_budget': planningHoneymoon == 'Yes' ? honeymoonBudget : null,
         'honeymoon_timing': honeymoonTiming,
         'insurance': insurance,

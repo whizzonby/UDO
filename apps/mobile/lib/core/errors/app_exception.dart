@@ -19,3 +19,12 @@ class NetworkException extends AppException {
 class ServerException extends AppException {
   const ServerException(super.message, {super.statusCode});
 }
+
+/// Turns any caught error into text safe to show a user. AppExceptions
+/// already carry a clean message (set by ApiClient); anything else — a
+/// null-check crash, a JSON cast failure, some other unexpected bug — gets
+/// a generic fallback instead of leaking Dart/Flutter internals.
+String humanizeError(Object error) {
+  if (error is AppException) return error.message;
+  return 'Something went wrong. Please try again.';
+}

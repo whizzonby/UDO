@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import '../../../../../core/theme/app_theme.dart';
 import '../../../../../shared/widgets/udo_text_field.dart';
 import '../onboarding_answers.dart';
@@ -40,7 +41,7 @@ class HoneymoonPage extends StatelessWidget {
             const SizedBox(height: 20),
             UdoTextField(label: 'Destination', hint: 'Where are you going?', onChanged: (v) => answers.honeymoonDestination = v),
             const SizedBox(height: 16),
-            Text('Budget: \$${answers.honeymoonBudget.toStringAsFixed(0)}', style: const TextStyle(fontWeight: FontWeight.w500)),
+            Text('Budget: ${NumberFormat.currency(symbol: '\$', decimalDigits: 0).format(answers.honeymoonBudget)}', style: const TextStyle(fontWeight: FontWeight.w500)),
             Slider(
               value: answers.honeymoonBudget.clamp(500, 50000),
               min: 500, max: 50000, divisions: 99,

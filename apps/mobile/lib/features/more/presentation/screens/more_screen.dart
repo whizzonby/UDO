@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../../../core/theme/app_theme.dart';
+import '../../../../shared/utils/date_formatters.dart' as udo_dates;
 import '../../../../shared/widgets/udo_design_system.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
 import '../providers/about_provider.dart';
@@ -13,6 +14,31 @@ import 'content_page_screen.dart';
 import 'release_notes_screen.dart';
 
 const _moreAccent = Color(0xFF4B4D52);
+
+/// Shared with other modules (e.g. the Plan drawer's "Help & Support" row)
+/// so they open the same Help sheet instead of duplicating it.
+void showHelpSheet(BuildContext context) {
+  showModalBottomSheet(
+    context: context,
+    isScrollControlled: true,
+    shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+    builder: (_) =>
+        _HelpSheet(onContactSupport: () => showContactSupportSheet(context)),
+  );
+}
+
+/// Shared with other modules so they open the same Contact Support sheet
+/// instead of duplicating it.
+void showContactSupportSheet(BuildContext context) {
+  showModalBottomSheet(
+    context: context,
+    isScrollControlled: true,
+    shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+    builder: (_) => const _ContactSupportSheet(),
+  );
+}
 
 class MoreScreen extends ConsumerWidget {
   const MoreScreen({super.key});
@@ -34,7 +60,8 @@ class MoreScreen extends ConsumerWidget {
     final pendingApprovals = operations.approvals
         .where((approval) => approval['status'] == 'pending')
         .length;
-    final appVersion = ref.watch(packageInfoProvider).valueOrNull?.version ?? '1.0.0';
+    final appVersion =
+        ref.watch(packageInfoProvider).valueOrNull?.version ?? '1.0.0';
 
     return Scaffold(
       backgroundColor: UdoDesign.bg,
@@ -143,9 +170,9 @@ class MoreScreen extends ConsumerWidget {
                   onTap: () => _showDecisionMakers(context)),
               _MoreCommandItem(
                   icon: Icons.auto_awesome_outlined,
-                  title: 'AI Wedding Assistant',
+                  title: 'Udo AI',
                   subtitle:
-                      'Daily recommendations, insights and planning guidance.',
+                      'Wedding planning, travel guidance and daily priorities.',
                   onTap: () => _showAssistant(context, operations)),
             ],
           ),
@@ -352,15 +379,7 @@ class MoreScreen extends ConsumerWidget {
     );
   }
 
-  void _showHelp(BuildContext context) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
-      builder: (_) => const _HelpSheet(),
-    );
-  }
+  void _showHelp(BuildContext context) => showHelpSheet(context);
 
   void _showFeedback(BuildContext context) {
     showModalBottomSheet(
@@ -382,15 +401,8 @@ class MoreScreen extends ConsumerWidget {
     );
   }
 
-  void _showContactSupport(BuildContext context) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
-      builder: (_) => const _ContactSupportSheet(),
-    );
-  }
+  void _showContactSupport(BuildContext context) =>
+      showContactSupportSheet(context);
 
   void _showAbout(BuildContext context) {
     showModalBottomSheet(
@@ -537,7 +549,7 @@ class _MoreNavigationDrawer extends StatelessWidget {
                     : '${operations.team.length}'),
             _DrawerLink(
                 icon: Icons.auto_awesome_outlined,
-                label: 'AI Wedding Assistant',
+                label: 'Udo AI',
                 onTap: onAssistant),
             _DrawerLink(
                 icon: Icons.person_outline, label: 'Profile', onTap: onProfile),
@@ -1309,7 +1321,8 @@ class _LiveSubscriptionSheet extends StatelessWidget {
               context: context,
               isScrollControlled: true,
               shape: const RoundedRectangleBorder(
-                  borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+                  borderRadius:
+                      BorderRadius.vertical(top: Radius.circular(24))),
               builder: (_) => const _CollaboratorsSheet(),
             );
       case 'messages_per_month':
@@ -1321,12 +1334,13 @@ class _LiveSubscriptionSheet extends StatelessWidget {
               context: context,
               isScrollControlled: true,
               shape: const RoundedRectangleBorder(
-                  borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+                  borderRadius:
+                      BorderRadius.vertical(top: Radius.circular(24))),
               builder: (_) => const _WeddingWorkspacesSheet(),
             );
       case 'ai_assistant_calls_per_month':
-        return () => Navigator.of(context).push(MaterialPageRoute(
-            builder: (_) => const AiAssistantChatScreen()));
+        return () => Navigator.of(context).push(
+            MaterialPageRoute(builder: (_) => const AiAssistantChatScreen()));
       default:
         return null;
     }
@@ -1345,7 +1359,7 @@ class _LiveSubscriptionSheet extends StatelessWidget {
       case 'weddings':
         return 'Manage weddings →';
       case 'ai_assistant_calls_per_month':
-        return 'Open AI Chat →';
+        return 'Open Udo AI';
       default:
         return null;
     }
@@ -1698,7 +1712,7 @@ class _WeddingSettingsSheetState extends ConsumerState<WeddingSettingsSheet> {
               const SizedBox(height: 4),
               Text(
                 canManage
-                    ? 'Update details used across RSVP, guest experience, live mode, and planning.'
+                    ? 'Update details used across RSVP, guest portal, live mode, and planning.'
                     : 'You need wedding management access to edit these details.',
                 style: const TextStyle(
                     fontSize: 13, color: AppTheme.udoTextSecondary),
@@ -2405,7 +2419,8 @@ class _LimitRow extends StatelessWidget {
         margin: const EdgeInsets.only(bottom: 10),
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
-            color: AppTheme.udoCardFill, borderRadius: BorderRadius.circular(14)),
+            color: AppTheme.udoCardFill,
+            borderRadius: BorderRadius.circular(14)),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Row(children: [
             Expanded(
@@ -2523,8 +2538,9 @@ String _weddingMeta(Map<String, dynamic> wedding) {
 }
 
 String _dateOnly(dynamic value) {
-  final text = value?.toString() ?? '';
-  return text.length >= 10 ? text.substring(0, 10) : text;
+  final parsed = udo_dates.parseApiDate(value);
+  if (parsed == null) return value?.toString() ?? '';
+  return '${parsed.year}-${parsed.month.toString().padLeft(2, '0')}-${parsed.day.toString().padLeft(2, '0')}';
 }
 
 String? _nullIfBlank(String value) {
@@ -3048,8 +3064,8 @@ class _ChangePasswordSheetState extends ConsumerState<_ChangePasswordSheet> {
     setState(() => _saving = false);
     if (error == null) {
       Navigator.pop(context);
-      ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Password updated.')));
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('Password updated.')));
     } else {
       setState(() => _error = error);
     }
@@ -3057,8 +3073,8 @@ class _ChangePasswordSheetState extends ConsumerState<_ChangePasswordSheet> {
 
   @override
   Widget build(BuildContext context) => Padding(
-        padding: EdgeInsets.only(
-            bottom: MediaQuery.of(context).viewInsets.bottom),
+        padding:
+            EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
         child: SafeArea(
           child: Padding(
             padding: const EdgeInsets.fromLTRB(20, 24, 20, 20),
@@ -3165,7 +3181,8 @@ class _TwoFactorSheetState extends ConsumerState<_TwoFactorSheet> {
     final enabled = ref.watch(authProvider).user?.twoFactorEnabled ?? false;
 
     return Padding(
-      padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+      padding:
+          EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
       child: SafeArea(
         child: Padding(
           padding: const EdgeInsets.fromLTRB(20, 24, 20, 20),
@@ -3287,8 +3304,8 @@ class _DeleteAccountSheetState extends ConsumerState<_DeleteAccountSheet> {
 
   @override
   Widget build(BuildContext context) => Padding(
-        padding: EdgeInsets.only(
-            bottom: MediaQuery.of(context).viewInsets.bottom),
+        padding:
+            EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
         child: SafeArea(
           child: Padding(
             padding: const EdgeInsets.fromLTRB(20, 24, 20, 20),
@@ -3342,8 +3359,9 @@ class _DeleteAccountSheetState extends ConsumerState<_DeleteAccountSheet> {
                         minimumSize: const Size(double.infinity, 48),
                         backgroundColor: AppTheme.udoCrimson,
                         foregroundColor: Colors.white),
-                    child: Text(
-                        _deleting ? 'Deleting...' : 'Permanently delete account'),
+                    child: Text(_deleting
+                        ? 'Deleting...'
+                        : 'Permanently delete account'),
                   ),
                 ]),
           ),
@@ -3353,8 +3371,46 @@ class _DeleteAccountSheetState extends ConsumerState<_DeleteAccountSheet> {
 
 // ── HELP SHEET ─────────────────────────────────────────────────────────────────
 
-class _HelpSheet extends StatelessWidget {
-  const _HelpSheet();
+const _kHelpFaqs = [
+  (
+    'How do I add guests?',
+    'Open the Guests tab and tap "Add Guest" to add someone one at a time, '
+        'or "Import CSV" to bring in your full list at once.',
+  ),
+  (
+    'How does the RSVP system work?',
+    'Each guest gets a personal invitation link. When they respond, their '
+        'RSVP status, meal choice and plus-one details update automatically '
+        'in your Guests list and dashboard — no manual entry needed.',
+  ),
+  (
+    'Can I add multiple collaborators?',
+    'Yes — go to More > Collaborators and add a teammate by email. You can '
+        'mark trusted collaborators as decision-makers for approvals.',
+  ),
+  (
+    'How do I set up the guest portal?',
+    'Your guest portal lives under Guests > Guest Portal. From there you '
+        'can choose which modules guests see and share your portal link.',
+  ),
+  (
+    'How do I export my guest list?',
+    'A one-tap export isn\'t available yet. For now you can view and '
+        'filter your full list under Guests, or contact support below if '
+        'you need a data export.',
+  ),
+];
+
+class _HelpSheet extends StatefulWidget {
+  final VoidCallback onContactSupport;
+  const _HelpSheet({required this.onContactSupport});
+
+  @override
+  State<_HelpSheet> createState() => _HelpSheetState();
+}
+
+class _HelpSheetState extends State<_HelpSheet> {
+  int? _openIndex;
 
   @override
   Widget build(BuildContext context) => SafeArea(
@@ -3375,30 +3431,48 @@ class _HelpSheet extends StatelessWidget {
                       padding: EdgeInsets.zero),
                 ]),
                 const SizedBox(height: 16),
-                for (final q in [
-                  'How do I add guests?',
-                  'How does the RSVP system work?',
-                  'Can I add multiple collaborators?',
-                  'How do I set up the guest portal?',
-                  'How do I export my guest list?',
-                ])
+                for (var i = 0; i < _kHelpFaqs.length; i++)
                   Container(
                     margin: const EdgeInsets.only(bottom: 8),
-                    child: ListTile(
-                      title: Text(q, style: const TextStyle(fontSize: 14)),
-                      trailing: const Icon(Icons.chevron_right,
-                          size: 18, color: AppTheme.udoTextSecondary),
-                      contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 14, vertical: 4),
-                      tileColor: AppTheme.udoCardFill,
-                      shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12)),
-                      onTap: () {},
+                    decoration: BoxDecoration(
+                      color: AppTheme.udoCardFill,
+                      borderRadius: BorderRadius.circular(12),
                     ),
+                    child: Column(children: [
+                      ListTile(
+                        title: Text(_kHelpFaqs[i].$1,
+                            style: const TextStyle(fontSize: 14)),
+                        trailing: Icon(
+                            _openIndex == i
+                                ? Icons.expand_less
+                                : Icons.chevron_right,
+                            size: 18,
+                            color: AppTheme.udoTextSecondary),
+                        contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 14, vertical: 4),
+                        onTap: () => setState(
+                            () => _openIndex = _openIndex == i ? null : i),
+                      ),
+                      if (_openIndex == i)
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(14, 0, 14, 14),
+                          child: Align(
+                            alignment: Alignment.centerLeft,
+                            child: Text(_kHelpFaqs[i].$2,
+                                style: const TextStyle(
+                                    fontSize: 13,
+                                    height: 1.45,
+                                    color: AppTheme.udoTextSecondary)),
+                          ),
+                        ),
+                    ]),
                   ),
                 const SizedBox(height: 8),
                 OutlinedButton.icon(
-                  onPressed: () => Navigator.pop(context),
+                  onPressed: () {
+                    Navigator.pop(context);
+                    widget.onContactSupport();
+                  },
                   icon: const Icon(Icons.chat_bubble_outline, size: 16),
                   label: const Text('Contact support'),
                   style: OutlinedButton.styleFrom(
@@ -3428,7 +3502,7 @@ class _AiAssistantSheet extends ConsumerWidget {
         operations.auditLogs.isEmpty
             ? 'Review your planning priorities for today.'
             : 'Review ${operations.auditLogs.length} recent workspace updates.',
-        'Give me my daily planning recommendations — what should I prioritise today?',
+        'Give me my daily planning recommendations - what should I prioritise today based on my wedding date?',
       ),
       (
         Icons.insights_outlined,
@@ -3451,6 +3525,12 @@ class _AiAssistantSheet extends ConsumerWidget {
         'Give me budget advice based on what I have spent and paid so far.',
       ),
       (
+        Icons.flight_takeoff_outlined,
+        'Travel and honeymoon',
+        'Plan guest travel, hotel logistics, honeymoon timing and packing.',
+        'Act as my wedding travel planner. What should I do next for guest travel and honeymoon planning?',
+      ),
+      (
         Icons.search_outlined,
         'Search your wedding',
         wedding == null
@@ -3471,9 +3551,7 @@ class _AiAssistantSheet extends ConsumerWidget {
           padding: const EdgeInsets.fromLTRB(20, 24, 20, 24),
           children: [
             Row(children: [
-              Expanded(
-                  child: Text('AI Wedding Assistant',
-                      style: UdoDesign.serif(size: 30))),
+              Expanded(child: Text('Udo AI', style: UdoDesign.serif(size: 30))),
               IconButton(
                   onPressed: () => Navigator.pop(context),
                   icon: const Icon(Icons.close),
@@ -3481,13 +3559,13 @@ class _AiAssistantSheet extends ConsumerWidget {
             ]),
             const SizedBox(height: 8),
             Text(
-                'Recommendations, search and planning guidance for the active workspace.',
+                'Wedding planning, guest logistics, honeymoon and travel guidance for this workspace.',
                 style: UdoDesign.sans(size: 13, color: UdoDesign.sub)),
             const SizedBox(height: 4),
             Text(
                 usage.usageLimit == null
-                    ? 'Unlimited assistant questions on your plan.'
-                    : '${usage.usageUsed} of ${usage.usageLimit} assistant questions used this month.',
+                    ? 'Unlimited Udo AI questions on your plan.'
+                    : '${usage.usageUsed} of ${usage.usageLimit} Udo AI questions used this month.',
                 style: UdoDesign.sans(
                     size: 11.5,
                     weight: FontWeight.w600,
@@ -3513,12 +3591,12 @@ class _AiAssistantSheet extends ConsumerWidget {
                     child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                      Text('Today\'s planning brief',
+                      Text('Today\'s Udo AI brief',
                           style: UdoDesign.sans(
                               size: 15, weight: FontWeight.w700)),
                       const SizedBox(height: 4),
                       Text(
-                          'Prioritise decisions, check overdue tasks and ask Udo for the best next move.',
+                          'Prioritise decisions, check timing risks and ask Udo AI for the best next move.',
                           style:
                               UdoDesign.sans(size: 12, color: UdoDesign.muted)),
                     ])),
@@ -3552,7 +3630,7 @@ class _AiAssistantSheet extends ConsumerWidget {
               onPressed: () => Navigator.of(context).push(MaterialPageRoute(
                   builder: (_) => const AiAssistantChatScreen())),
               icon: const Icon(Icons.chat_bubble_outline, size: 17),
-              label: const Text('Open AI Chat'),
+              label: const Text('Open Udo AI'),
               style: ElevatedButton.styleFrom(
                 minimumSize: const Size(double.infinity, 50),
                 backgroundColor: _moreAccent,
@@ -3594,8 +3672,8 @@ class _ContactSupportSheet extends StatelessWidget {
     if (await canLaunchUrl(uri)) {
       await launchUrl(uri, mode: LaunchMode.externalApplication);
     } else if (context.mounted) {
-      ScaffoldMessenger.of(context)
-          .showSnackBar(const SnackBar(content: Text('Could not open WhatsApp.')));
+      ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Could not open WhatsApp.')));
     }
   }
 
@@ -3714,87 +3792,83 @@ class _AboutSheet extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final version = ref.watch(packageInfoProvider).valueOrNull?.version ?? '1.0.0';
+    final version =
+        ref.watch(packageInfoProvider).valueOrNull?.version ?? '1.0.0';
 
     return SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(20, 24, 20, 20),
-          child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(children: [
-                  Expanded(
-                      child:
-                          Text('About Udo', style: UdoDesign.serif(size: 30))),
-                  IconButton(
-                      onPressed: () => Navigator.pop(context),
-                      icon: const Icon(Icons.close),
-                      padding: EdgeInsets.zero),
-                ]),
-                const SizedBox(height: 8),
-                Text('Udo v$version',
-                    style: UdoDesign.sans(size: 13, color: UdoDesign.sub)),
-                const SizedBox(height: 16),
-                for (final item in [
-                  (
-                    Icons.new_releases_outlined,
-                    'What\'s New',
-                    'Recent product improvements',
-                    (BuildContext c) =>
-                        _openReleaseNotes(c, latestOnly: true),
-                  ),
-                  (
-                    Icons.history_toggle_off_outlined,
-                    'Version History',
-                    'Release notes and app changes',
-                    (BuildContext c) =>
-                        _openReleaseNotes(c, latestOnly: false),
-                  ),
-                  (
-                    Icons.privacy_tip_outlined,
-                    'Privacy Policy',
-                    'How wedding and account data is handled',
-                    (BuildContext c) =>
-                        _openContentPage(c, 'privacy-policy', 'Privacy Policy'),
-                  ),
-                  (
-                    Icons.description_outlined,
-                    'Terms of Service',
-                    'Product and subscription terms',
-                    (BuildContext c) => _openContentPage(
-                        c, 'terms-of-service', 'Terms of Service'),
-                  ),
-                  (
-                    Icons.fact_check_outlined,
-                    'Licences',
-                    'Open source and third-party acknowledgements',
-                    (BuildContext c) => _openLicences(c, ref),
-                  ),
-                  (
-                    Icons.business_outlined,
-                    'Company Information',
-                    'About the Udo wedding platform',
-                    (BuildContext c) => _openContentPage(
-                        c, 'company-information', 'Company Information'),
-                  ),
-                ])
-                  ListTile(
-                    leading: Icon(item.$1, color: _moreAccent, size: 20),
-                    title: Text(item.$2,
-                        style:
-                            UdoDesign.sans(size: 14, weight: FontWeight.w700)),
-                    subtitle: Text(item.$3,
-                        style:
-                            UdoDesign.sans(size: 12, color: UdoDesign.muted)),
-                    trailing: const Icon(Icons.chevron_right,
-                        size: 18, color: UdoDesign.muted),
-                    contentPadding: EdgeInsets.zero,
-                    onTap: () => item.$4(context),
-                  ),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(20, 24, 20, 20),
+        child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(children: [
+                Expanded(
+                    child: Text('About Udo', style: UdoDesign.serif(size: 30))),
+                IconButton(
+                    onPressed: () => Navigator.pop(context),
+                    icon: const Icon(Icons.close),
+                    padding: EdgeInsets.zero),
               ]),
-        ),
-      );
+              const SizedBox(height: 8),
+              Text('Udo v$version',
+                  style: UdoDesign.sans(size: 13, color: UdoDesign.sub)),
+              const SizedBox(height: 16),
+              for (final item in [
+                (
+                  Icons.new_releases_outlined,
+                  'What\'s New',
+                  'Recent product improvements',
+                  (BuildContext c) => _openReleaseNotes(c, latestOnly: true),
+                ),
+                (
+                  Icons.history_toggle_off_outlined,
+                  'Version History',
+                  'Release notes and app changes',
+                  (BuildContext c) => _openReleaseNotes(c, latestOnly: false),
+                ),
+                (
+                  Icons.privacy_tip_outlined,
+                  'Privacy Policy',
+                  'How wedding and account data is handled',
+                  (BuildContext c) =>
+                      _openContentPage(c, 'privacy-policy', 'Privacy Policy'),
+                ),
+                (
+                  Icons.description_outlined,
+                  'Terms of Service',
+                  'Product and subscription terms',
+                  (BuildContext c) => _openContentPage(
+                      c, 'terms-of-service', 'Terms of Service'),
+                ),
+                (
+                  Icons.fact_check_outlined,
+                  'Licences',
+                  'Open source and third-party acknowledgements',
+                  (BuildContext c) => _openLicences(c, ref),
+                ),
+                (
+                  Icons.business_outlined,
+                  'Company Information',
+                  'About the Udo wedding platform',
+                  (BuildContext c) => _openContentPage(
+                      c, 'company-information', 'Company Information'),
+                ),
+              ])
+                ListTile(
+                  leading: Icon(item.$1, color: _moreAccent, size: 20),
+                  title: Text(item.$2,
+                      style: UdoDesign.sans(size: 14, weight: FontWeight.w700)),
+                  subtitle: Text(item.$3,
+                      style: UdoDesign.sans(size: 12, color: UdoDesign.muted)),
+                  trailing: const Icon(Icons.chevron_right,
+                      size: 18, color: UdoDesign.muted),
+                  contentPadding: EdgeInsets.zero,
+                  onTap: () => item.$4(context),
+                ),
+            ]),
+      ),
+    );
   }
 }
 

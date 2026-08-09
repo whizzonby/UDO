@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../../../core/theme/app_theme.dart';
+import '../../../../shared/utils/date_formatters.dart' as udo_dates;
 import '../../../../shared/widgets/udo_design_system.dart';
 import '../../../more/presentation/providers/more_operations_provider.dart';
 import '../../../wedding_party/presentation/providers/wedding_party_provider.dart';
@@ -13,14 +14,7 @@ import '../../../wedding_party/presentation/screens/wedding_party_screen.dart'
 import '../providers/live_provider.dart';
 
 String _formatTime(String? t) {
-  if (t == null || t.isEmpty) return '';
-  final parts = t.split(':');
-  if (parts.length < 2) return t;
-  final h = int.tryParse(parts[0]) ?? 0;
-  final m = int.tryParse(parts[1]) ?? 0;
-  final suffix = h >= 12 ? 'PM' : 'AM';
-  final hour = h > 12 ? h - 12 : (h == 0 ? 12 : h);
-  return '$hour:${m.toString().padLeft(2, '0')} $suffix';
+  return udo_dates.formatApiTime(t);
 }
 
 String _timeAgo(String? iso) {
@@ -128,7 +122,9 @@ Future<void> _launchSms(BuildContext context, String? phone) async {
 }
 
 class LiveScreen extends ConsumerStatefulWidget {
-  const LiveScreen({super.key});
+  final String? resetToken;
+
+  const LiveScreen({super.key, this.resetToken});
   @override
   ConsumerState<LiveScreen> createState() => _LiveScreenState();
 }
@@ -169,6 +165,24 @@ class _LiveScreenState extends ConsumerState<LiveScreen>
   }
 
   @override
+  void didUpdateWidget(covariant LiveScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.resetToken != oldWidget.resetToken && _tabs.index != 0) {
+      _tabs.animateTo(0);
+      setState(() => _drawerOpen = false);
+    }
+  }
+
+  void _goToLiveHome() {
+    if (_tabs.index == 0) {
+      setState(() => _drawerOpen = true);
+      return;
+    }
+    _tabs.animateTo(0);
+    setState(() => _drawerOpen = false);
+  }
+
+  @override
   Widget build(BuildContext context) {
     final state = ref.watch(liveProvider);
     final notifier = ref.read(liveProvider.notifier);
@@ -184,17 +198,9 @@ class _LiveScreenState extends ConsumerState<LiveScreen>
                   children: [
                     _LiveHeader(
                       title: _pages[_tabs.index].title,
-                      onMenuTap: () => setState(() => _drawerOpen = true),
+                      isMainPage: _tabs.index == 0,
+                      onNavTap: _goToLiveHome,
                       onRefresh: notifier.refresh,
-                      onBroadcast: () {
-                        if (_tabs.index == 1 || _tabs.index == 2) {
-                          context.push('/plan?section=timeline');
-                        } else if (_tabs.index == 3) {
-                          context.push('/plan?section=details');
-                        } else {
-                          _tabs.animateTo(4);
-                        }
-                      },
                     ),
                     if (state.isOffline)
                       _StaleLiveBanner(
@@ -257,15 +263,15 @@ class _LivePageMeta {
 
 class _LiveHeader extends StatelessWidget {
   final String title;
-  final VoidCallback onMenuTap;
+  final bool isMainPage;
+  final VoidCallback onNavTap;
   final Future<void> Function() onRefresh;
-  final VoidCallback onBroadcast;
 
   const _LiveHeader({
     required this.title,
-    required this.onMenuTap,
+    required this.isMainPage,
+    required this.onNavTap,
     required this.onRefresh,
-    required this.onBroadcast,
   });
 
   @override
@@ -276,7 +282,9 @@ class _LiveHeader extends StatelessWidget {
         color: UdoDesign.bg,
         padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),
         child: Row(children: [
-          _LiveRoundButton(icon: Icons.menu, onTap: onMenuTap),
+          _LiveRoundButton(
+              icon: isMainPage ? Icons.menu : Icons.arrow_back,
+              onTap: onNavTap),
           const SizedBox(width: 12),
           Expanded(
             child:
@@ -311,8 +319,6 @@ class _LiveHeader extends StatelessWidget {
               onTap: () {
                 onRefresh();
               }),
-          const SizedBox(width: 10),
-          _LiveRoundButton(icon: Icons.edit_outlined, onTap: onBroadcast),
         ]),
       ),
     );
@@ -797,7 +803,6 @@ class _TodayTabState extends ConsumerState<_TodayTab> {
                   ),
                 )),
         ])),
-        const SizedBox(height: 12),
         _Card(
             child:
                 Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -834,7 +839,6 @@ class _TodayTabState extends ConsumerState<_TodayTab> {
               ]),
             ),
         ])),
-        const SizedBox(height: 12),
         _Card(
             child:
                 Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -2461,18 +2465,25 @@ class _WeatherTab extends StatelessWidget {
     final weddingDay = currentWeather?['wedding_day'] as Map<String, dynamic>?;
     final weddingDayAvailable = weddingDay?['forecast_available'] == true;
     final w = weddingDayAvailable ? weddingDay : null;
+    final heroWeather = w ?? currentWeather;
     final sunset = currentWeather?['sunset'] as String?;
     final timelineRisks = (currentWeather?['timeline_risks'] as List?)
             ?.cast<Map<String, dynamic>>() ??
         [];
+    final weddingWeather = w ?? const <String, dynamic>{};
 
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
         _WeatherOpsHero(
-          weather: w,
-          quality: _weatherQualityLabel(w),
-          advisory: w == null ? state.weatherMessage : _advisory(w),
+          weather: heroWeather,
+          quality: _weatherQualityLabel(heroWeather),
+          advisory: heroWeather == null
+              ? state.weatherMessage
+              : (w == null
+                  ? (weddingDay?['reason'] as String? ??
+                      'Wedding-day forecast will appear closer to the date.')
+                  : _advisory(w)),
         ),
         const SizedBox(height: 12),
         _Card(
@@ -2481,7 +2492,7 @@ class _WeatherTab extends StatelessWidget {
           const Text('Wedding-day weather',
               style: TextStyle(fontSize: 15, fontWeight: FontWeight.w500)),
           const SizedBox(height: 16),
-          if (w == null)
+          if (currentWeather == null)
             Container(
               padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
@@ -2498,13 +2509,13 @@ class _WeatherTab extends StatelessWidget {
                     textAlign: TextAlign.center),
                 if ((state.weatherMessage ?? '')
                     .toLowerCase()
-                    .contains('venue address')) ...[
+                    .contains('venue')) ...[
                   const SizedBox(height: 14),
                   OutlinedButton.icon(
                     onPressed: () => context.push('/plan?section=details'),
-                    icon: const Icon(Icons.edit_location_alt_outlined,
-                        size: 18),
-                    label: const Text('Update venue address'),
+                    icon:
+                        const Icon(Icons.edit_location_alt_outlined, size: 18),
+                    label: const Text('Update venue/location'),
                     style: OutlinedButton.styleFrom(
                         foregroundColor: UdoDesign.live,
                         side: const BorderSide(color: UdoDesign.live)),
@@ -2552,30 +2563,30 @@ class _WeatherTab extends StatelessWidget {
                   Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text('${w['temp']}°',
+                        Text('${weddingWeather['temp']}°',
                             style: const TextStyle(
                                 fontSize: 48,
                                 fontWeight: FontWeight.w500,
                                 height: 1)),
                         const SizedBox(height: 4),
                         Text(
-                            '${w['temp_min'] ?? w['temp']}° low · ${w['temp_max'] ?? w['temp']}° high',
+                            '${weddingWeather['temp_min'] ?? weddingWeather['temp']}° low · ${weddingWeather['temp_max'] ?? weddingWeather['temp']}° high',
                             style: const TextStyle(
                                 fontSize: 13,
                                 color: AppTheme.udoTextSecondary)),
                       ]),
                   const Spacer(),
-                  Icon(_icon(w['condition'] as String?),
+                  Icon(_icon(weddingWeather['condition'] as String?),
                       size: 72, color: Colors.orange),
                 ]),
                 const SizedBox(height: 16),
                 Row(children: [
                   _WeatherStat(Icons.umbrella_outlined, 'Rain',
-                      '${w['rain_chance_pct']}%'),
-                  _WeatherStat(
-                      Icons.air_outlined, 'Wind', '${w['wind_mph']} mph'),
-                  _WeatherStat(
-                      Icons.cloud_outlined, 'Clouds', '${w['clouds_pct']}%'),
+                      '${weddingWeather['rain_chance_pct']}%'),
+                  _WeatherStat(Icons.air_outlined, 'Wind',
+                      '${weddingWeather['wind_mph']} mph'),
+                  _WeatherStat(Icons.cloud_outlined, 'Clouds',
+                      '${weddingWeather['clouds_pct']}%'),
                   if (sunset != null)
                     _WeatherStat(Icons.wb_twilight_outlined, 'Sunset', sunset),
                 ]),
@@ -2585,7 +2596,9 @@ class _WeatherTab extends StatelessWidget {
             const Text('Hourly forecast',
                 style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500)),
             const SizedBox(height: 8),
-            ...((w['hourly'] as List?)?.cast<Map<String, dynamic>>() ?? [])
+            ...((weddingWeather['hourly'] as List?)
+                        ?.cast<Map<String, dynamic>>() ??
+                    [])
                 .map((h) => Container(
                       margin: const EdgeInsets.only(bottom: 6),
                       padding: const EdgeInsets.all(12),
@@ -2604,7 +2617,7 @@ class _WeatherTab extends StatelessWidget {
                   borderRadius: BorderRadius.circular(14),
                   border: Border.all(
                       color: AppTheme.udoPastelCrimson.withValues(alpha: 0.4))),
-              child: Text(_advisory(w),
+              child: Text(_advisory(weddingWeather),
                   style: const TextStyle(fontSize: 13, height: 1.5)),
             ),
             ...[
@@ -2612,7 +2625,7 @@ class _WeatherTab extends StatelessWidget {
               const Text('Weather Recommendations',
                   style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500)),
               const SizedBox(height: 8),
-              ..._weatherRecommendations(w).map((rec) => Container(
+              ..._weatherRecommendations(weddingWeather).map((rec) => Container(
                     margin: const EdgeInsets.only(bottom: 6),
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
@@ -3693,6 +3706,10 @@ class _EmergencyTab extends ConsumerWidget {
                 )),
         ])),
         const SizedBox(height: 12),
+        _EmergencyNumbersChecklist(
+          onAdd: () => _openAddEmergencyContact(context),
+        ),
+        const SizedBox(height: 12),
         _Card(
             child:
                 Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -3734,6 +3751,112 @@ class _EmergencyTab extends ConsumerWidget {
       ],
     );
   }
+}
+
+class _EmergencyNumbersChecklist extends StatelessWidget {
+  final VoidCallback onAdd;
+
+  const _EmergencyNumbersChecklist({required this.onAdd});
+
+  static const _items = [
+    (Icons.local_police_outlined, 'Police', 'Official local emergency line'),
+    (Icons.medical_services_outlined, 'Ambulance', 'Medical emergency line'),
+    (Icons.local_fire_department_outlined, 'Fire', 'Fire service line'),
+    (Icons.local_hospital_outlined, 'Nearest hospital', 'Emergency department'),
+    (Icons.security_outlined, 'Venue security', 'On-site response lead'),
+    (Icons.public_outlined, 'Embassy / consulate', 'For destination weddings'),
+  ];
+
+  @override
+  Widget build(BuildContext context) => _Card(
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(children: [
+            Container(
+              width: 36,
+              height: 36,
+              decoration: BoxDecoration(
+                color: AppTheme.udoCrimson.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: const Icon(Icons.health_and_safety_outlined,
+                  color: AppTheme.udoCrimson, size: 19),
+            ),
+            const SizedBox(width: 10),
+            const Expanded(
+              child: Text('Official numbers to add',
+                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
+            ),
+          ]),
+          const SizedBox(height: 8),
+          const Text(
+            'Before the wedding day, add verified local numbers for the wedding location. Use the venue, hotel, official government sources, or local planner to confirm them.',
+            style: TextStyle(
+                fontSize: 12.5, color: AppTheme.udoTextSecondary, height: 1.4),
+          ),
+          const SizedBox(height: 12),
+          ..._items.map((item) => _EmergencyChecklistRow(
+                icon: item.$1,
+                title: item.$2,
+                subtitle: item.$3,
+              )),
+          const SizedBox(height: 10),
+          OutlinedButton.icon(
+            onPressed: onAdd,
+            icon: const Icon(Icons.person_add_alt_1_outlined, size: 18),
+            label: const Text('Add one of these numbers'),
+            style: OutlinedButton.styleFrom(
+              minimumSize: const Size(double.infinity, 44),
+              foregroundColor: AppTheme.udoCrimson,
+              side: const BorderSide(color: AppTheme.udoCrimson),
+            ),
+          ),
+          const SizedBox(height: 6),
+          const Text(
+            'Do not rely on this app as the only emergency source. Confirm all numbers locally before the event.',
+            style: TextStyle(
+                fontSize: 11, color: AppTheme.udoTextSecondary, height: 1.35),
+          ),
+        ]),
+      );
+}
+
+class _EmergencyChecklistRow extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String subtitle;
+
+  const _EmergencyChecklistRow({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+  });
+
+  @override
+  Widget build(BuildContext context) => Container(
+        margin: const EdgeInsets.only(bottom: 8),
+        padding: const EdgeInsets.all(10),
+        decoration: BoxDecoration(
+          color: AppTheme.udoCardFill,
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Row(children: [
+          Icon(icon, color: AppTheme.udoCrimson, size: 18),
+          const SizedBox(width: 10),
+          Expanded(
+            child:
+                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(title,
+                  style: const TextStyle(
+                      fontSize: 12.5, fontWeight: FontWeight.w700)),
+              Text(subtitle,
+                  style: const TextStyle(
+                      fontSize: 11, color: AppTheme.udoTextSecondary)),
+            ]),
+          ),
+          const Icon(Icons.add_circle_outline,
+              color: AppTheme.udoTextSecondary, size: 18),
+        ]),
+      );
 }
 
 class _LiveAddEmergencyContactSheet extends ConsumerStatefulWidget {

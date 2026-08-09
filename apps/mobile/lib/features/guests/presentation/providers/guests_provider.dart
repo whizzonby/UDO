@@ -111,8 +111,10 @@ class GuestsNotifier extends StateNotifier<GuestsState> {
         if (phone != null && phone.isNotEmpty) 'phone': phone,
         if (plusOneAllowed != null) 'plus_one_allowed': plusOneAllowed,
         if (plusOneCount != null) 'plus_one_count': plusOneCount,
-        if (mealPreference != null && mealPreference.isNotEmpty) 'meal_preference': mealPreference,
-        if (dietaryNote != null && dietaryNote.isNotEmpty) 'dietary_note': dietaryNote,
+        if (mealPreference != null && mealPreference.isNotEmpty)
+          'meal_preference': mealPreference,
+        if (dietaryNote != null && dietaryNote.isNotEmpty)
+          'dietary_note': dietaryNote,
       }) as Map<String, dynamic>;
       var newGuest = res['data'] as Map<String, dynamic>;
 

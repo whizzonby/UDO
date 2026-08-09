@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../../core/errors/app_exception.dart';
 import '../../../../core/network/auth_service.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../shared/widgets/udo_button.dart';
@@ -42,7 +43,7 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
           .forgotPassword(_emailCtrl.text.trim());
       if (mounted) setState(() => _sent = true);
     } catch (e) {
-      if (mounted) setState(() => _error = e.toString());
+      if (mounted) setState(() => _error = humanizeError(e));
     } finally {
       if (mounted) setState(() => _loading = false);
     }

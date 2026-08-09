@@ -2,6 +2,7 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:intl/intl.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
@@ -15,6 +16,12 @@ import '../providers/registry_provider.dart';
 /// `decimal:2`-cast on the backend, which Laravel serializes to JSON as
 /// strings (e.g. "500.00") rather than numbers — an unguarded `as num?`
 /// cast throws on that shape. Parse defensively instead.
+String _money(double value) =>
+    NumberFormat.currency(symbol: '\$', decimalDigits: 0).format(value);
+
+String _moneyCents(double value) =>
+    NumberFormat.currency(symbol: '\$', decimalDigits: 2).format(value);
+
 double _asDouble(dynamic value) {
   if (value == null) return 0;
   if (value is num) return value.toDouble();
@@ -338,13 +345,13 @@ class _CashFundCard extends StatelessWidget {
         ),
         const SizedBox(height: 10),
         Row(children: [
-          Text('\$${raised.toStringAsFixed(0)} raised',
+          Text('${_money(raised)} raised',
               style: const TextStyle(
                   color: Colors.white,
                   fontSize: 14,
                   fontWeight: FontWeight.w500)),
           const Spacer(),
-          Text('of \$${target.toStringAsFixed(0)} goal',
+          Text('of ${_money(target)} goal',
               style: const TextStyle(color: Colors.white70, fontSize: 13)),
         ]),
         const SizedBox(height: 4),
@@ -421,7 +428,7 @@ class _ItemCard extends StatelessWidget {
     final name = item['name'] as String? ?? 'this gift';
     final url = item['store_url'] as String?;
     final priceText =
-        item['price'] != null ? ' (\$${_asDouble(item['price']).toStringAsFixed(2)})' : '';
+        item['price'] != null ? ' (${_moneyCents(_asDouble(item['price']))})' : '';
     final message = url != null && url.isNotEmpty
         ? '$name$priceText from our registry: $url'
         : '$name$priceText is on our wedding registry — let us know if you\'d like to gift it!';
@@ -451,7 +458,7 @@ class _ItemCard extends StatelessWidget {
                     overflow: TextOverflow.ellipsis),
                 if (item['price'] != null) ...[
                   const SizedBox(height: 4),
-                  Text('\$${_asDouble(item['price']).toStringAsFixed(2)}',
+                  Text(_moneyCents(_asDouble(item['price'])),
                       style: const TextStyle(
                           color: AppTheme.udoTextSecondary, fontSize: 13))
                 ],

@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../../../core/constants/app_constants.dart';
+import '../../../../shared/utils/date_formatters.dart' as udo_dates;
 import '../../../../shared/widgets/udo_design_system.dart';
 import '../providers/home_provider.dart';
 
@@ -12,6 +14,7 @@ class EditorialHome extends StatelessWidget {
   final VoidCallback onNotificationTap;
   final VoidCallback onSettingsTap;
   final VoidCallback onEditCoverPhoto;
+  final int notificationCount;
 
   const EditorialHome({
     super.key,
@@ -20,6 +23,7 @@ class EditorialHome extends StatelessWidget {
     required this.onNotificationTap,
     required this.onSettingsTap,
     required this.onEditCoverPhoto,
+    this.notificationCount = 0,
   });
 
   @override
@@ -33,6 +37,7 @@ class EditorialHome extends StatelessWidget {
           onNotificationTap: onNotificationTap,
           onSettingsTap: onSettingsTap,
           onEditCoverPhoto: onEditCoverPhoto,
+          notificationCount: notificationCount,
         ),
         if (state.error != null)
           Padding(
@@ -219,7 +224,9 @@ class EditorialHome extends StatelessWidget {
     final spent = state.budgetSpent ?? 0;
     if (total <= 0) return 'Not set';
     final remaining = (total - spent).clamp(0, double.infinity);
-    return '\$${remaining.toStringAsFixed(0)} left';
+    final formatted =
+        NumberFormat.currency(symbol: '\$', decimalDigits: 0).format(remaining);
+    return '$formatted left';
   }
 }
 
@@ -229,6 +236,7 @@ class _EditorialHero extends StatelessWidget {
   final VoidCallback onNotificationTap;
   final VoidCallback onSettingsTap;
   final VoidCallback onEditCoverPhoto;
+  final int notificationCount;
 
   const _EditorialHero({
     required this.state,
@@ -236,6 +244,7 @@ class _EditorialHero extends StatelessWidget {
     required this.onNotificationTap,
     required this.onSettingsTap,
     required this.onEditCoverPhoto,
+    this.notificationCount = 0,
   });
 
   @override
@@ -276,7 +285,9 @@ class _EditorialHero extends StatelessWidget {
                     style: UdoDesign.serif(size: 24, color: Colors.white)),
                 const Spacer(),
                 _HeroRoundButton(
-                    icon: Icons.notifications_none, onTap: onNotificationTap),
+                    icon: Icons.notifications_none,
+                    onTap: onNotificationTap,
+                    badgeCount: notificationCount),
                 const SizedBox(width: 8),
                 _HeroRoundButton(
                     icon: Icons.camera_alt_outlined, onTap: onEditCoverPhoto),
@@ -284,6 +295,10 @@ class _EditorialHero extends StatelessWidget {
                 _HeroRoundButton(
                     icon: Icons.settings_outlined, onTap: onSettingsTap),
               ]),
+              if (state.eventDate != null) ...[
+                const SizedBox(height: 16),
+                _HeroDateBadge(date: state.eventDate!),
+              ],
               const Spacer(),
               Text('${state.greeting}, ${_firstName(state.coupleName)}',
                   style: UdoDesign.serif(size: 34, color: UdoDesign.text)),
@@ -371,8 +386,8 @@ class _HeroImage extends StatelessWidget {
     return _defaultPhoto();
   }
 
-  Widget _defaultPhoto() =>
-      Image.asset(_kDefaultHeroAsset, fit: BoxFit.cover, alignment: Alignment.center);
+  Widget _defaultPhoto() => Image.asset(_kDefaultHeroAsset,
+      fit: BoxFit.cover, alignment: Alignment.center);
 
   bool _isRemote(String value) =>
       value.startsWith('http://') ||
@@ -382,6 +397,34 @@ class _HeroImage extends StatelessWidget {
   String _resolveRemote(String value) {
     if (value.startsWith('/storage/')) return '${AppConstants.apiOrigin}$value';
     return value;
+  }
+}
+
+class _HeroDateBadge extends StatelessWidget {
+  final DateTime date;
+  const _HeroDateBadge({required this.date});
+
+  @override
+  Widget build(BuildContext context) {
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+        decoration: BoxDecoration(
+          color: Colors.white.withValues(alpha: 0.72),
+          borderRadius: BorderRadius.circular(999),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.55)),
+        ),
+        child: Row(mainAxisSize: MainAxisSize.min, children: [
+          const Icon(Icons.calendar_today_outlined,
+              size: 13, color: UdoDesign.sub),
+          const SizedBox(width: 6),
+          Text(DateFormat('EEE, MMM d, yyyy').format(date),
+              style: UdoDesign.sans(
+                  size: 12.5, weight: FontWeight.w600, color: UdoDesign.text)),
+        ]),
+      ),
+    );
   }
 }
 
@@ -418,22 +461,48 @@ class _ProfileButton extends StatelessWidget {
 class _HeroRoundButton extends StatelessWidget {
   final IconData icon;
   final VoidCallback onTap;
-  const _HeroRoundButton({required this.icon, required this.onTap});
+  final int badgeCount;
+  const _HeroRoundButton(
+      {required this.icon, required this.onTap, this.badgeCount = 0});
 
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
       onTap: onTap,
-      child: Container(
-        width: 38,
-        height: 38,
-        decoration: BoxDecoration(
-          color: Colors.white.withValues(alpha: 0.72),
-          shape: BoxShape.circle,
-          border: Border.all(color: Colors.white.withValues(alpha: 0.55)),
+      child: Stack(clipBehavior: Clip.none, children: [
+        Container(
+          width: 38,
+          height: 38,
+          decoration: BoxDecoration(
+            color: Colors.white.withValues(alpha: 0.72),
+            shape: BoxShape.circle,
+            border: Border.all(color: Colors.white.withValues(alpha: 0.55)),
+          ),
+          child: Icon(icon, color: UdoDesign.sub, size: 19),
         ),
-        child: Icon(icon, color: UdoDesign.sub, size: 19),
-      ),
+        if (badgeCount > 0)
+          Positioned(
+            top: -2,
+            right: -2,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+              constraints: const BoxConstraints(minWidth: 16),
+              decoration: BoxDecoration(
+                color: UdoDesign.rose,
+                borderRadius: BorderRadius.circular(999),
+                border: Border.all(color: Colors.white, width: 1.5),
+              ),
+              child: Text(
+                badgeCount > 9 ? '9+' : '$badgeCount',
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 9,
+                    fontWeight: FontWeight.w800),
+              ),
+            ),
+          ),
+      ]),
     );
   }
 }
@@ -551,7 +620,7 @@ class _WeddingInvitationCard extends StatelessWidget {
         OutlinedButton.icon(
           onPressed: onOpenPortal,
           icon: const Icon(Icons.link_outlined, size: 18),
-          label: const Text('Open guest portal'),
+          label: const Text('View guest portal'),
           style: OutlinedButton.styleFrom(
             foregroundColor: UdoDesign.plan,
             minimumSize: const Size(double.infinity, 46),
@@ -581,14 +650,7 @@ class _WeddingInvitationCard extends StatelessWidget {
   }
 
   static String _formatTime(String? t) {
-    if (t == null || t.isEmpty) return 'Not set';
-    final parts = t.split(':');
-    if (parts.length < 2) return t;
-    final h = int.tryParse(parts[0]) ?? 0;
-    final m = int.tryParse(parts[1]) ?? 0;
-    final suffix = h >= 12 ? 'PM' : 'AM';
-    final hour = h > 12 ? h - 12 : (h == 0 ? 12 : h);
-    return '$hour:${m.toString().padLeft(2, '0')} $suffix';
+    return udo_dates.formatApiTime(t, fallback: 'Not set');
   }
 }
 
@@ -972,25 +1034,32 @@ class _WeddingStoryPromoCard extends StatelessWidget {
         color: UdoDesign.plan,
         border: BorderSide.none,
         child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          const Icon(Icons.auto_stories_outlined, color: Colors.white, size: 28),
+          const Icon(Icons.auto_stories_outlined,
+              color: Colors.white, size: 28),
           const SizedBox(width: 14),
           Expanded(
-              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text('Your Wedding Story',
-                style: UdoDesign.serif(size: 19, color: Colors.white)),
-            const SizedBox(height: 4),
-            Text(
-                'Engagement, planning, the big day, and beyond — turned into a living keepsake.',
-                style: UdoDesign.sans(size: 12.5, color: Colors.white70, height: 1.4)),
-            const SizedBox(height: 12),
-            Row(children: [
-              Text('View full story',
-                  style: UdoDesign.sans(
-                      size: 13, weight: FontWeight.w800, color: Colors.white)),
-              const SizedBox(width: 4),
-              const Icon(Icons.arrow_forward, color: Colors.white, size: 16),
-            ]),
-          ])),
+              child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                Text('Your Wedding Story',
+                    style: UdoDesign.serif(size: 19, color: Colors.white)),
+                const SizedBox(height: 4),
+                Text(
+                    'Engagement, planning, the big day, and beyond — turned into a living keepsake.',
+                    style: UdoDesign.sans(
+                        size: 12.5, color: Colors.white70, height: 1.4)),
+                const SizedBox(height: 12),
+                Row(children: [
+                  Text('View full story',
+                      style: UdoDesign.sans(
+                          size: 13,
+                          weight: FontWeight.w800,
+                          color: Colors.white)),
+                  const SizedBox(width: 4),
+                  const Icon(Icons.arrow_forward,
+                      color: Colors.white, size: 16),
+                ]),
+              ])),
         ]),
       );
 }
