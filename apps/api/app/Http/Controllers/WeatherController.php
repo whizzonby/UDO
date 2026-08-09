@@ -20,29 +20,16 @@ class WeatherController extends Controller
         $wedding = $request->user()->activeWedding;
         abort_unless($wedding, 403, 'No active wedding.');
 
-        if ($wedding->venue_lat === null || $wedding->venue_lng === null) {
-            $address = trim(implode(', ', array_filter([
-                $wedding->primary_venue_name,
-                $wedding->primary_venue_address,
-                $wedding->city,
-                $wedding->country,
-            ])));
+        $resolved = $this->resolveWeatherLocation($wedding);
 
-            $coords = $address !== '' ? $this->geocoder->geocode($address) : null;
-
-            if ($coords) {
-                $wedding->update(['venue_lat' => $coords['lat'], 'venue_lng' => $coords['lng']]);
-            }
-        }
-
-        if ($wedding->venue_lat === null || $wedding->venue_lng === null) {
+        if ($resolved === null) {
             return response()->json([
                 'data' => null,
-                'message' => 'Add your venue address in Wedding settings to see local weather.',
+                'message' => 'Add a venue address or timeline location to see local weather.',
             ]);
         }
 
-        $forecast = $this->weather->forecast((float) $wedding->venue_lat, (float) $wedding->venue_lng, $wedding->event_date);
+        $forecast = $this->weather->forecast((float) $resolved['lat'], (float) $resolved['lng'], $wedding->event_date);
 
         if ($forecast === null) {
             return response()->json([
@@ -51,12 +38,92 @@ class WeatherController extends Controller
             ]);
         }
 
+        $forecast['location_label'] = $resolved['label'];
         $forecast['timeline_risks'] = $this->timelineWeatherRisks(
             $wedding,
             $forecast['wedding_day']['hourly'] ?? [],
         );
 
         return response()->json(['data' => $forecast]);
+    }
+
+    private function resolveWeatherLocation($wedding): ?array
+    {
+        if ($wedding->venue_lat !== null && $wedding->venue_lng !== null) {
+            return [
+                'lat' => (float) $wedding->venue_lat,
+                'lng' => (float) $wedding->venue_lng,
+                'label' => $wedding->primary_venue_name ?: $wedding->city ?: 'Wedding venue',
+            ];
+        }
+
+        $venueAddress = trim(implode(', ', array_filter([
+            $wedding->primary_venue_name,
+            $wedding->primary_venue_address,
+            $wedding->city,
+            $wedding->country,
+        ])));
+
+        if ($venueAddress !== '') {
+            $coords = $this->geocoder->geocode($venueAddress);
+            if ($coords) {
+                $wedding->update(['venue_lat' => $coords['lat'], 'venue_lng' => $coords['lng']]);
+                return [
+                    'lat' => (float) $coords['lat'],
+                    'lng' => (float) $coords['lng'],
+                    'label' => $wedding->primary_venue_name ?: $wedding->city ?: 'Wedding venue',
+                ];
+            }
+        }
+
+        foreach ($this->candidateLocationLabels($wedding) as $label) {
+            $coords = $this->geocoder->geocode($label);
+            if ($coords) {
+                return [
+                    'lat' => (float) $coords['lat'],
+                    'lng' => (float) $coords['lng'],
+                    'label' => $label,
+                ];
+            }
+        }
+
+        return null;
+    }
+
+    private function candidateLocationLabels($wedding): array
+    {
+        $suffix = trim(implode(', ', array_filter([$wedding->city, $wedding->country])));
+        $labels = [];
+
+        $wedding->timelineItems()
+            ->whereNotNull('location')
+            ->orderBy('event_date')
+            ->orderBy('start_time')
+            ->pluck('location')
+            ->each(function ($location) use (&$labels, $suffix) {
+                $location = trim((string) $location);
+                if ($location !== '') {
+                    $labels[] = $suffix !== '' && ! str_contains(strtolower($location), strtolower($suffix))
+                        ? "{$location}, {$suffix}"
+                        : $location;
+                }
+            });
+
+        $wedding->weddingWeekendEvents()
+            ->whereNotNull('location')
+            ->orderBy('event_date')
+            ->orderBy('start_time')
+            ->pluck('location')
+            ->each(function ($location) use (&$labels, $suffix) {
+                $location = trim((string) $location);
+                if ($location !== '') {
+                    $labels[] = $suffix !== '' && ! str_contains(strtolower($location), strtolower($suffix))
+                        ? "{$location}, {$suffix}"
+                        : $location;
+                }
+            });
+
+        return array_values(array_unique($labels));
     }
 
     private function timelineWeatherRisks($wedding, array $hourly): array

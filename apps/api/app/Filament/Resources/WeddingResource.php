@@ -164,7 +164,7 @@ class WeddingResource extends Resource
                     ->label('Audit events')
                     ->getStateUsing(fn (Wedding $w) => $w->auditLogs()->count()),
             ]),
-            \Filament\Schemas\Components\Section::make('Guest experience')->columns(4)->schema([
+            \Filament\Schemas\Components\Section::make('Guest portal')->columns(4)->schema([
                 Infolists\Components\TextEntry::make('experienceConfig.publish_state')
                     ->label('Publish state')
                     ->badge()

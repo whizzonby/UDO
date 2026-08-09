@@ -183,6 +183,7 @@ class LogisticsController extends Controller
 
         $data = $request->validate([
             'guest_id' => 'required|integer|exists:guests,id',
+            'room_label' => 'nullable|string|max:50',
         ]);
 
         $guest = Guest::findOrFail($data['guest_id']);
@@ -195,9 +196,31 @@ class LogisticsController extends Controller
             'Accommodation is already fully assigned.'
         );
 
-        $guest->update(['hotel_assignment_id' => $accommodationOption->id]);
+        if (($data['room_label'] ?? null) && $accommodationOption->room_labels) {
+            abort_unless(
+                in_array($data['room_label'], $accommodationOption->room_labels, true),
+                422,
+                'Selected room is not part of this hotel block.'
+            );
+        }
+
+        if ($data['room_label'] ?? null) {
+            $taken = Guest::query()
+                ->where('wedding_id', $accommodationOption->wedding_id)
+                ->where('hotel_assignment_id', $accommodationOption->id)
+                ->where('hotel_room_label', $data['room_label'])
+                ->where('id', '!=', $guest->id)
+                ->exists();
+
+            abort_if($taken, 422, 'That room is already assigned to another guest.');
+        }
+
+        $guest->update([
+            'hotel_assignment_id' => $accommodationOption->id,
+            'hotel_room_label' => $data['room_label'] ?? null,
+        ]);
         $this->refreshAccommodationCount($accommodationOption);
-        app(AuditLogService::class)->record('guest.hotel_assigned', $wedding, $request->user(), $guest->fresh(), null, ['hotel_assignment_id' => $accommodationOption->id, 'hotel_name' => $accommodationOption->name], request: $request);
+        app(AuditLogService::class)->record('guest.hotel_assigned', $wedding, $request->user(), $guest->fresh(), null, ['hotel_assignment_id' => $accommodationOption->id, 'hotel_name' => $accommodationOption->name, 'hotel_room_label' => $data['room_label'] ?? null], request: $request);
 
         return response()->json(['data' => $accommodationOption->fresh()]);
     }
@@ -212,7 +235,7 @@ class LogisticsController extends Controller
             ->where('wedding_id', $accommodationOption->wedding_id)
             ->where('id', $guestId)
             ->where('hotel_assignment_id', $accommodationOption->id)
-            ->update(['hotel_assignment_id' => null]);
+            ->update(['hotel_assignment_id' => null, 'hotel_room_label' => null]);
 
         $this->refreshAccommodationCount($accommodationOption);
         if ($guest) {

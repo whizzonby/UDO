@@ -19,7 +19,7 @@ class OpenAiService
     {
         $key = config('services.openai.key');
         if (empty($key)) {
-            throw new RuntimeException('The AI assistant is not configured yet.');
+            throw new RuntimeException('Udo AI is not configured yet.');
         }
 
         $messages = [
@@ -39,7 +39,7 @@ class OpenAiService
                 ]);
         } catch (\Throwable $e) {
             Log::warning('OpenAI request failed', ['error' => $e->getMessage()]);
-            throw new RuntimeException("Couldn't reach the AI assistant. Try again.");
+            throw new RuntimeException("Couldn't reach Udo AI. Try again.");
         }
 
         if (! $response->successful()) {
@@ -47,12 +47,12 @@ class OpenAiService
                 'status' => $response->status(),
                 'body' => $response->json('error.message'),
             ]);
-            throw new RuntimeException("Couldn't reach the AI assistant. Try again.");
+            throw new RuntimeException("Couldn't reach Udo AI. Try again.");
         }
 
         $reply = $response->json('choices.0.message.content');
         if (! is_string($reply) || trim($reply) === '') {
-            throw new RuntimeException("The AI assistant didn't return a response. Try again.");
+            throw new RuntimeException("Udo AI didn't return a response. Try again.");
         }
 
         return trim($reply);

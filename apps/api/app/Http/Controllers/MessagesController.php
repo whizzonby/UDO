@@ -83,7 +83,8 @@ class MessagesController extends Controller
 
         $recipients = app(MessageDispatchService::class)->dispatch(
             $message->load('wedding'),
-            $request->boolean('force')
+            $request->boolean('force'),
+            true
         );
 
         return response()->json([
@@ -96,7 +97,7 @@ class MessagesController extends Controller
     {
         $this->authorizeMessage($request, $message);
 
-        $queued = app(MessageDispatchService::class)->retryFailed($message);
+        $queued = app(MessageDispatchService::class)->retryFailed($message, true);
 
         return response()->json([
             'data' => $this->withDeliverySummary($message->fresh('deliveries')),

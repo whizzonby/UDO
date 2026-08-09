@@ -8,7 +8,7 @@ use App\Models\Message;
 
 class MessageDispatchService
 {
-    public function dispatch(Message $message, bool $force = false): int
+    public function dispatch(Message $message, bool $force = false, bool $defer = false): int
     {
         if (in_array($message->status, ['sending', 'sent'], true)) {
             return 0;
@@ -44,7 +44,7 @@ class MessageDispatchService
         ]);
 
         foreach ($deliveryIds as $deliveryId) {
-            $this->runSync($deliveryId);
+            $defer ? $this->runDeferred($deliveryId) : $this->runSync($deliveryId);
         }
 
         return $guests->count();
@@ -67,6 +67,16 @@ class MessageDispatchService
         }
     }
 
+    private function runDeferred(int $deliveryId): void
+    {
+        if (app()->runningInConsole()) {
+            $this->runSync($deliveryId);
+            return;
+        }
+
+        app()->terminating(fn () => $this->runSync($deliveryId));
+    }
+
     public function ensureGuestTokens(int $weddingId, $guests): void
     {
         $existingGuestIds = GuestToken::where('wedding_id', $weddingId)
@@ -85,7 +95,7 @@ class MessageDispatchService
         }
     }
 
-    public function retryFailed(Message $message): int
+    public function retryFailed(Message $message, bool $defer = false): int
     {
         if ($message->status === 'sending') {
             return 0;
@@ -111,7 +121,7 @@ class MessageDispatchService
         }
 
         foreach ($deliveries as $delivery) {
-            $this->runSync($delivery->id);
+            $defer ? $this->runDeferred($delivery->id) : $this->runSync($delivery->id);
         }
 
         return $deliveries->count();

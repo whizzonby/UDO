@@ -67,6 +67,7 @@ class Wedding extends Model
     public function seatingTables(): HasMany { return $this->hasMany(SeatingTable::class)->orderBy('sort_order'); }
     public function guestPairings(): HasMany { return $this->hasMany(GuestPairing::class); }
     public function liveUpdates(): HasMany { return $this->hasMany(LiveUpdate::class)->latest(); }
+    public function galleryAlbums(): HasMany { return $this->hasMany(GalleryAlbum::class); }
     public function galleryAssets(): HasMany { return $this->hasMany(GalleryAsset::class)->latest(); }
     public function auditLogs(): HasMany { return $this->hasMany(AuditLog::class)->latest(); }
     public function smartAlerts(): HasMany { return $this->hasMany(SmartAlert::class)->latest('trigger_at')->latest(); }

@@ -10,12 +10,13 @@ class Rehearsal extends Model
     protected $fillable = [
         'wedding_id', 'title', 'color', 'location', 'location_place_id',
         'description', 'event_date', 'start_time', 'end_time', 'timezone',
-        'audience', 'attendee_guest_ids', 'dress_code', 'bring_items',
+        'audience', 'audience_groups', 'attendee_guest_ids', 'dress_code', 'bring_items',
         'schedule_items', 'notes', 'add_to_timeline', 'timeline_item_id',
     ];
 
     protected $casts = [
         'event_date' => 'date',
+        'audience_groups' => 'array',
         'attendee_guest_ids' => 'array',
         'bring_items' => 'array',
         'schedule_items' => 'array',

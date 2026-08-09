@@ -38,6 +38,8 @@ class RehearsalController extends Controller
             'end_time'            => 'nullable|date_format:H:i',
             'timezone'            => 'nullable|string|max:100',
             'audience'            => 'nullable|in:all,wedding_party,family,travelling,vip,vendors,selected,private',
+            'audience_groups'     => 'nullable|array',
+            'audience_groups.*'   => 'string|in:all,wedding_party,family,travelling,vip,vendors,selected,private',
             'attendee_guest_ids'  => 'nullable|array',
             'attendee_guest_ids.*' => 'integer|exists:guests,id',
             'dress_code'          => 'nullable|string|max:100',

@@ -21,7 +21,7 @@ class PlaceSearchController extends Controller
 
     public function search(Request $request): JsonResponse
     {
-        $this->wedding($request);
+        $wedding = $this->wedding($request);
 
         $data = $request->validate([
             'query' => 'required|string|max:255',
@@ -29,7 +29,13 @@ class PlaceSearchController extends Controller
             'type' => 'nullable|string|max:50',
         ]);
 
-        $results = $this->places->autocomplete($data['query'], $data['session_token'] ?? null, $data['type'] ?? null);
+        $results = $this->places->autocomplete(
+            $data['query'],
+            $data['session_token'] ?? null,
+            $data['type'] ?? null,
+            $wedding->country,
+            $wedding->city,
+        );
 
         if ($results === null) {
             return response()->json(['data' => [], 'message' => 'Place search is not configured yet.']);

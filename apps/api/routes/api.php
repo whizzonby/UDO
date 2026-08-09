@@ -17,6 +17,7 @@ use App\Http\Controllers\MoodController;
 use App\Http\Controllers\GuestExperienceController;
 use App\Http\Controllers\GuestPortalController;
 use App\Http\Controllers\GalleryController;
+use App\Http\Controllers\GalleryAlbumController;
 use App\Http\Controllers\GalleryUploadController;
 use App\Http\Controllers\HomeController;
 use App\Http\Controllers\InvitationController;
@@ -300,6 +301,7 @@ Route::middleware(['auth:sanctum', 'idempotency'])->group(function () {
     Route::post('pinterest/disconnect', [PinterestController::class, 'disconnect']);
     Route::get('wedding-story', [WeddingStoryController::class, 'show']);
     Route::get('gallery/upload-link', [GalleryController::class, 'uploadLink']);
+    Route::apiResource('gallery/albums', GalleryAlbumController::class)->only(['index', 'store', 'update', 'destroy']);
     Route::get('gallery', [GalleryController::class, 'index']);
     Route::post('gallery', [GalleryController::class, 'store']);
     Route::get('gallery/{galleryAsset}', [GalleryController::class, 'show']);
@@ -375,7 +377,7 @@ Route::middleware(['auth:sanctum', 'idempotency'])->group(function () {
         Route::delete('files/{file}', [WeddingPartyFileController::class, 'destroy']);
     });
 
-    // Guest experience builder
+    // Guest portal builder
     Route::get('experience', [GuestExperienceController::class, 'show']);
     Route::patch('experience', [GuestExperienceController::class, 'update']);
     Route::get('experience/preview', [GuestExperienceController::class, 'preview']);

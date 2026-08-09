@@ -30,6 +30,9 @@ class GuestPortalController extends Controller
         return response()->json([
             'view_type' => 'wedding',
             'portal_url' => rtrim((string) config('app.frontend_url', config('app.url')), '/') . '/w/' . $wedding->slug,
+            'gallery_upload_url' => $isPublished && $config->allow_photo_uploads
+                ? rtrim((string) config('app.frontend_url', config('app.url')), '/') . '/upload/' . $wedding->ensureGalleryUploadToken()
+                : null,
             'experience' => $this->experiencePayload($config),
             'wedding' => $this->weddingPayload($wedding),
             'portal_alerts' => $isPublished ? $this->portalAlerts($wedding) : [],
@@ -85,7 +88,7 @@ class GuestPortalController extends Controller
             ],
             'wedding' => $this->weddingPayload($wedding),
             'portal_alerts' => $isPublished ? $this->portalAlerts($wedding) : [],
-            'portal_messages' => $isPublished ? $this->portalMessages($wedding) : [],
+            'portal_messages' => $isPublished ? $this->portalMessages($wedding, $guest, $guestToken->token) : [],
             'sections' => $isPublished ? $this->sectionPayload($wedding, $config, $guest) : [
                 'schedule' => [],
                 'accommodation' => [],
@@ -436,7 +439,7 @@ class GuestPortalController extends Controller
             ->all();
     }
 
-    private function portalMessages($wedding): array
+    private function portalMessages($wedding, ?Guest $guest = null, ?string $token = null): array
     {
         $sentMessages = $wedding->messages()
             ->whereIn('status', ['sent', 'sending'])
@@ -447,8 +450,8 @@ class GuestPortalController extends Controller
             ->map(fn ($message) => [
                 'id' => 'message-' . $message->id,
                 'sender' => $message->message_type === 'thank_you' ? 'Gift Registry' : 'Wedding Team',
-                'title' => $message->subject ?: ucfirst(str_replace('_', ' ', $message->message_type)),
-                'body' => Str::limit(strip_tags((string) $message->body), 96),
+                'title' => $this->renderPortalMessageText($wedding, $guest, $token, $message->subject ?: ucfirst(str_replace('_', ' ', $message->message_type))),
+                'body' => Str::limit(strip_tags($this->renderPortalMessageText($wedding, $guest, $token, (string) $message->body)), 96),
                 'sent_at' => ($message->sent_at ?? $message->created_at)?->toISOString(),
             ]);
 
@@ -474,6 +477,32 @@ class GuestPortalController extends Controller
             ->take(6)
             ->values()
             ->all();
+    }
+
+    private function renderPortalMessageText($wedding, ?Guest $guest, ?string $token, string $text): string
+    {
+        $frontendUrl = rtrim((string) config('app.frontend_url', config('app.url')), '/');
+        $guestName = $guest?->full_name ?: 'guest';
+        $firstName = $guest?->first_name ?: 'there';
+        $lastName = $guest?->last_name ?: '';
+        $portalUrl = $token ? "{$frontendUrl}/g/{$token}" : "{$frontendUrl}/w/{$wedding->slug}";
+
+        return strtr($text, [
+            '{{first_name}}' => $firstName,
+            '{{ first_name }}' => $firstName,
+            '{{last_name}}' => $lastName,
+            '{{ last_name }}' => $lastName,
+            '{{name}}' => $guestName,
+            '{{ name }}' => $guestName,
+            '{{guest_name}}' => $guestName,
+            '{{ guest_name }}' => $guestName,
+            '{{rsvp_url}}' => $portalUrl,
+            '{{ rsvp_url }}' => $portalUrl,
+            '{{guest_portal_url}}' => $portalUrl,
+            '{{ guest_portal_url }}' => $portalUrl,
+            '{{wedding_name}}' => $wedding->title ?: trim($wedding->couple_name_primary . ' & ' . $wedding->couple_name_secondary),
+            '{{ wedding_name }}' => $wedding->title ?: trim($wedding->couple_name_primary . ' & ' . $wedding->couple_name_secondary),
+        ]);
     }
 
     /**
@@ -522,6 +551,7 @@ class GuestPortalController extends Controller
                 : [],
             'transport' => $config->show_transport
                 ? $wedding->transportGroups()
+                    ->with('assignments.guest:id,first_name,last_name')
                     ->when($guest, fn ($query) => $query->where(function ($transportQuery) use ($guest) {
                         $transportQuery
                             ->where('id', $guest->transport_assignment_id)
@@ -529,6 +559,13 @@ class GuestPortalController extends Controller
                     }))
                     ->orderBy('departure_time')
                     ->get(['id', 'name', 'type', 'pickup_location', 'dropoff_location', 'departure_time', 'driver_name', 'driver_phone', 'notes'])
+                    ->map(fn ($group) => [
+                        ...$group->toArray(),
+                        'passengers' => $group->assignments
+                            ->map(fn ($assignment) => $assignment->guest?->full_name)
+                            ->filter()
+                            ->values(),
+                    ])
                 : [],
             'seating' => $config->show_seating && $guest?->seating_assignment_id
                 ? $this->seatingPayload($guest)

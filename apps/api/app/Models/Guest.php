@@ -40,6 +40,7 @@ class Guest extends Model
         'checked_in_at',
         'arrival_airport',
         'hotel_assignment_id',
+        'hotel_room_label',
         'transport_assignment_id',
         'seating_assignment_id',
         'guest_view_type',

@@ -145,6 +145,7 @@ class RegistryController extends Controller
     public function contribute(Request $request, RegistryItem $registryItem): JsonResponse
     {
         $this->authorizeItem($request, $registryItem);
+        $this->ensureCanManageRegistry($request);
 
         $data = $request->validate([
             'guest_id' => 'nullable|integer|exists:guests,id',

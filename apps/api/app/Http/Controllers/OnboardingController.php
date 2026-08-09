@@ -41,7 +41,7 @@ class OnboardingController extends Controller
             'guest_travel'             => 'nullable|string',
             'travel_support'           => 'nullable|array',
 
-            // Guest experience
+            // Guest portal
             'guest_experience'         => 'nullable|array',
             'guest_count'              => 'nullable|integer',
 

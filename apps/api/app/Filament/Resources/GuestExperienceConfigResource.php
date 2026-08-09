@@ -27,7 +27,7 @@ class GuestExperienceConfigResource extends Resource
     protected static string|BackedEnum|null $navigationIcon = 'heroicon-o-device-phone-mobile';
     protected static string|UnitEnum|null $navigationGroup = 'Operations';
     protected static ?int $navigationSort = 5;
-    protected static ?string $navigationLabel = 'Guest Experience';
+    protected static ?string $navigationLabel = 'Guest Portal';
     protected static ?string $recordTitleAttribute = 'welcome_message';
 
     public static function form(Schema $schema): Schema
@@ -137,7 +137,7 @@ class GuestExperienceConfigResource extends Resource
                     ->visible(fn (GuestExperienceConfig $record) => $record->publish_state !== 'published')
                     ->action(function (GuestExperienceConfig $record): void {
                         $record->update(['publish_state' => 'published', 'published_at' => now()]);
-                        Notification::make()->title('Guest experience published')->success()->send();
+                        Notification::make()->title('Guest portal published')->success()->send();
                     }),
                 Actions\Action::make('pause')
                     ->label('Pause')
@@ -147,7 +147,7 @@ class GuestExperienceConfigResource extends Resource
                     ->visible(fn (GuestExperienceConfig $record) => $record->publish_state === 'published')
                     ->action(function (GuestExperienceConfig $record): void {
                         $record->update(['publish_state' => 'paused']);
-                        Notification::make()->title('Guest experience paused')->success()->send();
+                        Notification::make()->title('Guest portal paused')->success()->send();
                     }),
             ])
             ->bulkActions([]);

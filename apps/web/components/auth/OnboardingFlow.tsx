@@ -158,7 +158,7 @@ export default function OnboardingFlow() {
 
   if (currentScreen === 4) {
     return (
-      <ScreenLayout title="Design your guest experience" preamble="The choices you make here will shape your guest dashboard, communications, reminders, and planning recommendations." onNext={nextScreen} onBack={prevScreen} onSkip={skipToFinal} showSkip={true} currentStep={4} totalSteps={8}>
+      <ScreenLayout title="Design your guest portal" preamble="The choices you make here will shape your guest portal, communications, reminders, and planning recommendations." onNext={nextScreen} onBack={prevScreen} onSkip={skipToFinal} showSkip={true} currentStep={4} totalSteps={8}>
         <div className="mt-4">
           <MultiSelectCard
             options={['Children included', 'Adults-only event', 'Accommodation required', 'Transport required', 'Meal selection required', 'Dietary tracking required', 'Accessibility needs', 'Welcome packs / gifting', 'Guest communication portal', 'RSVP reminders', 'Hotel block coordination', 'Airport transfer support']}
@@ -195,7 +195,7 @@ export default function OnboardingFlow() {
         <div className="mt-4">
           <p className="text-sm text-gray-600 mb-4">Choose up to 5 priorities.</p>
           <MultiSelectCard
-            options={['Guest experience', 'Food & beverage quality', 'Photography & videography', 'Visual design & decor', 'Entertainment', 'Convenience & ease', 'Cultural traditions', 'Budget efficiency', 'Luxury / exclusivity', 'Intimacy', 'Family involvement', 'Emotional meaning', 'Timeless elegance', 'Stress reduction', 'Smooth logistics']}
+            options={['Guest portal', 'Food & beverage quality', 'Photography & videography', 'Visual design & decor', 'Entertainment', 'Convenience & ease', 'Cultural traditions', 'Budget efficiency', 'Luxury / exclusivity', 'Intimacy', 'Family involvement', 'Emotional meaning', 'Timeless elegance', 'Stress reduction', 'Smooth logistics']}
             selected={priorities}
             onChange={setPriorities}
             maxSelections={5}

@@ -16,7 +16,13 @@ class GooglePlacesService
      * short-lived and ties billing to the caller-supplied session token, so
      * every keystroke has to reach Google directly.
      */
-    public function autocomplete(string $query, ?string $sessionToken = null, ?string $type = null): ?array
+    public function autocomplete(
+        string $query,
+        ?string $sessionToken = null,
+        ?string $type = null,
+        ?string $country = null,
+        ?string $city = null
+    ): ?array
     {
         $key = config('services.google_places.key');
         if (! $key) {
@@ -24,9 +30,14 @@ class GooglePlacesService
         }
 
         try {
+            $countryCode = $this->countryCode($country);
+            $contextualInput = trim(implode(' ', array_filter([$query, $country])));
+
             $response = Http::get(self::BASE_URL . '/autocomplete/json', array_filter([
-                'input' => $query,
+                'input' => $contextualInput !== '' ? $contextualInput : $query,
                 'types' => $type,
+                'components' => $countryCode ? "country:{$countryCode}" : null,
+                'region' => $countryCode,
                 'key' => $key,
                 'sessiontoken' => $sessionToken,
             ]));
@@ -57,6 +68,38 @@ class GooglePlacesService
             Log::warning('Google Places autocomplete request failed', ['error' => $e->getMessage()]);
             return null;
         }
+    }
+
+    private function countryCode(?string $country): ?string
+    {
+        $normalized = strtolower(trim((string) $country));
+
+        if ($normalized === '') {
+            return null;
+        }
+
+        $codes = [
+            'jamaica' => 'jm',
+            'jm' => 'jm',
+            'ghana' => 'gh',
+            'gh' => 'gh',
+            'united states' => 'us',
+            'usa' => 'us',
+            'us' => 'us',
+            'united kingdom' => 'gb',
+            'uk' => 'gb',
+            'gb' => 'gb',
+            'canada' => 'ca',
+            'ca' => 'ca',
+            'australia' => 'au',
+            'au' => 'au',
+        ];
+
+        if (isset($codes[$normalized])) {
+            return $codes[$normalized];
+        }
+
+        return preg_match('/^[a-z]{2}$/', $normalized) === 1 ? $normalized : null;
     }
 
     /**
