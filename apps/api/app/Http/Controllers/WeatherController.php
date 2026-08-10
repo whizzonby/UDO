@@ -65,7 +65,8 @@ class WeatherController extends Controller
         ])));
 
         if ($venueAddress !== '') {
-            $coords = $this->geocoder->geocode($venueAddress);
+            $coords = $this->geocoder->geocode($venueAddress)
+                ?? $this->weather->geocode($venueAddress);
             if ($coords) {
                 $wedding->update(['venue_lat' => $coords['lat'], 'venue_lng' => $coords['lng']]);
                 return [
@@ -77,7 +78,8 @@ class WeatherController extends Controller
         }
 
         foreach ($this->candidateLocationLabels($wedding) as $label) {
-            $coords = $this->geocoder->geocode($label);
+            $coords = $this->geocoder->geocode($label)
+                ?? $this->weather->geocode($label);
             if ($coords) {
                 return [
                     'lat' => (float) $coords['lat'],

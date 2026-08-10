@@ -8,6 +8,47 @@ use Illuminate\Support\Facades\Log;
 
 class WeatherService
 {
+    public function geocode(string $location): ?array
+    {
+        $key = config('services.openweather.key');
+        $location = trim($location);
+        if (! $key || $location === '') {
+            return null;
+        }
+
+        try {
+            $response = Http::timeout(15)->get('https://api.openweathermap.org/geo/1.0/direct', [
+                'q' => $location,
+                'limit' => 1,
+                'appid' => $key,
+            ]);
+
+            if (! $response->successful()) {
+                Log::warning('OpenWeather geocoding request failed', [
+                    'status' => $response->status(),
+                    'location_hash' => hash('sha256', strtolower($location)),
+                ]);
+                return null;
+            }
+
+            $result = $response->json('0');
+            if (! is_array($result) || ! isset($result['lat'], $result['lon'])) {
+                return null;
+            }
+
+            return [
+                'lat' => (float) $result['lat'],
+                'lng' => (float) $result['lon'],
+            ];
+        } catch (\Throwable $e) {
+            Log::warning('OpenWeather geocoding failed', [
+                'location_hash' => hash('sha256', strtolower($location)),
+                'error' => $e->getMessage(),
+            ]);
+            return null;
+        }
+    }
+
     /**
      * Uses OpenWeatherMap's classic free-tier endpoints (current + 5
      * day/3 hour forecast) rather than One Call 3.0, which requires a
@@ -22,6 +63,7 @@ class WeatherService
     {
         $key = config('services.openweather.key');
         if (! $key) {
+            Log::warning('OpenWeather API key is missing.');
             return null;
         }
 
@@ -29,10 +71,10 @@ class WeatherService
 
         $base = Cache::remember($cacheKey, now()->addMinutes(30), function () use ($lat, $lng, $key) {
             try {
-                $current = Http::get('https://api.openweathermap.org/data/2.5/weather', [
+                $current = Http::timeout(20)->get('https://api.openweathermap.org/data/2.5/weather', [
                     'lat' => $lat, 'lon' => $lng, 'appid' => $key, 'units' => 'imperial',
                 ]);
-                $forecast = Http::get('https://api.openweathermap.org/data/2.5/forecast', [
+                $forecast = Http::timeout(20)->get('https://api.openweathermap.org/data/2.5/forecast', [
                     'lat' => $lat, 'lon' => $lng, 'appid' => $key, 'units' => 'imperial',
                 ]);
 
@@ -40,6 +82,8 @@ class WeatherService
                     Log::warning('Weather API request failed', [
                         'current_status' => $current->status(),
                         'forecast_status' => $forecast->status(),
+                        'current_error' => $current->json('message'),
+                        'forecast_error' => $forecast->json('message'),
                     ]);
                     return null;
                 }

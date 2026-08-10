@@ -28,24 +28,35 @@ class OpenAiService
             ['role' => 'user', 'content' => $userMessage],
         ];
 
+        $model = config('services.openai.model', 'gpt-4o-mini');
+
         try {
             $response = Http::withToken($key)
-                ->timeout(30)
+                ->acceptJson()
+                ->asJson()
+                ->connectTimeout(10)
+                ->timeout(60)
+                ->retry(2, 600)
                 ->post('https://api.openai.com/v1/chat/completions', [
-                    'model' => config('services.openai.model', 'gpt-4o-mini'),
+                    'model' => $model,
                     'messages' => $messages,
                     'temperature' => 0.6,
                     'max_tokens' => 700,
                 ]);
         } catch (\Throwable $e) {
-            Log::warning('OpenAI request failed', ['error' => $e->getMessage()]);
+            Log::warning('OpenAI request failed', [
+                'model' => $model,
+                'error' => $e->getMessage(),
+            ]);
             throw new RuntimeException("Couldn't reach Udo AI. Try again.");
         }
 
         if (! $response->successful()) {
             Log::warning('OpenAI returned an error', [
+                'model' => $model,
                 'status' => $response->status(),
-                'body' => $response->json('error.message'),
+                'request_id' => $response->header('x-request-id'),
+                'error' => $response->json('error.message') ?? $response->body(),
             ]);
             throw new RuntimeException("Couldn't reach Udo AI. Try again.");
         }
