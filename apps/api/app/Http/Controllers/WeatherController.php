@@ -26,7 +26,7 @@ class WeatherController extends Controller
         if ($resolved === null) {
             return response()->json([
                 'data' => null,
-                'message' => 'Add a venue address or timeline location to see local weather.',
+                'message' => 'Add a city/country, venue address, or timeline location to see local weather.',
             ]);
         }
 
