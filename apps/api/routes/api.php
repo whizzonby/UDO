@@ -35,6 +35,7 @@ use App\Http\Controllers\ReleaseNoteController;
 use App\Http\Controllers\SeatingController;
 use App\Http\Controllers\SavedFilterController;
 use App\Http\Controllers\SmartAlertController;
+use App\Http\Controllers\SupportTicketController;
 use App\Http\Controllers\VenueController;
 use App\Http\Controllers\WeatherController;
 use App\Http\Controllers\WeddingTeamController;
@@ -176,6 +177,8 @@ Route::middleware(['auth:sanctum', 'idempotency'])->group(function () {
     Route::post('mood-checkins', [MoodController::class, 'store']);
     Route::get('mood-checkins/insights', [MoodController::class, 'insights']);
     Route::get('audit-logs', [AuditLogController::class, 'index']);
+    Route::get('support-tickets', [SupportTicketController::class, 'index']);
+    Route::post('support-tickets', [SupportTicketController::class, 'store']);
 
     // Wedding settings
     Route::get('weddings', [WeddingController::class, 'index']);
