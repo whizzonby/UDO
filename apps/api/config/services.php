@@ -51,7 +51,9 @@ return [
     ],
 
     'openweather' => [
-        'key' => env('OPENWEATHER_API_KEY'),
+        'key' => env('OPENWEATHER_API_KEY')
+            ?: env('OPEN_WEATHER_API_KEY')
+            ?: env('OPENWEATHERMAP_API_KEY'),
     ],
 
     'spoonacular' => [

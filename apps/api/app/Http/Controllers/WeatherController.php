@@ -21,12 +21,14 @@ class WeatherController extends Controller
         $wedding = $request->user()->activeWedding;
         abort_unless($wedding, 403, 'No active wedding.');
 
-        $resolved = $this->resolveWeatherLocation($wedding);
+        [$resolved, $hadLocationInput] = $this->resolveWeatherLocation($wedding);
 
         if ($resolved === null) {
             return response()->json([
                 'data' => null,
-                'message' => 'Add a city/country, venue address, or timeline location to see local weather.',
+                'message' => $hadLocationInput
+                    ? 'We found venue details, but could not match them to a weather location. Add a full venue address, city, and country.'
+                    : 'Add a city/country, venue address, or timeline location to see local weather.',
             ]);
         }
 
@@ -48,77 +50,83 @@ class WeatherController extends Controller
         return response()->json(['data' => $forecast]);
     }
 
-    private function resolveWeatherLocation($wedding): ?array
+    private function resolveWeatherLocation($wedding): array
     {
         if ($wedding->venue_lat !== null && $wedding->venue_lng !== null) {
             return [
-                'lat' => (float) $wedding->venue_lat,
-                'lng' => (float) $wedding->venue_lng,
-                'label' => $wedding->primary_venue_name ?: $wedding->city ?: 'Wedding venue',
+                [
+                    'lat' => (float) $wedding->venue_lat,
+                    'lng' => (float) $wedding->venue_lng,
+                    'label' => $wedding->primary_venue_name ?: $wedding->city ?: 'Wedding venue',
+                ],
+                true,
             ];
         }
 
-        $venueAddress = trim(implode(', ', array_filter([
-            $wedding->primary_venue_name,
-            $wedding->primary_venue_address,
-            $wedding->city,
-            $wedding->country,
-            $this->setting($wedding, 'city'),
-            $this->setting($wedding, 'country'),
-            $this->latestOnboardingValue($wedding, 'city'),
-            $this->latestOnboardingValue($wedding, 'country'),
-        ])));
+        $candidates = $this->candidateLocationLabels($wedding);
 
-        if ($venueAddress !== '') {
-            $coords = $this->geocoder->geocode($venueAddress)
-                ?? $this->weather->geocode($venueAddress);
-            if ($coords) {
-                $wedding->update(['venue_lat' => $coords['lat'], 'venue_lng' => $coords['lng']]);
-                return [
-                    'lat' => (float) $coords['lat'],
-                    'lng' => (float) $coords['lng'],
-                    'label' => $wedding->primary_venue_name ?: $wedding->city ?: 'Wedding venue',
-                ];
-            }
-        }
-
-        foreach ($this->candidateLocationLabels($wedding) as $label) {
+        foreach ($candidates as $label) {
             $coords = $this->geocoder->geocode($label)
                 ?? $this->weather->geocode($label);
             if ($coords) {
+                $wedding->update(['venue_lat' => $coords['lat'], 'venue_lng' => $coords['lng']]);
                 return [
-                    'lat' => (float) $coords['lat'],
-                    'lng' => (float) $coords['lng'],
-                    'label' => $label,
+                    [
+                        'lat' => (float) $coords['lat'],
+                        'lng' => (float) $coords['lng'],
+                        'label' => $this->locationLabel($wedding, $label),
+                    ],
+                    true,
                 ];
             }
         }
 
-        return null;
+        return [null, ! empty($candidates)];
     }
 
     private function candidateLocationLabels($wedding): array
     {
-        $suffix = trim(implode(', ', array_filter([
+        $settings = $wedding->settings ?? [];
+        $cityCountry = $this->joinLocationParts([
             $wedding->city,
             $wedding->country,
-            $this->setting($wedding, 'city'),
-            $this->setting($wedding, 'country'),
+            $settings['city'] ?? null,
+            $settings['country'] ?? null,
             $this->latestOnboardingValue($wedding, 'city'),
             $this->latestOnboardingValue($wedding, 'country'),
-        ])));
+        ]);
         $labels = [];
+
+        $directParts = [
+            [$wedding->primary_venue_name, $wedding->primary_venue_address, $cityCountry],
+            [$wedding->primary_venue_address, $cityCountry],
+            [$wedding->primary_venue_name, $cityCountry],
+            [$settings['primary_venue_name'] ?? null, $settings['primary_venue_address'] ?? null, $cityCountry],
+            [$settings['venue_name'] ?? null, $settings['venue_address'] ?? null, $cityCountry],
+            [$settings['ceremony_venue'] ?? null, $settings['ceremony_venue_address'] ?? null, $cityCountry],
+            [$settings['reception_venue_name'] ?? null, $settings['reception_venue_address'] ?? null, $cityCountry],
+            [$settings['wedding_location'] ?? null, $cityCountry],
+            [$settings['location'] ?? null, $cityCountry],
+            [$cityCountry],
+        ];
+
+        foreach ($directParts as $parts) {
+            $label = $this->joinLocationParts($parts);
+            if ($label !== '') {
+                $labels[] = $label;
+            }
+        }
 
         $wedding->timelineItems()
             ->orderBy('event_date')
             ->orderBy('start_time')
             ->get(['location', 'location_address'])
-            ->each(function ($item) use (&$labels, $suffix) {
+            ->each(function ($item) use (&$labels, $cityCountry) {
                 foreach ([$item->location_address, $item->location] as $location) {
                     $location = trim((string) $location);
                     if ($location !== '') {
-                        $labels[] = $suffix !== '' && ! str_contains(strtolower($location), strtolower($suffix))
-                            ? "{$location}, {$suffix}"
+                        $labels[] = $cityCountry !== '' && ! str_contains(strtolower($location), strtolower($cityCountry))
+                            ? "{$location}, {$cityCountry}"
                             : $location;
                     }
                 }
@@ -129,16 +137,35 @@ class WeatherController extends Controller
             ->orderBy('event_date')
             ->orderBy('start_time')
             ->pluck('location')
-            ->each(function ($location) use (&$labels, $suffix) {
+            ->each(function ($location) use (&$labels, $cityCountry) {
                 $location = trim((string) $location);
                 if ($location !== '') {
-                    $labels[] = $suffix !== '' && ! str_contains(strtolower($location), strtolower($suffix))
-                        ? "{$location}, {$suffix}"
+                    $labels[] = $cityCountry !== '' && ! str_contains(strtolower($location), strtolower($cityCountry))
+                        ? "{$location}, {$cityCountry}"
                         : $location;
                 }
             });
 
         return array_values(array_unique($labels));
+    }
+
+    private function joinLocationParts(array $parts): string
+    {
+        $clean = array_filter(array_map(function ($value) {
+            $value = is_scalar($value) ? trim((string) $value) : '';
+            return $value !== '' ? $value : null;
+        }, $parts));
+
+        return trim(implode(', ', array_values(array_unique($clean))));
+    }
+
+    private function locationLabel($wedding, string $fallback): string
+    {
+        return $wedding->primary_venue_name
+            ?: $this->setting($wedding, 'reception_venue_name')
+            ?: $this->setting($wedding, 'venue_name')
+            ?: $wedding->city
+            ?: $fallback;
     }
 
     private function setting($wedding, string $key): ?string

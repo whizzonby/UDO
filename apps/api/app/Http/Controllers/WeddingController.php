@@ -123,6 +123,10 @@ class WeddingController extends Controller
         ]);
 
         $before = $wedding->only(array_keys($data));
+        if ($this->locationChanged($wedding, $data)) {
+            $data['venue_lat'] = null;
+            $data['venue_lng'] = null;
+        }
         $wedding->update($data);
 
         $fresh = $wedding->fresh();
@@ -136,6 +140,17 @@ class WeddingController extends Controller
             $fresh->toArray(),
             ['access' => app(WeddingAccessService::class)->payloadFor($request->user(), $fresh)]
         ));
+    }
+
+    private function locationChanged(Wedding $wedding, array $data): bool
+    {
+        foreach (['primary_venue_name', 'primary_venue_address', 'city', 'country'] as $field) {
+            if (array_key_exists($field, $data) && ($data[$field] ?? null) !== $wedding->{$field}) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     public function uploadCoverPhoto(Request $request): JsonResponse
