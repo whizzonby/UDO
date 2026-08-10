@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\OnboardingResponse;
 use App\Services\GeocodingService;
 use App\Services\WeatherService;
 use Carbon\Carbon;
@@ -62,6 +63,10 @@ class WeatherController extends Controller
             $wedding->primary_venue_address,
             $wedding->city,
             $wedding->country,
+            $this->setting($wedding, 'city'),
+            $this->setting($wedding, 'country'),
+            $this->latestOnboardingValue($wedding, 'city'),
+            $this->latestOnboardingValue($wedding, 'country'),
         ])));
 
         if ($venueAddress !== '') {
@@ -94,20 +99,28 @@ class WeatherController extends Controller
 
     private function candidateLocationLabels($wedding): array
     {
-        $suffix = trim(implode(', ', array_filter([$wedding->city, $wedding->country])));
+        $suffix = trim(implode(', ', array_filter([
+            $wedding->city,
+            $wedding->country,
+            $this->setting($wedding, 'city'),
+            $this->setting($wedding, 'country'),
+            $this->latestOnboardingValue($wedding, 'city'),
+            $this->latestOnboardingValue($wedding, 'country'),
+        ])));
         $labels = [];
 
         $wedding->timelineItems()
-            ->whereNotNull('location')
             ->orderBy('event_date')
             ->orderBy('start_time')
-            ->pluck('location')
-            ->each(function ($location) use (&$labels, $suffix) {
-                $location = trim((string) $location);
-                if ($location !== '') {
-                    $labels[] = $suffix !== '' && ! str_contains(strtolower($location), strtolower($suffix))
-                        ? "{$location}, {$suffix}"
-                        : $location;
+            ->get(['location', 'location_address'])
+            ->each(function ($item) use (&$labels, $suffix) {
+                foreach ([$item->location_address, $item->location] as $location) {
+                    $location = trim((string) $location);
+                    if ($location !== '') {
+                        $labels[] = $suffix !== '' && ! str_contains(strtolower($location), strtolower($suffix))
+                            ? "{$location}, {$suffix}"
+                            : $location;
+                    }
                 }
             });
 
@@ -126,6 +139,25 @@ class WeatherController extends Controller
             });
 
         return array_values(array_unique($labels));
+    }
+
+    private function setting($wedding, string $key): ?string
+    {
+        $value = ($wedding->settings ?? [])[$key] ?? null;
+        return is_string($value) && trim($value) !== '' ? trim($value) : null;
+    }
+
+    private function latestOnboardingValue($wedding, string $key): ?string
+    {
+        $record = OnboardingResponse::query()
+            ->where('wedding_id', $wedding->id)
+            ->latest()
+            ->first(['responses']);
+
+        $responses = $record?->responses ?? [];
+        $value = is_array($responses) ? ($responses[$key] ?? null) : null;
+
+        return is_string($value) && trim($value) !== '' ? trim($value) : null;
     }
 
     private function timelineWeatherRisks($wedding, array $hourly): array

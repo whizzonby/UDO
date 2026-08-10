@@ -3,12 +3,16 @@
 namespace App\Http\Controllers;
 
 use App\Services\GeocodingService;
+use App\Services\WeatherService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
 class VenueController extends Controller
 {
-    public function __construct(private GeocodingService $geocoder) {}
+    public function __construct(
+        private GeocodingService $geocoder,
+        private WeatherService $weather,
+    ) {}
 
     /**
      * Returns the venue's coordinates for the Map tab, geocoding the
@@ -28,7 +32,9 @@ class VenueController extends Controller
                 $wedding->country,
             ])));
 
-            $coords = $address !== '' ? $this->geocoder->geocode($address) : null;
+            $coords = $address !== ''
+                ? ($this->geocoder->geocode($address) ?? $this->weather->geocode($address))
+                : null;
 
             if ($coords) {
                 $wedding->update(['venue_lat' => $coords['lat'], 'venue_lng' => $coords['lng']]);
