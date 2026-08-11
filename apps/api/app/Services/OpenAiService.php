@@ -8,6 +8,22 @@ use RuntimeException;
 
 class OpenAiService
 {
+    public function diagnostics(): array
+    {
+        $rawKey = config('services.openai.key');
+        $key = $this->normalizedKey();
+        $model = $this->model();
+
+        return [
+            'configured' => $key !== null,
+            'model' => $model,
+            'key_present' => is_string($rawKey) && trim($rawKey) !== '',
+            'key_format_ok' => $key !== null && str_starts_with($key, 'sk-'),
+            'key_length' => $key ? strlen($key) : 0,
+            'key_fingerprint' => $key ? substr(hash('sha256', $key), 0, 12) : null,
+        ];
+    }
+
     /**
      * Sends a chat completion request to OpenAI with real wedding context
      * baked into the system prompt, plus recent conversation history, so
@@ -17,8 +33,8 @@ class OpenAiService
      */
     public function chat(string $systemPrompt, array $history, string $userMessage): string
     {
-        $key = config('services.openai.key');
-        if (empty($key)) {
+        $key = $this->normalizedKey();
+        if ($key === null) {
             throw new RuntimeException('Udo AI is not configured yet.');
         }
 
@@ -28,7 +44,7 @@ class OpenAiService
             ['role' => 'user', 'content' => $userMessage],
         ];
 
-        $model = config('services.openai.model', 'gpt-4o-mini');
+        $model = $this->model();
 
         try {
             $response = Http::withToken($key)
@@ -52,12 +68,23 @@ class OpenAiService
         }
 
         if (! $response->successful()) {
+            $status = $response->status();
+            $providerMessage = $response->json('error.message') ?? $response->body();
             Log::warning('OpenAI returned an error', [
                 'model' => $model,
-                'status' => $response->status(),
+                'status' => $status,
                 'request_id' => $response->header('x-request-id'),
-                'error' => $response->json('error.message') ?? $response->body(),
+                'error' => $providerMessage,
             ]);
+
+            if (in_array($status, [401, 403], true)) {
+                throw new RuntimeException('Udo AI is not configured correctly. Please contact support.');
+            }
+
+            if ($status === 429) {
+                throw new RuntimeException('Udo AI is temporarily at capacity. Please try again shortly.');
+            }
+
             throw new RuntimeException("Couldn't reach Udo AI. Try again.");
         }
 
@@ -67,5 +94,24 @@ class OpenAiService
         }
 
         return trim($reply);
+    }
+
+    private function normalizedKey(): ?string
+    {
+        $key = config('services.openai.key');
+        if (! is_string($key)) {
+            return null;
+        }
+
+        $key = trim($key);
+        $key = trim($key, "\"'<> \t\n\r\0\x0B");
+
+        return $key !== '' ? $key : null;
+    }
+
+    private function model(): string
+    {
+        $model = config('services.openai.model', 'gpt-4o-mini');
+        return is_string($model) && trim($model) !== '' ? trim($model) : 'gpt-4o-mini';
     }
 }

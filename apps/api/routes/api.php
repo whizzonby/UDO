@@ -197,6 +197,7 @@ Route::middleware(['auth:sanctum', 'idempotency'])->group(function () {
 
     // AI Wedding Assistant
     Route::get('ai-assistant', [AiAssistantController::class, 'index']);
+    Route::get('ai-assistant/health', [AiAssistantController::class, 'health']);
     Route::post('ai-assistant/chat', [AiAssistantController::class, 'chat']);
 
     // Guests

@@ -38,6 +38,15 @@ class AiAssistantController extends Controller
         ]);
     }
 
+    public function health(Request $request): JsonResponse
+    {
+        $this->wedding($request);
+
+        return response()->json([
+            'data' => app(OpenAiService::class)->diagnostics(),
+        ]);
+    }
+
     public function chat(Request $request): JsonResponse
     {
         $wedding = $this->wedding($request);
