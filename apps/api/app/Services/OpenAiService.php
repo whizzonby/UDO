@@ -60,11 +60,18 @@ class OpenAiService
                     'max_tokens' => 700,
                 ]);
         } catch (\Throwable $e) {
+            $status = method_exists($e, 'response') && $e->response()
+                ? $e->response()->status()
+                : null;
+            $providerMessage = method_exists($e, 'response') && $e->response()
+                ? ($e->response()->json('error.message') ?? $e->response()->body())
+                : $e->getMessage();
             Log::warning('OpenAI request failed', [
                 'model' => $model,
-                'error' => $e->getMessage(),
+                'status' => $status,
+                'error' => $providerMessage,
             ]);
-            throw new RuntimeException("Couldn't reach Udo AI. Try again.");
+            throw new RuntimeException($this->userMessageForFailure($status, $providerMessage));
         }
 
         if (! $response->successful()) {
@@ -77,15 +84,7 @@ class OpenAiService
                 'error' => $providerMessage,
             ]);
 
-            if (in_array($status, [401, 403], true)) {
-                throw new RuntimeException('Udo AI is not configured correctly. Please contact support.');
-            }
-
-            if ($status === 429) {
-                throw new RuntimeException('Udo AI is temporarily at capacity. Please try again shortly.');
-            }
-
-            throw new RuntimeException("Couldn't reach Udo AI. Try again.");
+            throw new RuntimeException($this->userMessageForFailure($status, $providerMessage));
         }
 
         $reply = $response->json('choices.0.message.content');
@@ -113,5 +112,24 @@ class OpenAiService
     {
         $model = config('services.openai.model', 'gpt-4o-mini');
         return is_string($model) && trim($model) !== '' ? trim($model) : 'gpt-4o-mini';
+    }
+
+    private function userMessageForFailure(?int $status, mixed $providerMessage): string
+    {
+        $message = is_string($providerMessage) ? strtolower($providerMessage) : '';
+
+        if (in_array($status, [401, 403], true)) {
+            return 'Udo AI is not configured correctly. Please contact support.';
+        }
+
+        if ($status === 429 && str_contains($message, 'no credits')) {
+            return 'Udo AI is temporarily unavailable because the OpenAI account has no API credits.';
+        }
+
+        if ($status === 429) {
+            return 'Udo AI is temporarily at capacity. Please try again shortly.';
+        }
+
+        return "Couldn't reach Udo AI. Try again.";
     }
 }
