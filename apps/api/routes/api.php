@@ -160,6 +160,7 @@ Route::middleware(['auth:sanctum', 'idempotency'])->group(function () {
     // Dashboard
     Route::get('dashboard', [HomeController::class, 'index']);
     Route::get('reliability/health', [OperationalHealthController::class, 'show']);
+    Route::get('weather/debug', [WeatherController::class, 'debug']);
     Route::get('internal/ops', [InternalOpsController::class, 'index']);
     Route::patch('internal/ops/users/{user}/entitlement', [InternalOpsController::class, 'overrideEntitlement']);
     Route::get('smart-alerts', [SmartAlertController::class, 'index']);

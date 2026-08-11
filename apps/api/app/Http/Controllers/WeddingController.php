@@ -58,6 +58,9 @@ class WeddingController extends Controller
             'country'               => 'nullable|string|max:255',
             'primary_venue_name'    => 'nullable|string|max:255',
             'primary_venue_address' => 'nullable|string',
+            'venue_place_id'         => 'nullable|string|max:255',
+            'venue_lat'              => 'nullable|numeric|between:-90,90',
+            'venue_lng'              => 'nullable|numeric|between:-180,180',
             'cover_photo_path'      => 'nullable|string|max:2048',
             'couple_photo_path'     => 'nullable|string|max:2048',
             'hashtag'               => 'nullable|string|max:100',
@@ -108,6 +111,9 @@ class WeddingController extends Controller
             'country'               => 'nullable|string|max:255',
             'primary_venue_name'    => 'nullable|string|max:255',
             'primary_venue_address' => 'nullable|string',
+            'venue_place_id'         => 'nullable|string|max:255',
+            'venue_lat'              => 'nullable|numeric|between:-90,90',
+            'venue_lng'              => 'nullable|numeric|between:-180,180',
             'cover_photo_path'      => 'nullable|string|max:2048',
             'couple_photo_path'     => 'nullable|string|max:2048',
             'hashtag'               => 'nullable|string|max:100',
@@ -123,7 +129,7 @@ class WeddingController extends Controller
         ]);
 
         $before = $wedding->only(array_keys($data));
-        if ($this->locationChanged($wedding, $data)) {
+        if ($this->locationChanged($wedding, $data) && ! isset($data['venue_lat'], $data['venue_lng'])) {
             $data['venue_lat'] = null;
             $data['venue_lng'] = null;
         }
@@ -144,7 +150,7 @@ class WeddingController extends Controller
 
     private function locationChanged(Wedding $wedding, array $data): bool
     {
-        foreach (['primary_venue_name', 'primary_venue_address', 'city', 'country'] as $field) {
+        foreach (['primary_venue_name', 'primary_venue_address', 'venue_place_id', 'city', 'country'] as $field) {
             if (array_key_exists($field, $data) && ($data[$field] ?? null) !== $wedding->{$field}) {
                 return true;
             }

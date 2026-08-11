@@ -116,13 +116,13 @@ class GooglePlacesService
             return null;
         }
 
-        $cacheKey = "google_places:details:{$placeId}";
+        $cacheKey = "google_places:details:v2:{$placeId}";
 
         return Cache::remember($cacheKey, now()->addDays(30), function () use ($placeId, $sessionToken, $key) {
             try {
                 $response = Http::get(self::BASE_URL . '/details/json', array_filter([
                     'place_id' => $placeId,
-                    'fields' => 'name,formatted_address,formatted_phone_number,international_phone_number',
+                    'fields' => 'name,formatted_address,formatted_phone_number,international_phone_number,geometry/location',
                     'key' => $key,
                     'sessiontoken' => $sessionToken,
                 ]));
@@ -145,6 +145,12 @@ class GooglePlacesService
                     'name' => $result['name'] ?? null,
                     'address' => $result['formatted_address'] ?? null,
                     'phone' => $result['formatted_phone_number'] ?? $result['international_phone_number'] ?? null,
+                    'lat' => isset($result['geometry']['location']['lat'])
+                        ? (float) $result['geometry']['location']['lat']
+                        : null,
+                    'lng' => isset($result['geometry']['location']['lng'])
+                        ? (float) $result['geometry']['location']['lng']
+                        : null,
                 ];
             } catch (\Throwable $e) {
                 Log::warning('Google Places details request failed', ['error' => $e->getMessage()]);

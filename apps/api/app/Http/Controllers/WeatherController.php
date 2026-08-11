@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\OnboardingResponse;
 use App\Services\GeocodingService;
+use App\Services\GooglePlacesService;
 use App\Services\WeatherService;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
@@ -13,6 +14,7 @@ class WeatherController extends Controller
 {
     public function __construct(
         private GeocodingService $geocoder,
+        private GooglePlacesService $places,
         private WeatherService $weather,
     ) {}
 
@@ -50,8 +52,37 @@ class WeatherController extends Controller
         return response()->json(['data' => $forecast]);
     }
 
-    private function resolveWeatherLocation($wedding): array
+    public function debug(Request $request): JsonResponse
     {
+        $wedding = $request->user()->activeWedding;
+        abort_unless($wedding, 403, 'No active wedding.');
+
+        [$resolved, $hadLocationInput, $attempts] = $this->resolveWeatherLocation($wedding, includeAttempts: true);
+
+        return response()->json([
+            'data' => [
+                'wedding_id' => $wedding->id,
+                'event_date' => $wedding->event_date?->toDateString(),
+                'venue' => [
+                    'name' => $wedding->primary_venue_name,
+                    'address' => $wedding->primary_venue_address,
+                    'place_id' => $wedding->venue_place_id,
+                    'city' => $wedding->city,
+                    'country' => $wedding->country,
+                    'lat' => $wedding->venue_lat !== null ? (float) $wedding->venue_lat : null,
+                    'lng' => $wedding->venue_lng !== null ? (float) $wedding->venue_lng : null,
+                ],
+                'had_location_input' => $hadLocationInput,
+                'resolved' => $resolved,
+                'attempts' => $attempts,
+                'provider_order' => ['open_meteo', 'open_weather'],
+            ],
+        ]);
+    }
+
+    private function resolveWeatherLocation($wedding, bool $includeAttempts = false): array
+    {
+        $attempts = [];
         if ($wedding->venue_lat !== null && $wedding->venue_lng !== null) {
             return [
                 [
@@ -60,12 +91,38 @@ class WeatherController extends Controller
                     'label' => $wedding->primary_venue_name ?: $wedding->city ?: 'Wedding venue',
                 ],
                 true,
+                $attempts,
             ];
+        }
+
+        if ($wedding->venue_place_id) {
+            $attempts[] = ['type' => 'google_place_id', 'value' => $wedding->venue_place_id];
+            $place = $this->places->details($wedding->venue_place_id);
+            if ($place && isset($place['lat'], $place['lng'])) {
+                $wedding->update([
+                    'primary_venue_name' => $wedding->primary_venue_name ?: ($place['name'] ?? null),
+                    'primary_venue_address' => $wedding->primary_venue_address ?: ($place['address'] ?? null),
+                    'venue_lat' => $place['lat'],
+                    'venue_lng' => $place['lng'],
+                ]);
+                return [
+                    [
+                        'lat' => (float) $place['lat'],
+                        'lng' => (float) $place['lng'],
+                        'label' => $place['name'] ?? $wedding->primary_venue_name ?? 'Wedding venue',
+                    ],
+                    true,
+                    $attempts,
+                ];
+            }
         }
 
         $candidates = $this->candidateLocationLabels($wedding);
 
         foreach ($candidates as $label) {
+            if ($includeAttempts) {
+                $attempts[] = ['type' => 'text_geocode', 'value' => $label];
+            }
             $coords = $this->geocoder->geocode($label)
                 ?? $this->weather->geocode($label);
             if ($coords) {
@@ -77,11 +134,12 @@ class WeatherController extends Controller
                         'label' => $this->locationLabel($wedding, $label),
                     ],
                     true,
+                    $attempts,
                 ];
             }
         }
 
-        return [null, ! empty($candidates)];
+        return [null, ! empty($candidates), $attempts];
     }
 
     private function candidateLocationLabels($wedding): array

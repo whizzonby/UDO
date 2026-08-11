@@ -61,13 +61,87 @@ class WeatherService
      */
     public function forecast(float $lat, float $lng, ?\DateTimeInterface $weddingDate = null): ?array
     {
+        return $this->openMeteoForecast($lat, $lng, $weddingDate)
+            ?? $this->openWeatherForecast($lat, $lng, $weddingDate);
+    }
+
+    private function openMeteoForecast(float $lat, float $lng, ?\DateTimeInterface $weddingDate = null): ?array
+    {
+        $cacheKey = sprintf('weather:openmeteo:%.3f:%.3f', $lat, $lng);
+
+        $base = Cache::remember($cacheKey, now()->addMinutes(30), function () use ($lat, $lng) {
+            try {
+                $response = Http::timeout(20)->get('https://api.open-meteo.com/v1/forecast', [
+                    'latitude' => $lat,
+                    'longitude' => $lng,
+                    'current' => 'temperature_2m,relative_humidity_2m,apparent_temperature,weather_code,cloud_cover,wind_speed_10m',
+                    'hourly' => 'temperature_2m,relative_humidity_2m,precipitation_probability,weather_code,wind_speed_10m,cloud_cover',
+                    'daily' => 'weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max,wind_speed_10m_max,sunset',
+                    'forecast_days' => 16,
+                    'temperature_unit' => 'fahrenheit',
+                    'wind_speed_unit' => 'mph',
+                    'timezone' => 'auto',
+                ]);
+
+                if (! $response->successful()) {
+                    Log::warning('Open-Meteo request failed', ['status' => $response->status()]);
+                    return null;
+                }
+
+                $body = $response->json();
+                $current = $body['current'] ?? [];
+                $hourly = $body['hourly'] ?? [];
+                $daily = $body['daily'] ?? [];
+                $code = (int) ($current['weather_code'] ?? 0);
+
+                return [
+                    'provider' => 'open_meteo',
+                    'temp' => isset($current['temperature_2m']) ? round($current['temperature_2m']) : null,
+                    'feels_like' => isset($current['apparent_temperature']) ? round($current['apparent_temperature']) : null,
+                    'condition' => $this->weatherCodeLabel($code),
+                    'description' => $this->weatherCodeDescription($code),
+                    'humidity' => $current['relative_humidity_2m'] ?? null,
+                    'wind_mph' => isset($current['wind_speed_10m']) ? round($current['wind_speed_10m']) : null,
+                    'clouds_pct' => $current['cloud_cover'] ?? null,
+                    'rain_chance_pct' => $hourly['precipitation_probability'][0] ?? null,
+                    'sunset' => isset($daily['sunset'][0]) ? \Carbon\Carbon::parse($daily['sunset'][0])->format('g:i A') : null,
+                    'hourly' => $this->openMeteoHourly($hourly, 5),
+                    '_hourly' => $hourly,
+                    '_daily' => $daily,
+                ];
+            } catch (\Throwable $e) {
+                Log::warning('Open-Meteo fetch failed', ['error' => $e->getMessage()]);
+                return null;
+            }
+        });
+
+        if ($base === null) {
+            return null;
+        }
+
+        $hourly = $base['_hourly'];
+        $daily = $base['_daily'];
+        unset($base['_hourly'], $base['_daily']);
+
+        $base['wedding_day'] = $weddingDate
+            ? $this->matchOpenMeteoWeddingDayForecast($hourly, $daily, $weddingDate)
+            : [
+                'forecast_available' => false,
+                'reason' => 'Add your wedding date to see the wedding-day forecast.',
+            ];
+
+        return $base;
+    }
+
+    private function openWeatherForecast(float $lat, float $lng, ?\DateTimeInterface $weddingDate = null): ?array
+    {
         $key = config('services.openweather.key');
         if (! $key) {
             Log::warning('OpenWeather API key is missing.');
             return null;
         }
 
-        $cacheKey = sprintf('weather:%.3f:%.3f', $lat, $lng);
+        $cacheKey = sprintf('weather:openweather:%.3f:%.3f', $lat, $lng);
 
         $base = Cache::remember($cacheKey, now()->addMinutes(30), function () use ($lat, $lng, $key) {
             try {
@@ -93,6 +167,7 @@ class WeatherService
                 $tzOffsetSeconds = $c['timezone'] ?? 0;
 
                 return [
+                    'provider'    => 'open_weather',
                     'temp'        => round($c['main']['temp']),
                     'feels_like'  => round($c['main']['feels_like']),
                     'condition'   => $c['weather'][0]['main'] ?? 'Clear',
@@ -138,6 +213,126 @@ class WeatherService
             ];
 
         return $base;
+    }
+
+    private function openMeteoHourly(array $hourly, int $limit): array
+    {
+        $times = $hourly['time'] ?? [];
+        $temperatures = $hourly['temperature_2m'] ?? [];
+        $codes = $hourly['weather_code'] ?? [];
+        $rain = $hourly['precipitation_probability'] ?? [];
+        $wind = $hourly['wind_speed_10m'] ?? [];
+
+        return collect($times)->take($limit)->values()->map(function ($time, $index) use ($temperatures, $codes, $rain, $wind) {
+            $code = (int) ($codes[$index] ?? 0);
+            return [
+                'at' => $time,
+                'time' => \Carbon\Carbon::parse($time)->format('g:i A'),
+                'temp' => isset($temperatures[$index]) ? round($temperatures[$index]) : null,
+                'condition' => $this->weatherCodeLabel($code),
+                'rain_chance_pct' => $rain[$index] ?? null,
+                'wind_mph' => isset($wind[$index]) ? round($wind[$index]) : null,
+            ];
+        })->all();
+    }
+
+    private function matchOpenMeteoWeddingDayForecast(array $hourly, array $daily, \DateTimeInterface $weddingDate): array
+    {
+        $targetDate = \Carbon\Carbon::instance($weddingDate)->startOfDay();
+        $targetDateString = $targetDate->toDateString();
+        $dailyDates = $daily['time'] ?? [];
+        $dailyIndex = array_search($targetDateString, $dailyDates, true);
+
+        if ($dailyIndex === false) {
+            return [
+                'forecast_available' => false,
+                'date' => $targetDateString,
+                'reason' => 'Forecast available closer to the wedding date.',
+            ];
+        }
+
+        $times = $hourly['time'] ?? [];
+        $temperatures = $hourly['temperature_2m'] ?? [];
+        $humidity = $hourly['relative_humidity_2m'] ?? [];
+        $rain = $hourly['precipitation_probability'] ?? [];
+        $wind = $hourly['wind_speed_10m'] ?? [];
+        $clouds = $hourly['cloud_cover'] ?? [];
+        $codes = $hourly['weather_code'] ?? [];
+
+        $dayIndexes = collect($times)->keys()->filter(fn ($index) =>
+            str_starts_with((string) ($times[$index] ?? ''), $targetDateString)
+        )->values();
+
+        $hourlyRows = $dayIndexes->map(function ($index) use ($times, $temperatures, $codes, $rain, $wind) {
+            $code = (int) ($codes[$index] ?? 0);
+            return [
+                'at' => $times[$index] ?? null,
+                'time' => isset($times[$index]) ? \Carbon\Carbon::parse($times[$index])->format('g:i A') : null,
+                'temp' => isset($temperatures[$index]) ? round($temperatures[$index]) : null,
+                'condition' => $this->weatherCodeLabel($code),
+                'rain_chance_pct' => $rain[$index] ?? null,
+                'wind_mph' => isset($wind[$index]) ? round($wind[$index]) : null,
+            ];
+        })->values();
+
+        $middayIndex = $dayIndexes->sortBy(function ($index) use ($times, $targetDate) {
+            return isset($times[$index])
+                ? abs(\Carbon\Carbon::parse($times[$index])->diffInMinutes($targetDate->copy()->setTime(12, 0)))
+                : PHP_INT_MAX;
+        })->first();
+
+        $code = (int) ($codes[$middayIndex] ?? ($daily['weather_code'][$dailyIndex] ?? 0));
+
+        return [
+            'forecast_available' => true,
+            'date' => $targetDateString,
+            'temp' => isset($temperatures[$middayIndex]) ? round($temperatures[$middayIndex]) : null,
+            'temp_min' => isset($daily['temperature_2m_min'][$dailyIndex]) ? round($daily['temperature_2m_min'][$dailyIndex]) : null,
+            'temp_max' => isset($daily['temperature_2m_max'][$dailyIndex]) ? round($daily['temperature_2m_max'][$dailyIndex]) : null,
+            'condition' => $this->weatherCodeLabel($code),
+            'description' => $this->weatherCodeDescription($code),
+            'rain_chance_pct' => $daily['precipitation_probability_max'][$dailyIndex] ?? null,
+            'wind_mph' => isset($daily['wind_speed_10m_max'][$dailyIndex]) ? round($daily['wind_speed_10m_max'][$dailyIndex]) : null,
+            'humidity' => $dayIndexes->isNotEmpty() ? (int) round($dayIndexes->avg(fn ($index) => $humidity[$index] ?? 0)) : null,
+            'clouds_pct' => $dayIndexes->isNotEmpty() ? (int) round($dayIndexes->avg(fn ($index) => $clouds[$index] ?? 0)) : null,
+            'hourly' => $hourlyRows->all(),
+        ];
+    }
+
+    private function weatherCodeLabel(int $code): string
+    {
+        return match (true) {
+            $code === 0 => 'Clear',
+            in_array($code, [1, 2, 3], true) => 'Clouds',
+            in_array($code, [45, 48], true) => 'Fog',
+            in_array($code, [51, 53, 55, 56, 57], true) => 'Drizzle',
+            in_array($code, [61, 63, 65, 66, 67, 80, 81, 82], true) => 'Rain',
+            in_array($code, [71, 73, 75, 77, 85, 86], true) => 'Snow',
+            in_array($code, [95, 96, 99], true) => 'Thunderstorm',
+            default => 'Weather',
+        };
+    }
+
+    private function weatherCodeDescription(int $code): string
+    {
+        return match ($code) {
+            0 => 'clear sky',
+            1 => 'mainly clear',
+            2 => 'partly cloudy',
+            3 => 'overcast',
+            45, 48 => 'fog',
+            51, 53, 55 => 'drizzle',
+            56, 57 => 'freezing drizzle',
+            61, 63, 65 => 'rain',
+            66, 67 => 'freezing rain',
+            71, 73, 75 => 'snowfall',
+            77 => 'snow grains',
+            80, 81, 82 => 'rain showers',
+            85, 86 => 'snow showers',
+            95 => 'thunderstorm',
+            96, 99 => 'thunderstorm with hail',
+            default => 'forecast',
+        };
     }
 
     /**

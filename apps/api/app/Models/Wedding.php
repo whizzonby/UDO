@@ -13,7 +13,7 @@ class Wedding extends Model
     protected $fillable = [
         'slug', 'title', 'couple_name_primary', 'couple_name_secondary',
         'event_date', 'timezone', 'city', 'country', 'primary_venue_name',
-        'primary_venue_address', 'cover_photo_path', 'couple_photo_path', 'hashtag', 'gallery_upload_token', 'venue_lat', 'venue_lng', 'rsvp_deadline', 'status', 'owner_user_id', 'settings', 'vision_style',
+        'primary_venue_address', 'venue_place_id', 'cover_photo_path', 'couple_photo_path', 'hashtag', 'gallery_upload_token', 'venue_lat', 'venue_lng', 'rsvp_deadline', 'status', 'owner_user_id', 'settings', 'vision_style',
         'pinterest_access_token', 'pinterest_refresh_token', 'pinterest_token_expires_at', 'pinterest_username',
     ];
 
