@@ -7,6 +7,7 @@ use App\Models\Message;
 use App\Services\GuestAudienceFilterService;
 use App\Services\MessageAnalyticsService;
 use App\Services\MessageDispatchService;
+use App\Services\SubscriptionEntitlementService;
 use App\Services\WeddingAccessService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -126,6 +127,14 @@ class InvitationCampaignController extends Controller
     {
         $this->authorizeCampaign($request, $campaign);
         abort_if(in_array($campaign->status, ['sending', 'sent'], true), 422, 'Campaign is already sent or sending.');
+
+        if ($campaign->message_type === 'invitation') {
+            $wedding = $this->wedding($request);
+            $recipientCount = app(GuestAudienceFilterService::class)
+                ->apply($wedding->guests(), $campaign->audience_filter ?? [])
+                ->count();
+            app(SubscriptionEntitlementService::class)->ensureWithinLimit($wedding, 'invitations_sent', $recipientCount);
+        }
 
         $recipients = app(MessageDispatchService::class)->dispatch($campaign->load('wedding'), $request->boolean('force'));
 

@@ -28,9 +28,11 @@ class AiAssistantController extends Controller
 
         $logs = $wedding->aiAssistantLogs()
             ->whereNotNull('response')
-            ->orderBy('created_at')
+            ->orderByDesc('created_at')
             ->limit(20)
-            ->get(['id', 'prompt', 'response', 'created_at']);
+            ->get(['id', 'prompt', 'response', 'created_at'])
+            ->reverse()
+            ->values();
 
         return response()->json([
             'data' => $logs,

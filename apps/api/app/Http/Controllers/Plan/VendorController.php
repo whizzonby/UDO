@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Plan;
 use App\Http\Controllers\Controller;
 use App\Models\Vendor;
 use App\Services\ApprovalGatingService;
+use App\Services\SubscriptionEntitlementService;
 use App\Services\WeddingAccessService;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Http\JsonResponse;
@@ -87,6 +88,7 @@ class VendorController extends Controller
     {
         $wedding = $this->wedding($request);
         $this->ensureCanManageVendors($request);
+        app(SubscriptionEntitlementService::class)->ensureWithinLimit($wedding, 'vendors');
 
         $data = $request->validate([
             'name'             => 'required|string|max:255',

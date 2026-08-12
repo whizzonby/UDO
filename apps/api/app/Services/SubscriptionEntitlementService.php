@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Mail\TemplatedMail;
+use App\Models\GuestMessageDelivery;
 use App\Models\Subscription;
 use App\Models\User;
 use App\Models\Wedding;
@@ -24,12 +25,16 @@ class SubscriptionEntitlementService
                 'Basic registry and gallery',
             ],
             'limits' => [
-                'guests' => 50,
+                'guests' => 30,
                 'team_members' => 1,
                 'messages_per_month' => 100,
-                'gallery_assets' => 100,
+                'gallery_assets' => 20,
                 'weddings' => 1,
-                'ai_assistant_calls_per_month' => 20,
+                'ai_assistant_calls_per_month' => 5,
+                'vendors' => 3,
+                'wedding_party_members' => 1,
+                'meal_options' => 2,
+                'invitations_sent' => 5,
             ],
         ],
         'starter' => [
@@ -50,6 +55,10 @@ class SubscriptionEntitlementService
                 'gallery_assets' => 500,
                 'weddings' => 1,
                 'ai_assistant_calls_per_month' => 50,
+                'vendors' => 10,
+                'wedding_party_members' => 6,
+                'meal_options' => 4,
+                'invitations_sent' => 150,
             ],
         ],
         'pro' => [
@@ -72,6 +81,10 @@ class SubscriptionEntitlementService
                 'gallery_assets' => 2500,
                 'weddings' => 5,
                 'ai_assistant_calls_per_month' => 150,
+                'vendors' => 50,
+                'wedding_party_members' => 20,
+                'meal_options' => 6,
+                'invitations_sent' => 2500,
             ],
         ],
         'elite' => [
@@ -93,6 +106,10 @@ class SubscriptionEntitlementService
                 'gallery_assets' => null,
                 'weddings' => null,
                 'ai_assistant_calls_per_month' => null,
+                'vendors' => null,
+                'wedding_party_members' => null,
+                'meal_options' => null,
+                'invitations_sent' => null,
             ],
         ],
         // Only ever granted by CheckoutController after a real, confirmed
@@ -103,7 +120,7 @@ class SubscriptionEntitlementService
             'description' => 'One payment, full access, no subscriptions.',
             'monthly_price' => 0,
             'annual_price' => 0,
-            'one_time_price' => 45,
+            'one_time_price' => self::LIFETIME_PRICE,
             'features' => [
                 'Everything in every plan above',
                 'Unlimited guests',
@@ -116,6 +133,10 @@ class SubscriptionEntitlementService
                 'gallery_assets' => null,
                 'weddings' => null,
                 'ai_assistant_calls_per_month' => null,
+                'vendors' => null,
+                'wedding_party_members' => null,
+                'meal_options' => null,
+                'invitations_sent' => null,
             ],
         ],
     ];
@@ -279,6 +300,29 @@ class SubscriptionEntitlementService
             'ai_assistant_calls_per_month' => $wedding->aiAssistantLogs()
                 ->where('created_at', '>=', now()->startOfMonth())
                 ->count(),
+            'vendors' => $wedding->vendors()->count(),
+            'wedding_party_members' => $wedding->guests()->whereNotNull('wedding_party_role')->count(),
+            'invitations_sent' => $this->invitationsSentCount($wedding),
         ];
+    }
+
+    /**
+     * Distinct guests who've been sent an invitation via either path this
+     * app offers — the single-guest "send invite" action (which stamps
+     * Guest.invite_status) and bulk invitation campaigns (which only ever
+     * record delivery rows, never touch invite_status). Lifetime, not
+     * monthly — this is a one-time "prove the concept" allowance on the
+     * free plan, not a recurring quota like messages_per_month.
+     */
+    private function invitationsSentCount(Wedding $wedding): int
+    {
+        $directIds = $wedding->guests()->where('invite_status', 'sent')->pluck('id');
+
+        $campaignIds = GuestMessageDelivery::whereHas(
+            'message',
+            fn ($query) => $query->where('wedding_id', $wedding->id)->where('message_type', 'invitation')
+        )->whereNotIn('status', ['pending', 'failed'])->pluck('guest_id');
+
+        return $directIds->merge($campaignIds)->unique()->count();
     }
 }

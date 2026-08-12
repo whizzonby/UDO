@@ -193,6 +193,10 @@ class GuestController extends Controller
             'rehearsal_status' => 'nullable|in:pending,confirmed,declined',
         ]);
 
+        if (! empty($data['wedding_party_role'])) {
+            app(SubscriptionEntitlementService::class)->ensureWithinLimit($wedding, 'wedding_party_members');
+        }
+
         $guest = $wedding->guests()->create($data);
         app(AuditLogService::class)->record('guest.created', $wedding, $request->user(), $guest, null, $guest->toArray(), request: $request);
 
@@ -247,6 +251,10 @@ class GuestController extends Controller
             'rehearsal_status' => 'nullable|in:pending,confirmed,declined',
         ]);
 
+        if (! empty($data['wedding_party_role']) && empty($guest->wedding_party_role)) {
+            app(SubscriptionEntitlementService::class)->ensureWithinLimit($this->wedding($request), 'wedding_party_members');
+        }
+
         $before = $guest->only(array_keys($data));
         $guest->update($data);
         $fresh = $guest->fresh();
@@ -294,6 +302,9 @@ class GuestController extends Controller
     {
         $this->authorizeGuest($request, $guest);
         $this->ensureCanManageGuests($request);
+        if ($guest->invite_status !== 'sent') {
+            app(SubscriptionEntitlementService::class)->ensureWithinLimit($this->wedding($request), 'invitations_sent');
+        }
 
         if (! $guest->token) {
             GuestToken::create([
