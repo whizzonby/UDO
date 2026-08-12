@@ -175,8 +175,9 @@ export default function PrivacyPolicyPage() {
             <h2 className="font-serif text-xl text-[#2d2729]">6. Your rights and choices</h2>
             <ul className="mt-2 list-disc space-y-1.5 pl-5">
               <li><strong>Access and export:</strong> you can export your account data from Settings at any time.</li>
-              <li><strong>Correction and deletion:</strong> you can update or delete your account and data from
-                Settings, or by contacting us.</li>
+              <li><strong>Correction and deletion:</strong> you can update your account from Settings, or delete
+                your account and data at any time — see{' '}
+                <Link href="/delete-account" className="text-[#8c5367] underline">how to delete your account</Link>.</li>
               <li><strong>Communication preferences:</strong> Guests can opt out of email, SMS, or WhatsApp
                 messages for a given wedding from their guest portal.</li>
               <li><strong>Guests without an account:</strong> if a Planner has added your details but you&rsquo;ve
