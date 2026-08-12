@@ -86,6 +86,8 @@ class LogisticsController extends Controller
             'price_per_night'   => 'nullable|numeric|min:0',
             'total_rooms'       => 'nullable|integer|min:0',
             'rooms_available'   => 'nullable|integer|min:0',
+            'room_block_start'  => 'nullable|integer|min:0',
+            'room_block_end'    => 'nullable|integer|min:0|gte:room_block_start',
             'booking_url'       => 'nullable|url',
             'booking_code'      => 'nullable|string|max:100',
             'contact_name'      => 'nullable|string|max:255',
@@ -115,6 +117,8 @@ class LogisticsController extends Controller
             'price_per_night'   => 'nullable|numeric|min:0',
             'total_rooms'       => 'nullable|integer|min:0',
             'rooms_available'   => 'nullable|integer|min:0',
+            'room_block_start'  => 'nullable|integer|min:0',
+            'room_block_end'    => 'nullable|integer|min:0',
             'booking_url'       => 'nullable|url',
             'booking_code'      => 'nullable|string|max:100',
             'contact_name'      => 'nullable|string|max:255',
@@ -125,10 +129,32 @@ class LogisticsController extends Controller
             'notes'             => 'nullable|string',
             'room_labels'       => 'nullable|array',
             'room_labels.*'     => 'nullable|string|max:50',
+            'visible_to_guests' => 'boolean',
         ]);
 
         $accommodationOption->update($this->mapAccommodationFields($data));
         return response()->json(['data' => $accommodationOption->fresh()]);
+    }
+
+    /**
+     * Bulk visibility toggle used by the "Accommodation Info" guest-link
+     * picker — mirrors updateTransportVisibility() for transport routes.
+     */
+    public function updateAccommodationVisibility(Request $request): JsonResponse
+    {
+        $wedding = $this->wedding($request);
+
+        $data = $request->validate([
+            'visible_ids' => 'present|array',
+            'visible_ids.*' => 'integer|exists:accommodation_options,id',
+        ]);
+
+        $wedding->accommodationOptions()->update(['visible_to_guests' => false]);
+        if (! empty($data['visible_ids'])) {
+            $wedding->accommodationOptions()->whereIn('id', $data['visible_ids'])->update(['visible_to_guests' => true]);
+        }
+
+        return response()->json(['data' => $wedding->accommodationOptions()->get()]);
     }
 
     /**
@@ -290,10 +316,33 @@ class LogisticsController extends Controller
             'driver_name'    => 'nullable|string|max:255',
             'driver_phone'   => 'nullable|string|max:50',
             'notes'          => 'nullable|string',
+            'visible_to_guests' => 'boolean',
         ]);
 
         $transportGroup->update($data);
         return response()->json(['data' => $transportGroup->fresh()]);
+    }
+
+    /**
+     * Bulk visibility toggle used by the "Transport Info" guest-link picker
+     * — lets the couple choose exactly which routes appear on the guest
+     * portal in one save instead of one PATCH per route.
+     */
+    public function updateTransportVisibility(Request $request): JsonResponse
+    {
+        $wedding = $this->wedding($request);
+
+        $data = $request->validate([
+            'visible_ids' => 'present|array',
+            'visible_ids.*' => 'integer|exists:transport_groups,id',
+        ]);
+
+        $wedding->transportGroups()->update(['visible_to_guests' => false]);
+        if (! empty($data['visible_ids'])) {
+            $wedding->transportGroups()->whereIn('id', $data['visible_ids'])->update(['visible_to_guests' => true]);
+        }
+
+        return response()->json(['data' => $wedding->transportGroups()->with('assignments.guest')->get()]);
     }
 
     public function destroyTransportGroup(Request $request, TransportGroup $transportGroup): JsonResponse

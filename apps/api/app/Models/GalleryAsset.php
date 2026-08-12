@@ -12,13 +12,14 @@ class GalleryAsset extends Model
         'wedding_id', 'uploaded_by_user_id', 'uploaded_by_guest_id', 'uploaded_by_name',
         'type', 'source', 'url', 'thumbnail_url', 'original_filename',
         'file_size_bytes', 'album', 'board_name', 'category', 'journey_stage', 'caption', 'is_featured', 'is_saved', 'approved',
-        'pinterest_source_url',
+        'pinterest_source_url', 'visible_to_guests',
     ];
 
     protected $casts = [
         'is_featured' => 'boolean',
         'is_saved' => 'boolean',
         'approved' => 'boolean',
+        'visible_to_guests' => 'boolean',
         'file_size_bytes' => 'integer',
     ];
 

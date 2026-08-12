@@ -145,14 +145,23 @@ class WeatherController extends Controller
     private function candidateLocationLabels($wedding): array
     {
         $settings = $wedding->settings ?? [];
-        $cityCountry = $this->joinLocationParts([
+        // Pick the single most authoritative city/country instead of
+        // concatenating every source together — blending a stale onboarding
+        // answer in alongside the couple's actual saved city (e.g. an old
+        // typo'd "King6" next to the real "Kingston") corrupts every
+        // candidate string and makes geocoding fail even when good data
+        // exists on the wedding record.
+        $city = $this->firstNonEmpty([
             $wedding->city,
-            $wedding->country,
             $settings['city'] ?? null,
-            $settings['country'] ?? null,
             $this->latestOnboardingValue($wedding, 'city'),
+        ]);
+        $country = $this->firstNonEmpty([
+            $wedding->country,
+            $settings['country'] ?? null,
             $this->latestOnboardingValue($wedding, 'country'),
         ]);
+        $cityCountry = $this->joinLocationParts([$city, $country]);
         $labels = [];
 
         $directParts = [
@@ -205,6 +214,20 @@ class WeatherController extends Controller
             });
 
         return array_values(array_unique($labels));
+    }
+
+    private function firstNonEmpty(array $values): ?string
+    {
+        foreach ($values as $value) {
+            if (! is_scalar($value)) {
+                continue;
+            }
+            $value = trim((string) $value);
+            if ($value !== '') {
+                return $value;
+            }
+        }
+        return null;
     }
 
     private function joinLocationParts(array $parts): string

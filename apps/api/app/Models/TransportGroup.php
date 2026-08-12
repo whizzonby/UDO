@@ -12,11 +12,12 @@ class TransportGroup extends Model
     protected $fillable = [
         'wedding_id', 'name', 'type', 'company_name', 'pickup_location', 'dropoff_location',
         'departure_time', 'capacity', 'assigned_count',
-        'driver_name', 'driver_phone', 'vehicle_registration', 'notes',
+        'driver_name', 'driver_phone', 'vehicle_registration', 'notes', 'visible_to_guests',
     ];
 
     protected $casts = [
         'departure_time' => 'datetime',
+        'visible_to_guests' => 'boolean',
     ];
 
     public function wedding(): BelongsTo { return $this->belongsTo(Wedding::class); }

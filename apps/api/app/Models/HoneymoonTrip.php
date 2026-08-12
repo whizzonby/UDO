@@ -10,7 +10,7 @@ class HoneymoonTrip extends Model
 {
     protected $fillable = [
         'wedding_id', 'destination', 'cover_photo_path', 'departure_date', 'return_date',
-        'total_budget', 'status', 'notes', 'checklist',
+        'total_budget', 'status', 'notes', 'checklist', 'dress_code', 'packing_notes',
     ];
 
     protected $casts = [

@@ -121,11 +121,36 @@ class RegistryController extends Controller
             'store_url'          => 'nullable|url',
             'store_name'         => 'nullable|string|max:255',
             'sort_order'         => 'nullable|integer',
+            'is_visible'         => 'boolean',
+            'is_priority'        => 'boolean',
         ]);
 
         $registryItem->update($data);
 
         return response()->json(['data' => $registryItem->fresh()]);
+    }
+
+    /**
+     * Bulk visibility toggle used by the "Registry" guest-link picker —
+     * mirrors updateTransportVisibility()/updateAccommodationVisibility()
+     * in LogisticsController.
+     */
+    public function updateVisibility(Request $request): JsonResponse
+    {
+        $wedding = $this->wedding($request);
+        $this->ensureCanManageRegistry($request);
+
+        $data = $request->validate([
+            'visible_ids' => 'present|array',
+            'visible_ids.*' => 'integer|exists:registry_items,id',
+        ]);
+
+        $wedding->registryItems()->update(['is_visible' => false]);
+        if (! empty($data['visible_ids'])) {
+            $wedding->registryItems()->whereIn('id', $data['visible_ids'])->update(['is_visible' => true]);
+        }
+
+        return response()->json(['data' => $wedding->registryItems()->orderBy('sort_order')->get()]);
     }
 
     public function destroy(Request $request, RegistryItem $registryItem): JsonResponse

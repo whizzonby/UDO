@@ -16,6 +16,7 @@ class GuestExperienceConfig extends Model
         'cover_image_url', 'theme_color',
         'rsvp_enabled', 'meal_selection_enabled', 'plus_one_enabled',
         'auto_rsvp_reminder_enabled', 'auto_rsvp_reminder_days', 'auto_thank_you_enabled',
+        'show_transport_pickup_times', 'show_accommodation_pricing', 'show_registry_pricing',
     ];
 
     protected $casts = [
@@ -27,6 +28,9 @@ class GuestExperienceConfig extends Model
         'allow_photo_uploads' => 'boolean', 'allow_messages' => 'boolean',
         'rsvp_enabled' => 'boolean', 'meal_selection_enabled' => 'boolean',
         'plus_one_enabled' => 'boolean',
+        'show_transport_pickup_times' => 'boolean',
+        'show_accommodation_pricing' => 'boolean',
+        'show_registry_pricing' => 'boolean',
         'auto_rsvp_reminder_enabled' => 'boolean', 'auto_thank_you_enabled' => 'boolean',
         'layout_order' => 'array',
         'access_rules' => 'array',

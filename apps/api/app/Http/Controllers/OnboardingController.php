@@ -39,7 +39,6 @@ class OnboardingController extends Controller
             'city'                     => 'nullable|string',
             'venue_status'             => 'nullable|string',
             'guest_travel'             => 'nullable|string',
-            'travel_support'           => 'nullable|array',
 
             // Guest portal
             'guest_experience'         => 'nullable|array',

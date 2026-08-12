@@ -186,6 +186,7 @@ class GalleryController extends Controller
             'approved' => 'nullable|boolean',
             'is_featured' => 'nullable|boolean',
             'is_saved' => 'nullable|boolean',
+            'visible_to_guests' => 'nullable|boolean',
         ]);
 
         if (array_key_exists('title', $data)) {
@@ -196,6 +197,36 @@ class GalleryController extends Controller
         $galleryAsset->update($data);
 
         return response()->json(['data' => $this->assetPayload($galleryAsset->fresh())]);
+    }
+
+    /**
+     * Bulk visibility toggle used by the "Gallery" guest-link picker —
+     * mirrors updateTransportVisibility()/updateAccommodationVisibility()
+     * in LogisticsController. Kept separate from approve()/reject() so
+     * curating the guest link never changes a photo's moderation status.
+     */
+    public function updateVisibility(Request $request): JsonResponse
+    {
+        $wedding = $this->wedding($request);
+        $this->ensureCanManageGallery($request);
+
+        $data = $request->validate([
+            'visible_ids' => 'present|array',
+            'visible_ids.*' => 'integer|exists:gallery_assets,id',
+        ]);
+
+        $wedding->galleryAssets()->update(['visible_to_guests' => false]);
+        if (! empty($data['visible_ids'])) {
+            $wedding->galleryAssets()->whereIn('id', $data['visible_ids'])->update(['visible_to_guests' => true]);
+        }
+
+        $assets = $wedding->galleryAssets()
+            ->with('uploadedByGuest:id,first_name,last_name,wedding_party_role,guest_group,vip_flag')
+            ->orderByDesc('created_at')
+            ->get()
+            ->map(fn (GalleryAsset $asset) => $this->assetPayload($asset));
+
+        return response()->json(['data' => $assets]);
     }
 
     public function approve(Request $request, GalleryAsset $galleryAsset): JsonResponse

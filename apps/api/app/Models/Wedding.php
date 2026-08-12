@@ -11,7 +11,7 @@ use Illuminate\Support\Str;
 class Wedding extends Model
 {
     protected $fillable = [
-        'slug', 'title', 'couple_name_primary', 'couple_name_secondary',
+        'slug', 'invite_code', 'title', 'couple_name_primary', 'couple_name_secondary',
         'event_date', 'timezone', 'city', 'country', 'primary_venue_name',
         'primary_venue_address', 'venue_place_id', 'cover_photo_path', 'couple_photo_path', 'hashtag', 'gallery_upload_token', 'venue_lat', 'venue_lng', 'rsvp_deadline', 'status', 'owner_user_id', 'settings', 'vision_style',
         'pinterest_access_token', 'pinterest_refresh_token', 'pinterest_token_expires_at', 'pinterest_username',
@@ -34,6 +34,12 @@ class Wedding extends Model
         static::creating(function (Wedding $wedding) {
             if (empty($wedding->slug)) {
                 $wedding->slug = Str::slug($wedding->couple_name_primary . '-' . now()->year) . '-' . Str::random(6);
+            }
+            if (empty($wedding->invite_code)) {
+                do {
+                    $code = strtoupper(Str::random(6));
+                } while (static::where('invite_code', $code)->exists());
+                $wedding->invite_code = $code;
             }
         });
     }

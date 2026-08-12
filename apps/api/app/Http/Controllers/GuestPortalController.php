@@ -51,6 +51,86 @@ class GuestPortalController extends Controller
         ]);
     }
 
+    /**
+     * Public summary shown before a guest identifies themselves on the
+     * shared-invite-code wizard (step 1) — just enough to greet them by
+     * couple name/date without exposing anything guest-specific.
+     */
+    public function inviteSummary(string $code): JsonResponse
+    {
+        $wedding = Wedding::where('invite_code', strtoupper($code))->firstOrFail();
+
+        return response()->json([
+            'wedding' => $this->weddingPayload($wedding),
+        ]);
+    }
+
+    /**
+     * Step 1 of the shared-invite-code wizard: a guest types their name
+     * (as it appears on the couple's guest list) to claim their spot and
+     * receive a personal guest token, which the rest of the wizard (and
+     * the existing /g/{token} guest portal) uses from then on.
+     */
+    public function identify(Request $request, string $code): JsonResponse
+    {
+        $wedding = Wedding::where('invite_code', strtoupper($code))->firstOrFail();
+
+        $data = $request->validate([
+            'full_name' => 'required|string|max:255',
+            'email' => 'nullable|email|max:255',
+        ]);
+
+        $normalized = Str::lower(trim(preg_replace('/\s+/', ' ', $data['full_name'])));
+
+        $matches = $wedding->guests()
+            ->get(['id', 'first_name', 'last_name', 'email'])
+            ->filter(fn ($guest) => Str::lower(trim($guest->first_name . ' ' . $guest->last_name)) === $normalized);
+
+        if ($matches->count() > 1 && ! empty($data['email'])) {
+            $byEmail = $matches->filter(fn ($guest) => $guest->email && Str::lower($guest->email) === Str::lower($data['email']));
+            if ($byEmail->isNotEmpty()) {
+                $matches = $byEmail;
+            }
+        }
+
+        if ($matches->isEmpty()) {
+            return response()->json([
+                'message' => "We couldn't find your name on the guest list. Please check the spelling or contact the couple.",
+            ], 404);
+        }
+
+        if ($matches->count() > 1) {
+            return response()->json([
+                'message' => 'We found more than one guest with that name. Please also enter the email address the couple has on file for you.',
+                'ambiguous' => true,
+            ], 409);
+        }
+
+        $guest = Guest::findOrFail($matches->first()->id);
+
+        if (! empty($data['email']) && ! $guest->email) {
+            $guest->update(['email' => $data['email']]);
+        }
+
+        $guestToken = $guest->token;
+        if (! $guestToken || ! $guestToken->isValid()) {
+            $guestToken = GuestToken::create([
+                'wedding_id' => $guest->wedding_id,
+                'guest_id' => $guest->id,
+                'view_type' => $guest->guest_view_type,
+            ]);
+        }
+
+        return response()->json([
+            'token' => $guestToken->token,
+            'guest' => [
+                'first_name' => $guest->first_name,
+                'last_name' => $guest->last_name,
+                'email' => $guest->email,
+            ],
+        ]);
+    }
+
     public function show(string $token): JsonResponse
     {
         $guestToken = GuestToken::where('token', $token)->with(['guest', 'wedding.experienceConfig'])->firstOrFail();
@@ -69,16 +149,24 @@ class GuestPortalController extends Controller
                 'id'               => $guest->id,
                 'first_name'       => $guest->first_name,
                 'last_name'        => $guest->last_name,
+                'email'            => $guest->email,
+                'phone'            => $guest->phone,
                 'attending_status' => $guest->attending_status,
                 'plus_one_allowed' => $guest->plus_one_allowed,
                 'plus_one_count'   => $guest->plus_one_count,
+                'plus_one_name'    => $guest->plus_one_name,
+                'plus_one_email'   => $guest->plus_one_email,
                 'meal_preference'  => $guest->meal_preference,
+                'dietary_note'     => $guest->dietary_note,
+                'song_request'     => $guest->song_request,
                 'travel_required'  => $guest->travel_required,
+                'wants_accommodation' => $guest->wants_accommodation,
                 'arrival_date'     => $guest->arrival_date?->toDateString(),
                 'arrival_time'     => $guest->arrival_time,
                 'departure_date'   => $guest->departure_date?->toDateString(),
                 'departure_time'   => $guest->departure_time,
                 'arrival_airport'  => $guest->arrival_airport,
+                'notes'            => $guest->notes,
                 'communication_preferences' => [
                     'email_opt_out' => $guest->email_opt_out,
                     'sms_opt_out' => $guest->sms_opt_out,
@@ -172,17 +260,41 @@ class GuestPortalController extends Controller
             'email_opt_out' => 'nullable|boolean',
             'sms_opt_out' => 'nullable|boolean',
             'whatsapp_opt_out' => 'nullable|boolean',
+            'phone' => 'nullable|string|max:32',
+            'plus_one_name' => 'nullable|string|max:255',
+            'plus_one_email' => 'nullable|email|max:255',
+            'song_request' => 'nullable|string|max:255',
+            'wants_accommodation' => 'nullable|boolean',
+            'notes' => 'nullable|string|max:2000',
+            'arrival_date' => 'nullable|date',
+            'arrival_time' => 'nullable|string|max:16',
+            'arrival_airport' => 'nullable|string|max:255',
         ]);
+
+        $touchesCommunicationPrefs = collect($data)->keys()
+            ->intersect(['email_opt_out', 'sms_opt_out', 'whatsapp_opt_out'])
+            ->isNotEmpty();
 
         $guest = $guestToken->guest;
         $guest->update([
             ...$data,
-            'communication_preferences_updated_at' => now(),
+            ...($touchesCommunicationPrefs ? ['communication_preferences_updated_at' => now()] : []),
         ]);
         $guest = $guest->fresh();
 
         return response()->json([
-            'message' => 'Communication preferences updated.',
+            'message' => 'Preferences updated.',
+            'guest' => [
+                'phone' => $guest->phone,
+                'plus_one_name' => $guest->plus_one_name,
+                'plus_one_email' => $guest->plus_one_email,
+                'song_request' => $guest->song_request,
+                'wants_accommodation' => $guest->wants_accommodation,
+                'notes' => $guest->notes,
+                'arrival_date' => $guest->arrival_date?->toDateString(),
+                'arrival_time' => $guest->arrival_time,
+                'arrival_airport' => $guest->arrival_airport,
+            ],
             'communication_preferences' => [
                 'email_opt_out' => $guest->email_opt_out,
                 'sms_opt_out' => $guest->sms_opt_out,
@@ -542,15 +654,18 @@ class GuestPortalController extends Controller
                 : [],
             'accommodation' => $config->show_accommodation
                 ? $wedding->accommodationOptions()
+                    ->where('visible_to_guests', true)
                     ->orderBy('distance_from_venue_km')
                     ->get(['id', 'name', 'type', 'address', 'city', 'country', 'price_per_night', 'currency', 'booking_code', 'website', 'distance_from_venue_km', 'check_in_date', 'check_out_date', 'notes'])
                     ->map(fn ($option) => [
                         ...$option->toArray(),
+                        'price_per_night' => $config->show_accommodation_pricing ? $option->price_per_night : null,
                         'assigned_to_guest' => $guest ? (int) $guest->hotel_assignment_id === (int) $option->id : false,
                     ])
                 : [],
             'transport' => $config->show_transport
                 ? $wedding->transportGroups()
+                    ->where('visible_to_guests', true)
                     ->with('assignments.guest:id,first_name,last_name')
                     ->when($guest, fn ($query) => $query->where(function ($transportQuery) use ($guest) {
                         $transportQuery
@@ -561,6 +676,7 @@ class GuestPortalController extends Controller
                     ->get(['id', 'name', 'type', 'pickup_location', 'dropoff_location', 'departure_time', 'driver_name', 'driver_phone', 'notes'])
                     ->map(fn ($group) => [
                         ...$group->toArray(),
+                        'departure_time' => $config->show_transport_pickup_times ? $group->departure_time?->toISOString() : null,
                         'passengers' => $group->assignments
                             ->map(fn ($assignment) => $assignment->guest?->full_name)
                             ->filter()
@@ -575,10 +691,17 @@ class GuestPortalController extends Controller
                     ->where('is_visible', true)
                     ->orderBy('sort_order')
                     ->get(['id', 'type', 'name', 'description', 'image_url', 'store_name', 'store_url', 'price', 'currency', 'fund_goal', 'fund_raised', 'is_priority'])
+                    ->map(fn ($item) => [
+                        ...$item->toArray(),
+                        'price' => $config->show_registry_pricing ? $item->price : null,
+                        'fund_goal' => $config->show_registry_pricing ? $item->fund_goal : null,
+                        'fund_raised' => $config->show_registry_pricing ? $item->fund_raised : null,
+                    ])
                 : [],
             'gallery' => $config->show_gallery
                 ? $wedding->galleryAssets()
                     ->where('approved', true)
+                    ->where('visible_to_guests', true)
                     ->orderByDesc('is_featured')
                     ->orderByDesc('created_at')
                     ->limit(12)

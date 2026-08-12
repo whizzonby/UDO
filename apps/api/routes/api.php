@@ -112,6 +112,13 @@ Route::prefix('w')->group(function () {
     Route::get('{slug}', [GuestPortalController::class, 'wedding'])->middleware('throttle:120,1');
 });
 
+// Shared/generic invite-code wizard: a guest identifies themselves against
+// the couple's pre-loaded guest list to claim a personal /g/{token}.
+Route::prefix('invite')->group(function () {
+    Route::get('{code}', [GuestPortalController::class, 'inviteSummary'])->middleware('throttle:120,1');
+    Route::post('{code}/identify', [GuestPortalController::class, 'identify'])->middleware('throttle:10,1');
+});
+
 // Wedding-wide QR upload link — not tied to any one guest's invite token.
 Route::prefix('upload')->group(function () {
     Route::get('{token}', [GalleryUploadController::class, 'show'])->middleware('throttle:120,1');
@@ -290,6 +297,7 @@ Route::middleware(['auth:sanctum', 'idempotency'])->group(function () {
     Route::get('live', [LiveController::class, 'index']);
     Route::post('live', [LiveController::class, 'store']);
     Route::patch('live/{liveUpdate}', [LiveController::class, 'update']);
+    Route::patch('live-visibility', [LiveController::class, 'updateVisibility']);
     Route::post('live/{liveUpdate}/resolve', [LiveController::class, 'resolve']);
     Route::delete('live/{liveUpdate}', [LiveController::class, 'destroy']);
 
@@ -299,6 +307,7 @@ Route::middleware(['auth:sanctum', 'idempotency'])->group(function () {
 
     // Gallery
     Route::get('gallery/summary', [GalleryController::class, 'summary']);
+    Route::patch('gallery-visibility', [GalleryController::class, 'updateVisibility']);
     Route::get('pinterest/status', [PinterestController::class, 'status']);
     Route::get('pinterest/connect', [PinterestController::class, 'connect']);
     Route::get('pinterest/boards', [PinterestController::class, 'boards']);
@@ -319,6 +328,7 @@ Route::middleware(['auth:sanctum', 'idempotency'])->group(function () {
 
     // Registry
     Route::get('registry/summary', [RegistryController::class, 'summary']);
+    Route::patch('registry-visibility', [RegistryController::class, 'updateVisibility']);
     Route::get('registry/thank-yous', [RegistryController::class, 'thankYous']);
     Route::apiResource('registry', RegistryController::class)->parameters(['registry' => 'registryItem']);
     Route::get('registry/{registryItem}/contributions', [RegistryController::class, 'contributions']);
@@ -353,12 +363,14 @@ Route::middleware(['auth:sanctum', 'idempotency'])->group(function () {
     Route::get('logistics/accommodation', [LogisticsController::class, 'accommodations']);
     Route::post('logistics/accommodation', [LogisticsController::class, 'storeAccommodation']);
     Route::patch('logistics/accommodation/{accommodationOption}', [LogisticsController::class, 'updateAccommodation']);
+    Route::patch('logistics/accommodation-visibility', [LogisticsController::class, 'updateAccommodationVisibility']);
     Route::delete('logistics/accommodation/{accommodationOption}', [LogisticsController::class, 'destroyAccommodation']);
     Route::post('logistics/accommodation/{accommodationOption}/assign', [LogisticsController::class, 'assignAccommodation']);
     Route::delete('logistics/accommodation/{accommodationOption}/guests/{guestId}', [LogisticsController::class, 'removeAccommodation']);
     Route::get('logistics/transport', [LogisticsController::class, 'transportGroups']);
     Route::post('logistics/transport', [LogisticsController::class, 'storeTransportGroup']);
     Route::patch('logistics/transport/{transportGroup}', [LogisticsController::class, 'updateTransportGroup']);
+    Route::patch('logistics/transport-visibility', [LogisticsController::class, 'updateTransportVisibility']);
     Route::delete('logistics/transport/{transportGroup}', [LogisticsController::class, 'destroyTransportGroup']);
     Route::post('logistics/transport/{transportGroup}/assign', [LogisticsController::class, 'assignTransport']);
     Route::delete('logistics/transport/{transportGroup}/guests/{guestId}', [LogisticsController::class, 'removeTransport']);

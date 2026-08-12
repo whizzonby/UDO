@@ -304,14 +304,21 @@ class BudgetController extends Controller
 
     private function summaryPayload($wedding, $items): array
     {
+        // Honeymoon spend gets its own dedicated budget on the Honeymoon
+        // tab (HoneymoonTrip::total_budget) — exclude it from the core
+        // wedding budget's totals so it doesn't silently inflate numbers
+        // most couples track separately from the honeymoon trip fund.
+        $coreItems = $items->reject(fn (BudgetItem $item) => $item->category === 'Honeymoon');
+
         $totalBudget = $wedding->settings['total_budget'] ?? 0;
-        $totalEstimated = $items->sum('estimated_amount');
-        $totalActual = $items->sum('actual_amount');
-        $totalPaid = $items->sum('paid_amount');
-        $schedules = $wedding->budgetPaymentSchedules()->with(['budgetItem', 'vendor'])->get();
+        $totalEstimated = $coreItems->sum('estimated_amount');
+        $totalActual = $coreItems->sum('actual_amount');
+        $totalPaid = $coreItems->sum('paid_amount');
+        $schedules = $wedding->budgetPaymentSchedules()->with(['budgetItem', 'vendor'])->get()
+            ->reject(fn (BudgetPaymentSchedule $schedule) => optional($schedule->budgetItem)->category === 'Honeymoon');
         $openSchedules = $schedules->filter(fn (BudgetPaymentSchedule $schedule) => $schedule->status !== 'paid');
 
-        $categoryTotals = $items
+        $categoryTotals = $coreItems
             ->groupBy(fn (BudgetItem $item) => $item->category ?: 'Uncategorized')
             ->map(fn ($categoryItems) => $categoryItems->sum('actual_amount'));
         $largestCategoryName = $categoryTotals->isEmpty() ? null : $categoryTotals->sortDesc()->keys()->first();
@@ -335,7 +342,7 @@ class BudgetController extends Controller
                 'amount' => $largestCategoryAmount,
                 'percentage' => $totalActual > 0 ? (int) round(($largestCategoryAmount / $totalActual) * 100) : 0,
             ] : null,
-            'categories' => $items->groupBy(fn (BudgetItem $item) => $item->category ?: 'Uncategorized')->map(fn ($categoryItems, $category) => [
+            'categories' => $coreItems->groupBy(fn (BudgetItem $item) => $item->category ?: 'Uncategorized')->map(fn ($categoryItems, $category) => [
                 'category' => $category,
                 'estimated' => (float) $categoryItems->sum('estimated_amount'),
                 'actual' => (float) $categoryItems->sum('actual_amount'),

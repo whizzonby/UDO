@@ -20,6 +20,7 @@ import {
 } from 'lucide-react';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000/api';
+const SUPPORT_EMAIL = 'support@udoweddings.com';
 
 type Wedding = {
   title: string | null;
@@ -191,7 +192,7 @@ export default function WeddingPortalLanding({ slug }: { slug: string }) {
         </section>
       )}
 
-      <section className={`mx-auto -mt-16 grid max-w-7xl grid-cols-1 gap-6 px-6 ${showRail ? 'xl:grid-cols-[1fr_320px]' : ''}`}>
+      <section className={`mx-auto mt-6 grid max-w-7xl grid-cols-1 gap-6 px-6 md:-mt-16 ${showRail ? 'xl:grid-cols-[1fr_320px]' : ''}`}>
         {portalTiles.length > 0 && (
           <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-4">
             {portalTiles}
@@ -214,10 +215,14 @@ export default function WeddingPortalLanding({ slug }: { slug: string }) {
         </Panel>
         <Panel id="contact" title="Contact Us" image="/guest-portal/rose.jpeg">
           <p className="max-w-sm text-sm leading-6 text-[#6f6768]">Need help or have a question? We are here for you.</p>
-          <a href={`mailto:support@udoweddings.com?subject=${encodeURIComponent(`${couple} wedding question`)}`} className="mt-8 inline-flex items-center gap-2 rounded-lg border border-[#a76b80] px-8 py-3 text-sm font-semibold text-[#8c5367]">
+          <a href={`mailto:${SUPPORT_EMAIL}?subject=${encodeURIComponent(`${couple} wedding question`)}`} className="mt-8 inline-flex items-center gap-2 rounded-lg border border-[#a76b80] px-8 py-3 text-sm font-semibold text-[#8c5367]">
             <MessageCircle size={17} />
             Message Us
           </a>
+          {/* Some mobile browsers/webviews have no mail app registered and
+              silently do nothing when a mailto: link is tapped — show the
+              address as plain text too so there's always a working fallback. */}
+          <p className="mt-3 text-xs text-[#6f6768]">Button not opening your email app? Reach us directly at <span className="font-medium text-[#8c5367]">{SUPPORT_EMAIL}</span>.</p>
         </Panel>
       </section>
 
@@ -227,10 +232,10 @@ export default function WeddingPortalLanding({ slug }: { slug: string }) {
             <div className="flex h-16 w-16 items-center justify-center rounded-full bg-gradient-to-br from-[#d7a7a3] to-[#9b526d] text-white"><Mail size={30} /></div>
             <div>
               <h2 className="font-serif text-2xl">Haven't RSVP'd yet?</h2>
-              <p className="mt-1 text-sm text-[#6f6768]">Use the personalized invitation link sent to you so your RSVP, meal, and party details attach to your name.</p>
+              <p className="mt-1 text-sm text-[#6f6768]">Use the personalized invitation link sent to you so your RSVP, meal, and party details attach to your name. Can't find it? Message us below and we'll resend it.</p>
             </div>
           </div>
-          <a href="#contact" className="rounded-lg bg-gradient-to-r from-[#8c5367] to-[#a76b80] px-12 py-4 text-center text-sm font-semibold text-white">RSVP Now</a>
+          <a href={`mailto:${SUPPORT_EMAIL}?subject=${encodeURIComponent(`RSVP help - ${couple} wedding`)}`} className="rounded-lg bg-gradient-to-r from-[#8c5367] to-[#a76b80] px-12 py-4 text-center text-sm font-semibold text-white">Request My Invite Link</a>
         </section>
       )}
 

@@ -42,6 +42,8 @@ class HoneymoonController extends Controller
             'status' => 'nullable|string|max:100',
             'notes' => 'nullable|string',
             'checklist' => 'nullable|array',
+            'dress_code' => 'nullable|string|max:255',
+            'packing_notes' => 'nullable|string',
         ]);
 
         $trip = $wedding->honeymoonTrip()->firstOrCreate([]);

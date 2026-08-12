@@ -224,6 +224,32 @@ class LiveController extends Controller
         return response()->json(['data' => $liveUpdate->fresh()]);
     }
 
+    /**
+     * Bulk visibility toggle used by the "Live Updates" guest-link picker —
+     * mirrors updateTransportVisibility()/updateAccommodationVisibility()
+     * in LogisticsController. Only touches visible_to_guests, so it never
+     * disturbs an update's audience/status/pinned settings.
+     */
+    public function updateVisibility(Request $request): JsonResponse
+    {
+        $wedding = $this->wedding($request);
+        $this->ensureCanManageLive($request);
+
+        $data = $request->validate([
+            'visible_ids' => 'present|array',
+            'visible_ids.*' => 'integer|exists:live_updates,id',
+        ]);
+
+        $wedding->liveUpdates()->update(['visible_to_guests' => false]);
+        if (! empty($data['visible_ids'])) {
+            $wedding->liveUpdates()->whereIn('id', $data['visible_ids'])->update(['visible_to_guests' => true]);
+        }
+
+        return response()->json([
+            'data' => $wedding->liveUpdates()->orderByDesc('pinned')->orderByDesc('created_at')->get(),
+        ]);
+    }
+
     public function resolve(Request $request, LiveUpdate $liveUpdate): JsonResponse
     {
         abort_unless($liveUpdate->wedding_id === $this->wedding($request)->id, 403);

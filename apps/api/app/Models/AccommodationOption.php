@@ -14,7 +14,7 @@ class AccommodationOption extends Model
         'price_per_night', 'currency', 'total_rooms_blocked', 'rooms_assigned',
         'booking_code', 'contact_name', 'contact_phone', 'contact_email',
         'website', 'distance_from_venue_km', 'check_in_date', 'check_out_date', 'notes',
-        'room_labels',
+        'room_labels', 'room_block_start', 'room_block_end', 'visible_to_guests',
     ];
 
     protected $casts = [
@@ -23,6 +23,7 @@ class AccommodationOption extends Model
         'check_in_date' => 'date',
         'check_out_date' => 'date',
         'room_labels' => 'array',
+        'visible_to_guests' => 'boolean',
     ];
 
     public function wedding(): BelongsTo { return $this->belongsTo(Wedding::class); }
