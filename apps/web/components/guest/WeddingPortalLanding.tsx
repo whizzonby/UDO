@@ -20,7 +20,7 @@ import {
 } from 'lucide-react';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000/api';
-const SUPPORT_EMAIL = 'support@udoweddings.com';
+const SUPPORT_EMAIL = 'hello@udowedding.com';
 
 type Wedding = {
   title: string | null;

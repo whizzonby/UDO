@@ -31,7 +31,7 @@ return new class extends Migration
                     You can export or delete your account data from Settings at any time.
 
                     Contact
-                    Questions about this policy can be sent to hello@whizzonby.com.
+                    Questions about this policy can be sent to hello@udowedding.com.
                     TEXT,
             ],
             [
@@ -58,7 +58,7 @@ return new class extends Migration
                     We may update these terms as the product evolves; material changes will be announced in-app.
 
                     Contact
-                    Questions about these terms can be sent to hello@whizzonby.com.
+                    Questions about these terms can be sent to hello@udowedding.com.
                     TEXT,
             ],
             [
@@ -73,7 +73,7 @@ return new class extends Migration
                     Registered address: [add registered address]
                     Company/registration number: [add number if applicable]
 
-                    Support: hello@whizzonby.com
+                    Support: hello@udowedding.com
                     TEXT,
             ],
         ]);

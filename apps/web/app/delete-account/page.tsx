@@ -4,7 +4,7 @@ export const metadata = {
   title: 'Delete Your Account | Udo Weddings',
 };
 
-const SUPPORT_EMAIL = 'support@udoweddings.com';
+const SUPPORT_EMAIL = 'hello@udowedding.com';
 
 export default function DeleteAccountPage() {
   return (

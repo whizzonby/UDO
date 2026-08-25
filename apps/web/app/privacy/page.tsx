@@ -4,7 +4,7 @@ export const metadata = {
   title: 'Privacy Policy | Udo Weddings',
 };
 
-const SUPPORT_EMAIL = 'support@udoweddings.com';
+const SUPPORT_EMAIL = 'hello@udowedding.com';
 const LAST_UPDATED = 'August 12, 2026';
 
 export default function PrivacyPolicyPage() {

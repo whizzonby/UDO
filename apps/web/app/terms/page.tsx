@@ -55,7 +55,7 @@ export default function TermsOfServicePage() {
             <h2 className="font-serif text-xl text-[#2d2729]">Contact</h2>
             <p className="mt-2">
               Questions about these terms can be sent to{' '}
-              <a href="mailto:hello@whizzonby.com" className="text-[#8c5367] underline">hello@whizzonby.com</a>.
+              <a href="mailto:hello@udowedding.com" className="text-[#8c5367] underline">hello@udowedding.com</a>.
             </p>
           </section>
         </div>
