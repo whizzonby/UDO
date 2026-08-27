@@ -18,7 +18,7 @@ import { Footer } from './Footer';
 
 export default function LandingPage() {
   return (
-    <div className="min-h-screen" style={{ backgroundColor: '#FBF2EE' }}>
+    <div className="min-h-screen">
       <Header />
       <Hero />
       <WhyUdo />

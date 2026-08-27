@@ -1,64 +1,38 @@
-import { Button } from "@/components/ui/button";
-import { PLAY_STORE_URL } from "@/lib/appLinks";
+import { PLAY_STORE_URL } from '@/lib/appLinks';
+import { C, Sparkle } from './shared';
 
 export function FinalCTA() {
   return (
-    <section
-      className="py-20 lg:py-24"
-      style={{ backgroundColor: "#D8909A" }}
-    >
-      <div className="mx-auto max-w-4xl px-6 text-center lg:px-8">
-        <div className="space-y-7">
-          <h2
-            className="text-4xl sm:text-5xl lg:text-6xl"
-            style={{
-              color: "#ffffff",
-              lineHeight: "1.1",
-              fontWeight: "500",
-              fontFamily: "var(--font-heading)"
-            }}
-          >
+    <section className="overflow-hidden px-6 py-20 lg:px-8" style={{ backgroundColor: C.rose }}>
+      <div className="mx-auto max-w-2xl text-center">
+        <div className="relative inline-block">
+          <Sparkle className="absolute -left-7 -top-5 h-6 w-6" color="rgba(255,255,255,0.8)" />
+          <h2 className="text-[34px] leading-[1.1] tracking-tight sm:text-[44px]" style={{ color: C.white, fontWeight: 700 }}>
             Plan your wedding.
             <br />
             Keep your peace.
           </h2>
-
-          <p
-            className="mx-auto max-w-2xl text-[18px] sm:text-xl"
-            style={{
-              color: "rgba(255, 255, 255, 0.95)",
-              lineHeight: "1.6"
-            }}
-          >
-            Everything you need, thoughtfully organized in one place.
-          </p>
-
-          <div className="flex flex-col items-center gap-5">
-            <Button
-              asChild
-              size="lg"
-              className="rounded-full px-10 py-[26px] text-base font-medium tracking-wide shadow-lg transition-all hover:shadow-xl hover:opacity-95"
-              style={{
-                backgroundColor: "#ffffff",
-                color: "#D8909A",
-                letterSpacing: "0.02em"
-              }}
-            >
-              <a href={PLAY_STORE_URL} target="_blank" rel="noopener noreferrer">
-                Get Udo on Google Play
-              </a>
-            </Button>
-
-            <p
-              className="text-sm"
-              style={{
-                color: "rgba(255, 255, 255, 0.85)"
-              }}
-            >
-              Start in minutes. Stay organized all the way through.
-            </p>
-          </div>
         </div>
+
+        <p className="mx-auto mt-5 max-w-md text-[16px] leading-[1.6]" style={{ color: 'rgba(255,255,255,0.94)' }}>
+          Everything you need, thoughtfully organized in one place — free to start.
+        </p>
+
+        <div className="mt-8 flex justify-center">
+          <a
+            href={PLAY_STORE_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center justify-center rounded-full px-9 py-4 text-[16px] font-medium shadow-lg transition-all hover:opacity-95 hover:shadow-xl"
+            style={{ backgroundColor: C.white, color: C.rose, letterSpacing: '0.01em' }}
+          >
+            Get Udo on Google Play
+          </a>
+        </div>
+
+        <p className="mt-4 text-[13px]" style={{ color: 'rgba(255,255,255,0.85)' }}>
+          Free on Android · iOS coming soon
+        </p>
       </div>
     </section>
   );

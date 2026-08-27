@@ -1,68 +1,30 @@
-import { PenLine, Users, Link, Sparkles } from "lucide-react";
+import { PenLine, Users, Link as LinkIcon, Sparkles } from 'lucide-react';
+import { C, Section, Heading, IconChip } from './shared';
 
 const steps = [
-  {
-    icon: PenLine,
-    title: "Create your wedding"
-  },
-  {
-    icon: Users,
-    title: "Add your guests"
-  },
-  {
-    icon: Link,
-    title: "Share your link"
-  },
-  {
-    icon: Sparkles,
-    title: "Everything updates automatically"
-  }
+  { icon: PenLine, title: 'Create your wedding' },
+  { icon: Users, title: 'Add your guests' },
+  { icon: LinkIcon, title: 'Share your link' },
+  { icon: Sparkles, title: 'Everything updates automatically' },
 ];
 
 export function StartSteps() {
   return (
-    <section className="bg-white py-24">
-      <div className="mx-auto max-w-7xl px-6 lg:px-8">
-        <div className="mb-16 text-center">
-          <h2 
-            className="text-4xl sm:text-5xl"
-            style={{ 
-              color: "#1C1C1E",
-              lineHeight: "1.2",
-              fontWeight: "500"
-            }}
-          >
-            Start in Minutes
-          </h2>
-        </div>
+    <Section tone="white" width="wide">
+      <Heading className="text-center">Start in minutes</Heading>
 
-        <div className="grid gap-8 sm:grid-cols-2 lg:grid-cols-4">
-          {steps.map((step, index) => {
-            const Icon = step.icon;
-            return (
-              <div key={index} className="text-center">
-                <div 
-                  className="mx-auto mb-6 flex h-20 w-20 items-center justify-center rounded-full"
-                  style={{ backgroundColor: "#FFF8F5" }}
-                >
-                  <Icon className="h-10 w-10" style={{ color: "#E8A0A8" }} />
-                </div>
-                
-                <p 
-                  className="text-base"
-                  style={{ color: "#8B6F5C", fontWeight: "500" }}
-                >
-                  {step.title}
-                </p>
-
-                {index < steps.length - 1 && (
-                  <div className="mx-auto mt-6 hidden h-0.5 w-16 lg:block" style={{ backgroundColor: "#E8A0A820" }} />
-                )}
-              </div>
-            );
-          })}
-        </div>
+      <div className="mt-11 grid gap-8 sm:grid-cols-2 lg:grid-cols-4">
+        {steps.map(({ icon: Icon, title }) => (
+          <div key={title} className="flex flex-col items-center text-center">
+            <IconChip size="lg">
+              <Icon className="h-6 w-6" style={{ color: C.rose }} />
+            </IconChip>
+            <p className="mt-4 text-[15px]" style={{ color: C.body, fontWeight: 500 }}>
+              {title}
+            </p>
+          </div>
+        ))}
       </div>
-    </section>
+    </Section>
   );
 }
