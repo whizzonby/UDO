@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Wedding;
 use App\Models\Subscription;
+use App\Services\PurchaseVerificationService;
 use App\Services\SubscriptionEntitlementService;
 use App\Services\WeddingAccessService;
 use Illuminate\Http\JsonResponse;
@@ -12,6 +13,27 @@ use Illuminate\Validation\Rule;
 
 class BillingController extends Controller
 {
+    /**
+     * Whether native in-app purchases are wired up on the server, per
+     * platform. The mobile paywall calls this on load so it can show an
+     * honest "payments are being set up" state instead of a confusing
+     * store error while App Store Connect / Play Console configuration is
+     * still in progress.
+     */
+    public function config(PurchaseVerificationService $verifier): JsonResponse
+    {
+        return response()->json([
+            'data' => [
+                'ios_configured' => $verifier->isAppleConfigured(),
+                'android_configured' => $verifier->isGoogleConfigured(),
+                'lifetime_product_id' => [
+                    'ios' => config('services.apple_iap.product_id'),
+                    'android' => config('services.google_play.product_id'),
+                ],
+            ],
+        ]);
+    }
+
     public function entitlements(Request $request): JsonResponse
     {
         $wedding = $request->user()->activeWedding;

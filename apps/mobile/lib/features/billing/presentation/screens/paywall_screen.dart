@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../../core/theme/app_theme.dart';
 import '../../../../shared/widgets/udo_design_system.dart';
@@ -17,6 +18,7 @@ class PaywallScreen extends ConsumerWidget {
     final billing = ref.watch(billingProvider);
     final product = billing.product;
     final price = product?.price ?? 'one payment';
+    final limitMessage = GoRouterState.of(context).extra as String?;
 
     return Scaffold(
       backgroundColor: UdoDesign.bg,
@@ -24,6 +26,20 @@ class PaywallScreen extends ConsumerWidget {
         child: ListView(
           padding: const EdgeInsets.fromLTRB(20, 20, 20, 28),
           children: [
+            if (limitMessage != null) ...[
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: _billingAccent.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text(limitMessage,
+                    style: UdoDesign.sans(
+                        size: 13, weight: FontWeight.w600, color: _billingInk)),
+              ),
+              const SizedBox(height: 16),
+            ],
             Row(
               children: [
                 const _PassMark(),
@@ -35,6 +51,12 @@ class PaywallScreen extends ConsumerWidget {
                           size: 13,
                           weight: FontWeight.w600,
                           color: UdoDesign.muted)),
+                ),
+                IconButton(
+                  onPressed: () =>
+                      context.canPop() ? context.pop() : context.go('/home'),
+                  icon: const Icon(Icons.close, color: UdoDesign.muted),
+                  tooltip: 'Not now',
                 ),
               ],
             ),
@@ -216,30 +238,40 @@ class _StoreStatePanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final ready = billing.storeAvailable && billing.product != null;
+    // Store works on the device but the product / server side isn't live yet.
+    final comingSoon = !ready &&
+        !billing.isLoading &&
+        (billing.serverConfigured == false ||
+            (billing.storeAvailable && billing.product == null));
+
     final title = billing.isLoading
-        ? 'Checking store access'
-        : billing.storeAvailable
-            ? 'Store ready'
-            : 'Store unavailable';
+        ? 'Checking availability'
+        : ready
+            ? 'Ready to purchase'
+            : comingSoon
+                ? 'Payments coming soon'
+                : 'Store unavailable';
     final detail = billing.isLoading
         ? 'Udo is checking the app store before purchase.'
-        : billing.storeAvailable
-            ? 'Lifetime purchase is available on this device.'
+        : ready
+            ? 'Lifetime access is available on this device.'
             : billing.error ??
                 'The store is not available on this device right now.';
     final icon = billing.isLoading
         ? Icons.sync_outlined
-        : billing.storeAvailable
+        : ready
             ? Icons.verified_outlined
-            : Icons.info_outline;
+            : comingSoon
+                ? Icons.schedule_outlined
+                : Icons.info_outline;
+    final accent = ready || comingSoon ? _billingInk : AppTheme.udoCrimson;
 
     return UdoCard(
       padding: const EdgeInsets.all(16),
       color: Colors.white,
       child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Icon(icon,
-            color: billing.storeAvailable ? _billingInk : AppTheme.udoCrimson,
-            size: 20),
+        Icon(icon, color: accent, size: 20),
         const SizedBox(width: 12),
         Expanded(
           child:
@@ -250,9 +282,7 @@ class _StoreStatePanel extends StatelessWidget {
             Text(detail,
                 style: UdoDesign.sans(
                     size: 12,
-                    color: billing.storeAvailable
-                        ? UdoDesign.muted
-                        : AppTheme.udoCrimson,
+                    color: ready ? UdoDesign.muted : accent,
                     height: 1.35)),
           ]),
         ),
@@ -275,9 +305,7 @@ class _PurchaseActions extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final canBuy = billing.storeAvailable &&
-        billing.product != null &&
-        !billing.isPurchasing;
+    final canBuy = billing.canPurchase;
 
     return Column(children: [
       ElevatedButton(

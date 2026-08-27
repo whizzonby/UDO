@@ -176,6 +176,7 @@ Route::middleware(['auth:sanctum', 'idempotency'])->group(function () {
     Route::get('approvals', [ApprovalController::class, 'index']);
     Route::post('approvals/{approvalRequest}/vote', [ApprovalController::class, 'vote']);
     Route::apiResource('saved-filters', SavedFilterController::class)->only(['index', 'store', 'update', 'destroy']);
+    Route::get('billing/config', [BillingController::class, 'config']);
     Route::get('billing/entitlements', [BillingController::class, 'entitlements']);
     Route::get('billing/plans', [BillingController::class, 'plans']);
     Route::post('billing/plan', [BillingController::class, 'changePlan']);

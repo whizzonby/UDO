@@ -13,6 +13,10 @@ class BillingState {
   final bool isLoading;
   final bool isPurchasing;
   final bool storeAvailable;
+
+  /// Whether the API has in-app purchases wired up for this platform.
+  /// `null` until `/billing/config` has been checked.
+  final bool? serverConfigured;
   final ProductDetails? product;
   final String? error;
 
@@ -20,14 +24,19 @@ class BillingState {
     this.isLoading = true,
     this.isPurchasing = false,
     this.storeAvailable = false,
+    this.serverConfigured,
     this.product,
     this.error,
   });
+
+  bool get canPurchase =>
+      storeAvailable && product != null && serverConfigured != false && !isPurchasing;
 
   BillingState copyWith({
     bool? isLoading,
     bool? isPurchasing,
     bool? storeAvailable,
+    bool? serverConfigured,
     ProductDetails? product,
     String? error,
   }) =>
@@ -35,6 +44,7 @@ class BillingState {
         isLoading: isLoading ?? this.isLoading,
         isPurchasing: isPurchasing ?? this.isPurchasing,
         storeAvailable: storeAvailable ?? this.storeAvailable,
+        serverConfigured: serverConfigured ?? this.serverConfigured,
         product: product ?? this.product,
         error: error,
       );
@@ -61,19 +71,48 @@ class BillingNotifier extends StateNotifier<BillingState> {
 
     _subscription = _iap.purchaseStream.listen(_handlePurchaseUpdates, onError: (_) {});
 
+    final serverConfigured = await _fetchServerConfigured();
+
     final available = await _iap.isAvailable();
     if (!available) {
-      state = state.copyWith(isLoading: false, storeAvailable: false);
+      state = state.copyWith(
+        isLoading: false,
+        storeAvailable: false,
+        serverConfigured: serverConfigured,
+      );
       return;
     }
 
     final response = await _iap.queryProductDetails({AppConstants.lifetimeProductId});
+    final product =
+        response.productDetails.isNotEmpty ? response.productDetails.first : null;
+
     state = state.copyWith(
       isLoading: false,
       storeAvailable: true,
-      product: response.productDetails.isNotEmpty ? response.productDetails.first : null,
-      error: response.productDetails.isEmpty ? 'Lifetime access is not set up in the store yet.' : null,
+      serverConfigured: serverConfigured,
+      product: product,
+      error: product != null
+          ? null
+          : serverConfigured == false
+              ? 'Payments are being set up — check back soon.'
+              : 'Lifetime access isn\'t available in the store yet.',
     );
+  }
+
+  /// Best-effort: a failure here must never block the store flow.
+  Future<bool?> _fetchServerConfigured() async {
+    try {
+      final result = await _api.get('/billing/config');
+      final data = result is Map && result['data'] is Map
+          ? Map<String, dynamic>.from(result['data'] as Map)
+          : const {};
+      return Platform.isIOS
+          ? data['ios_configured'] == true
+          : data['android_configured'] == true;
+    } catch (_) {
+      return null;
+    }
   }
 
   Future<void> buyLifetime() async {
@@ -128,7 +167,11 @@ class BillingNotifier extends StateNotifier<BillingState> {
 
       final data = result is Map && result['data'] is Map ? Map<String, dynamic>.from(result['data'] as Map) : {};
       if (data['configured'] != true) {
-        state = state.copyWith(isPurchasing: false, error: "Purchases aren't enabled on the server yet.");
+        state = state.copyWith(
+          isPurchasing: false,
+          serverConfigured: false,
+          error: "Purchases aren't enabled on the server yet.",
+        );
         return;
       }
 
