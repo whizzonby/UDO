@@ -130,7 +130,37 @@ receipts verify without extra config.
 
 ---
 
-## E. Notes / gotchas
+## E. Website rail (Stripe) — separate, do this too
+
+The website's "Get Wedding Pass" button (`/checkout`) is a **different**
+payment path and is unaffected by any Play/Apple setup. It grants the same
+`lifetime` plan via the Stripe webhook. To take real money on the web:
+
+1. **Stripe Dashboard → live mode.**
+2. Developers → API keys → copy the **live** secret key (`sk_live_…`).
+3. Developers → Webhooks → **Add endpoint**:
+   - URL: `https://<api-host>/api/webhooks/stripe`
+   - Event: `checkout.session.completed`
+   - Copy the endpoint's **Signing secret** (`whsec_…`).
+4. No product/price to create — `CheckoutController` sends inline
+   `price_data` at a fixed **$45** (`LIFETIME_PRICE_CENTS = 4500`).
+5. API `.env`:
+   ```
+   FRONTEND_URL=https://udowedding.com
+   STRIPE_SECRET_KEY=sk_live_...
+   STRIPE_PUBLISHABLE_KEY=pk_live_...
+   STRIPE_WEBHOOK_SECRET=whsec_...
+   ```
+   `php artisan config:clear`, restart PHP-FPM + queue workers.
+6. Test: on the site, Pricing → Get Wedding Pass → real Stripe Checkout →
+   pay → redirected to `/checkout/success` → account shows Lifetime in
+   `/admin` → Subscriptions, receipt email sent.
+
+A `sk_test_…` key = test money (use a Stripe test card); `sk_live_…` = real
+charges. The website needs **no rebuild** — this is an API `.env` change +
+redeploy only.
+
+## F. Notes / gotchas
 
 - **Product id is the contract.** `udo_lifetime_access` must be identical in
   `AppConstants.lifetimeProductId`, both stores, and both server env vars.
