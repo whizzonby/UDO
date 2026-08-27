@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { Check } from 'lucide-react';
 import { PLAY_STORE_URL } from '@/lib/appLinks';
-import { C, Section, Heading, Lead, Eyebrow } from './shared';
+import { C, Section } from './shared';
 
 const freeFeatures = [
   'Up to 30 guests',
@@ -46,16 +46,7 @@ function FeatureList({ features, checkColor }: { features: string[]; checkColor:
 export function Pricing() {
   return (
     <Section id="pricing" tone="white" width="wide">
-      <div className="space-y-4 text-center">
-        <Eyebrow>Pricing</Eyebrow>
-        <Heading>Start free. Upgrade when it gets real.</Heading>
-        <Lead className="mx-auto max-w-xl">
-          No subscriptions, ever. Plan for free with a small guest list, then unlock everything
-          with one payment when the wedding gets real.
-        </Lead>
-      </div>
-
-      <div className="mx-auto mt-11 grid max-w-3xl gap-6 md:grid-cols-2">
+      <div className="mx-auto grid max-w-3xl gap-6 md:grid-cols-2">
         {/* Free */}
         <div className="flex flex-col rounded-[28px] p-9" style={{ backgroundColor: C.cream, border: `1.5px solid ${C.line}` }}>
           <p className="text-[13px] uppercase tracking-wide" style={{ color: C.body, fontWeight: 600 }}>

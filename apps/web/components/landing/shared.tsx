@@ -19,6 +19,13 @@ export const C = {
   line: 'rgba(122, 94, 77, 0.16)',
 } as const;
 
+/* Primary navigation — home hero links out to these pages. */
+export const NAV = [
+  { href: '/how-it-works', label: 'How it works' },
+  { href: '/features', label: 'Features' },
+  { href: '/pricing', label: 'Pricing' },
+] as const;
+
 /* ------------------------------------------------------------------ */
 /*  Hand-drawn doodles — the page signature. Used sparingly.           */
 /* ------------------------------------------------------------------ */

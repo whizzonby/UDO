@@ -57,9 +57,9 @@ export function Footer() {
 
           {/* Links */}
           <nav className="flex flex-wrap items-center justify-center gap-x-7 gap-y-2 text-[14px]">
-            <a href="#features" className="transition-opacity hover:opacity-70" style={{ color: C.body }}>Features</a>
-            <a href="#how-it-works" className="transition-opacity hover:opacity-70" style={{ color: C.body }}>How it works</a>
-            <a href="#pricing" className="transition-opacity hover:opacity-70" style={{ color: C.body }}>Pricing</a>
+            <Link href="/how-it-works" className="transition-opacity hover:opacity-70" style={{ color: C.body }}>How it works</Link>
+            <Link href="/features" className="transition-opacity hover:opacity-70" style={{ color: C.body }}>Features</Link>
+            <Link href="/pricing" className="transition-opacity hover:opacity-70" style={{ color: C.body }}>Pricing</Link>
             <Link href="/privacy" className="transition-opacity hover:opacity-70" style={{ color: C.body }}>Privacy</Link>
             <Link href="/terms" className="transition-opacity hover:opacity-70" style={{ color: C.body }}>Terms</Link>
             <Link href="/delete-account" className="transition-opacity hover:opacity-70" style={{ color: C.body }}>Delete account</Link>

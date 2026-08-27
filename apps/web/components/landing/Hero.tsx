@@ -1,11 +1,6 @@
+import Link from 'next/link';
 import { Calendar, Users, Link2 } from 'lucide-react';
-import {
-  C,
-  GooglePlayCallout,
-  IconChip,
-  PlayStoreButton,
-  GhostButton,
-} from './shared';
+import { C, GooglePlayCallout, IconChip, PlayStoreButton, GhostButton } from './shared';
 
 const bullets = [
   { icon: Calendar, label: 'Know what to do next' },
@@ -16,12 +11,15 @@ const bullets = [
 
 export function Hero() {
   return (
-    <section className="overflow-hidden px-6 pb-16 pt-9 sm:pb-20 sm:pt-12 lg:px-8" style={{ backgroundColor: C.cream }}>
-      <div className="mx-auto flex w-full max-w-2xl flex-col">
+    <section
+      className="flex flex-col overflow-hidden px-6 lg:px-8"
+      style={{ backgroundColor: C.cream, minHeight: 'calc(100svh - 68px)' }}
+    >
+      <div className="mx-auto flex w-full max-w-2xl flex-1 flex-col justify-center py-8">
         <GooglePlayCallout className="self-start" />
 
         <h1
-          className="mt-8 text-[40px] leading-[1.04] tracking-tight sm:text-[54px] lg:text-[60px]"
+          className="mt-7 text-[38px] leading-[1.04] tracking-tight sm:text-[52px] lg:text-[58px]"
           style={{ color: C.ink, fontWeight: 700 }}
         >
           Plan your wedding.
@@ -29,15 +27,15 @@ export function Hero() {
           <span style={{ color: C.rose }}>Keep your peace.</span>
         </h1>
 
-        <p className="mt-5 text-[16px] leading-[1.6] sm:text-[17px]" style={{ color: C.bodyMuted }}>
+        <p className="mt-4 text-[16px] leading-[1.6] sm:text-[17px]" style={{ color: C.bodyMuted }}>
           A calm, intelligent wedding planning space for couples and planners.
         </p>
-        <p className="mt-4 text-[16px] leading-[1.7] sm:text-[17px]" style={{ color: C.body }}>
+        <p className="mt-3 text-[16px] leading-[1.65] sm:text-[17px]" style={{ color: C.body }}>
           Udo brings your guests, timeline, seating, budget, reminders, and wedding details
           into one beautifully organized place.
         </p>
 
-        <ul className="mt-8 space-y-3.5">
+        <ul className="mt-6 space-y-3">
           {bullets.map(({ icon: Icon, label }) => (
             <li key={label} className="flex items-center gap-3">
               <IconChip size="sm">
@@ -54,12 +52,18 @@ export function Hero() {
           ))}
         </ul>
 
-        <div className="mt-8 flex flex-col gap-3 sm:flex-row">
+        <div className="mt-7 flex flex-col gap-3 sm:flex-row">
           <PlayStoreButton block />
-          <GhostButton href="#how-it-works" block>
-            See How It Works
+          <GhostButton href="/how-it-works" block>
+            See how it works
           </GhostButton>
         </div>
+      </div>
+
+      <div className="mx-auto flex w-full max-w-2xl items-center justify-center gap-5 pb-5 text-[13px]" style={{ color: C.bodyMuted }}>
+        <Link href="/privacy" className="hover:opacity-70">Privacy</Link>
+        <Link href="/terms" className="hover:opacity-70">Terms</Link>
+        <span>iOS coming soon</span>
       </div>
     </section>
   );
