@@ -1,5 +1,5 @@
-import Link from 'next/link';
 import { Button } from "@/components/ui/button";
+import { PLAY_STORE_URL } from "@/lib/appLinks";
 
 export function FinalCTA() {
   return (
@@ -44,7 +44,9 @@ export function FinalCTA() {
                 letterSpacing: "0.02em"
               }}
             >
-              <Link href="/register">Create Your Wedding</Link>
+              <a href={PLAY_STORE_URL} target="_blank" rel="noopener noreferrer">
+                Get Udo on Google Play
+              </a>
             </Button>
 
             <p

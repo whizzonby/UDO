@@ -1,3 +1,5 @@
+import { PLAY_STORE_URL } from "@/lib/appLinks";
+
 export function Footer() {
   return (
     <footer className="bg-white py-14 lg:py-16">
@@ -88,10 +90,9 @@ export function Footer() {
 
         {/* App store badges */}
         <div className="mt-10 flex flex-col items-center gap-3 sm:flex-row sm:justify-center">
-          <a
-            href="#"
-            aria-label="Download on the App Store"
-            className="flex items-center gap-3 rounded-xl border border-black px-5 py-3 transition-opacity hover:opacity-75"
+          <div
+            aria-label="Download on the App Store — coming soon"
+            className="flex items-center gap-3 rounded-xl border border-black/30 px-5 py-3 opacity-50"
             style={{ minWidth: 160 }}
           >
             {/* Apple logo */}
@@ -99,13 +100,15 @@ export function Footer() {
               <path d="M18.07 13.77c-.03-3.04 2.48-4.51 2.59-4.58-1.41-2.06-3.61-2.35-4.39-2.38-1.87-.19-3.66 1.1-4.61 1.1-.96 0-2.44-1.08-4.01-1.05-2.06.03-3.97 1.2-5.02 3.04-2.15 3.72-.55 9.22 1.54 12.24 1.03 1.48 2.25 3.14 3.85 3.08 1.55-.06 2.13-.99 4.01-.99 1.87 0 2.4.99 4.03.96 1.66-.03 2.72-1.51 3.74-3 1.18-1.72 1.67-3.39 1.7-3.47-.04-.02-3.42-1.31-3.45-5.22l.02.27zM14.96 4.56c.86-1.04 1.44-2.48 1.28-3.92-1.24.05-2.74.83-3.63 1.87-.8.92-1.5 2.4-1.31 3.81 1.38.11 2.79-.7 3.66-1.76z" fill="#000"/>
             </svg>
             <div className="flex flex-col leading-none">
-              <span className="text-[10px] text-black" style={{ fontWeight: 400 }}>Download on the</span>
-              <span className="text-[17px] text-black" style={{ fontWeight: 600, letterSpacing: '-0.3px' }}>App Store</span>
+              <span className="text-[10px] text-black" style={{ fontWeight: 400 }}>iOS app</span>
+              <span className="text-[17px] text-black" style={{ fontWeight: 600, letterSpacing: '-0.3px' }}>Coming soon</span>
             </div>
-          </a>
+          </div>
 
           <a
-            href="#"
+            href={PLAY_STORE_URL}
+            target="_blank"
+            rel="noopener noreferrer"
             aria-label="Get it on Google Play"
             className="flex items-center gap-3 rounded-xl border border-black px-5 py-3 transition-opacity hover:opacity-75"
             style={{ minWidth: 160 }}

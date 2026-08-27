@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { Button } from "@/components/ui/button";
+import { PLAY_STORE_URL } from "@/lib/appLinks";
 
 export function Header() {
   return (
@@ -101,7 +102,7 @@ export function Header() {
                 letterSpacing: "0.02em"
               }}
             >
-              <Link href="/register">Get Started</Link>
+              <a href={PLAY_STORE_URL} target="_blank" rel="noopener noreferrer">Get the App</a>
             </Button>
           </nav>
 
@@ -122,7 +123,7 @@ export function Header() {
                 color: "#ffffff"
               }}
             >
-              <Link href="/register">Get Started</Link>
+              <a href={PLAY_STORE_URL} target="_blank" rel="noopener noreferrer">Get the App</a>
             </Button>
           </div>
         </div>

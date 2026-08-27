@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { Button } from "@/components/ui/button";
 import { Check } from "lucide-react";
+import { PLAY_STORE_URL } from "@/lib/appLinks";
 
 const freeFeatures = [
   "Up to 30 guests",
@@ -75,7 +76,7 @@ export function Pricing() {
               className="mt-6 w-full rounded-full py-6 text-base"
               style={{ borderColor: "#D8909A", color: "#D8909A" }}
             >
-              <Link href="/register">Start Free</Link>
+              <a href={PLAY_STORE_URL} target="_blank" rel="noopener noreferrer">Start Free</a>
             </Button>
 
             <div className="mt-8 space-y-3">
