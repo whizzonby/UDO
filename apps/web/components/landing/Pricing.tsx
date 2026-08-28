@@ -62,6 +62,7 @@ export function Pricing() {
             href={PLAY_STORE_URL}
             target="_blank"
             rel="noopener noreferrer"
+            data-store-link="pricing_free"
             className="mt-6 flex w-full items-center justify-center rounded-full py-3.5 text-[15px] font-medium transition-colors hover:bg-[#EBD9CE]"
             style={{ border: `1.5px solid ${C.rose}`, color: C.rose }}
           >

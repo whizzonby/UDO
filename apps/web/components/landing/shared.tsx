@@ -178,6 +178,7 @@ export function PlayStoreButton({
       href={PLAY_STORE_URL}
       target="_blank"
       rel="noopener noreferrer"
+      data-store-link="primary_cta"
       className={`inline-flex items-center justify-center rounded-full px-8 py-4 text-[16px] font-medium text-white shadow-md transition-all hover:opacity-95 hover:shadow-lg ${block ? 'w-full' : ''}`}
       style={{ backgroundColor: C.rose, letterSpacing: '0.01em' }}
     >
@@ -220,6 +221,7 @@ export function GooglePlayCallout({ className = '' }: { className?: string }) {
       href={PLAY_STORE_URL}
       target="_blank"
       rel="noopener noreferrer"
+      data-store-link="hero_callout"
       aria-label="Download Udo on the Google Play Store"
       className={`relative inline-block transition-transform hover:-translate-y-0.5 ${className}`}
     >

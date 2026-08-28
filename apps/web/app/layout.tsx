@@ -3,6 +3,7 @@ import './globals.css';
 import { AuthProvider } from '@/contexts/AuthContext';
 import { Toaster } from '@/components/ui/sonner';
 import { GoogleAnalytics } from '@/components/analytics/GoogleAnalytics';
+import { StoreClickTracker } from '@/components/analytics/StoreClickTracker';
 
 export const metadata: Metadata = {
   title: 'Udo — Your Wedding, Beautifully Organized',
@@ -31,6 +32,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <Toaster position="top-center" />
         </AuthProvider>
         <GoogleAnalytics />
+        <StoreClickTracker />
       </body>
     </html>
   );

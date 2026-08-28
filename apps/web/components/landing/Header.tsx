@@ -50,6 +50,7 @@ export function Header() {
             href={PLAY_STORE_URL}
             target="_blank"
             rel="noopener noreferrer"
+            data-store-link="header"
             className="rounded-full px-5 py-2.5 text-[15px] font-medium text-white transition-opacity hover:opacity-90"
             style={{ backgroundColor: C.roseSoft }}
           >
@@ -63,6 +64,7 @@ export function Header() {
             href={PLAY_STORE_URL}
             target="_blank"
             rel="noopener noreferrer"
+            data-store-link="header_mobile"
             className="rounded-full px-4 py-2 text-[14px] font-medium text-white"
             style={{ backgroundColor: C.roseSoft }}
           >

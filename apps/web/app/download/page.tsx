@@ -60,6 +60,7 @@ export default function DownloadPage() {
               href={PLAY_STORE_URL}
               target="_blank"
               rel="noopener noreferrer"
+              data-store-link="download_header"
               className="rounded-full px-5 py-2.5 text-sm font-medium text-white transition-opacity hover:opacity-90"
               style={{ backgroundColor: '#E8A0A8' }}
             >
@@ -76,6 +77,7 @@ export default function DownloadPage() {
           href={PLAY_STORE_URL}
           target="_blank"
           rel="noopener noreferrer"
+          data-store-link="download_callout"
           aria-label="Download on the Google Play Store"
           className="relative self-start transition-transform hover:-translate-y-0.5"
         >
@@ -156,6 +158,7 @@ export default function DownloadPage() {
             href={PLAY_STORE_URL}
             target="_blank"
             rel="noopener noreferrer"
+            data-store-link="download_primary"
             className="flex w-full items-center justify-center rounded-full px-8 py-4 text-base font-medium text-white shadow-md transition-all hover:shadow-lg hover:opacity-95"
             style={{ backgroundColor: '#D8909A', letterSpacing: '0.02em' }}
           >

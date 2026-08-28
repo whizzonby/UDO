@@ -23,6 +23,7 @@ export function FinalCTA() {
             href={PLAY_STORE_URL}
             target="_blank"
             rel="noopener noreferrer"
+            data-store-link="final_cta"
             className="inline-flex items-center justify-center rounded-full px-9 py-4 text-[16px] font-medium shadow-lg transition-all hover:opacity-95 hover:shadow-xl"
             style={{ backgroundColor: C.white, color: C.rose, letterSpacing: '0.01em' }}
           >

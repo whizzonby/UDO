@@ -35,6 +35,7 @@ use App\Http\Controllers\ReleaseNoteController;
 use App\Http\Controllers\SeatingController;
 use App\Http\Controllers\SavedFilterController;
 use App\Http\Controllers\SmartAlertController;
+use App\Http\Controllers\StoreClickController;
 use App\Http\Controllers\SupportTicketController;
 use App\Http\Controllers\VenueController;
 use App\Http\Controllers\WeatherController;
@@ -131,6 +132,9 @@ Route::post('webhooks/twilio/messages', TwilioMessageStatusController::class)
 
 // Stripe's webhook carries no app session and must verify by signature only.
 Route::post('webhooks/stripe', [CheckoutController::class, 'webhook'])->middleware('throttle:120,1');
+
+// Marketing-site app-link click tracking — public, fire-and-forget beacon.
+Route::post('track/store-click', [StoreClickController::class, 'store'])->middleware('throttle:120,1');
 
 // Pinterest redirects the user's browser here with no app session — must
 // stay outside the authenticated group; the wedding is resolved from the

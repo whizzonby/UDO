@@ -26,6 +26,7 @@ export function Footer() {
               href={PLAY_STORE_URL}
               target="_blank"
               rel="noopener noreferrer"
+              data-store-link="footer_badge"
               aria-label="Get it on Google Play"
               className="flex items-center gap-3 rounded-2xl px-5 py-3 transition-opacity hover:opacity-80"
               style={{ border: `1.5px solid ${C.ink}`, minWidth: 176 }}

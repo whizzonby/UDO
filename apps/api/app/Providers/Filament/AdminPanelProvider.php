@@ -25,6 +25,7 @@ use App\Filament\Resources\ReleaseNoteResource;
 use App\Filament\Resources\SavedFilterResource;
 use App\Filament\Resources\SeatingTableResource;
 use App\Filament\Resources\SmartAlertResource;
+use App\Filament\Resources\StoreLinkClickResource;
 use App\Filament\Resources\SubscriptionResource;
 use App\Filament\Resources\SupportTicketResource;
 use App\Filament\Resources\TaskResource;
@@ -119,6 +120,8 @@ class AdminPanelProvider extends PanelProvider
                 EmailTemplateResource::class,
                 ContentPageResource::class,
                 ReleaseNoteResource::class,
+                // Growth
+                StoreLinkClickResource::class,
             ])
             ->pages([
                 Pages\Dashboard::class,
