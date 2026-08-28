@@ -1,11 +1,11 @@
 import Script from 'next/script';
 
-// GA4 measurement ID. Override per-environment with NEXT_PUBLIC_GA_ID;
-// set it to "" to disable analytics (e.g. staging).
-const GA_ID = process.env.NEXT_PUBLIC_GA_ID ?? 'G-V4VF9GMPYJ';
+// GA4 measurement ID. Override per-environment with NEXT_PUBLIC_GA_ID.
+// Set NEXT_PUBLIC_GA_ID to any non "G-" value (e.g. "off") to disable.
+const GA_ID = process.env.NEXT_PUBLIC_GA_ID || 'G-V4VF9GMPYJ';
 
 export function GoogleAnalytics() {
-  if (!GA_ID) return null;
+  if (!GA_ID.startsWith('G-')) return null;
 
   return (
     <>
