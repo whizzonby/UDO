@@ -1,7 +1,7 @@
 name: udo_mobile
 description: "Udo — Wedding Planning & Coordination"
 publish_to: 'none'
-version: 1.0.0+1
+version: 1.0.0+7
 
 environment:
   sdk: ^3.0.0
@@ -50,7 +50,6 @@ dependencies:
   url_launcher: ^6.3.1
   share_plus: ^10.0.3
   package_info_plus: ^8.1.2
-  permission_handler: ^11.3.1
 
   # Real-time
   pusher_channels_flutter: ^2.1.0

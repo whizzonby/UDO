@@ -65,6 +65,13 @@ Thumbs.db
 .env
 .env.*
 !.env.example
+# local-only production secrets kept at the repo root (odd names, not matched by .env*)
+/production .env
+/production env
+/production*.env
+# downloaded Google OAuth client plists (values also live in ios/Runner/Info.plist)
+/client_*.apps.googleusercontent.com.plist
+GoogleService-Info.plist
 
 # Claude Code local state
 .claude/

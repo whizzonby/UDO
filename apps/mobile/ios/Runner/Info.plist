@@ -5,7 +5,7 @@
 		<key>CFBundleDevelopmentRegion</key>
 		<string>$(DEVELOPMENT_LANGUAGE)</string>
 		<key>CFBundleDisplayName</key>
-		<string>Udo Mobile</string>
+		<string>Udo</string>
 		<key>CFBundleExecutable</key>
 		<string>$(EXECUTABLE_NAME)</string>
 		<key>CFBundleIdentifier</key>
@@ -34,18 +34,28 @@
 			<string>UIInterfaceOrientationLandscapeLeft</string>
 			<string>UIInterfaceOrientationLandscapeRight</string>
 		</array>
-		<key>UISupportedInterfaceOrientations~ipad</key>
-		<array>
-			<string>UIInterfaceOrientationPortrait</string>
-			<string>UIInterfaceOrientationPortraitUpsideDown</string>
-			<string>UIInterfaceOrientationLandscapeLeft</string>
-			<string>UIInterfaceOrientationLandscapeRight</string>
-		</array>
 		<key>CADisableMinimumFrameDurationOnPhone</key>
 		<true/>
 		<key>UIApplicationSupportsIndirectInputEvents</key>
 		<true/>
-		<!-- Google Sign-In: replace REVERSED_CLIENT_ID with the value from GoogleService-Info.plist -->
+		<key>NSCameraUsageDescription</key>
+		<string>Udo uses the camera so you can take photos to add to your wedding gallery, memories, and planning boards.</string>
+		<key>NSPhotoLibraryUsageDescription</key>
+		<string>Udo needs access to your photos so you can add images to your wedding gallery, memories, invitations, and vision board.</string>
+		<key>ITSAppUsesNonExemptEncryption</key>
+		<false/>
+		<!--
+		  Google Sign-In (iOS). GIDClientID = the OAuth iOS client id for bundle
+		  com.udowedding.udoMobile; the URL scheme below is the same id reversed.
+		  NOTE: this client lives in Google Cloud project 766006747222, which is
+		  NOT the project android/app/google-services.json uses (udoapp-64663 /
+		  563593264357). That works for sign-in (the API accepts both audiences
+		  and Google's `sub` is stable across projects) BUT the OAuth consent
+		  screen in project 766006747222 MUST be published to "In production" or
+		  only test users can sign in. See docs/APP_STORE_SUBMISSION.md section 3c.
+		-->
+		<key>GIDClientID</key>
+		<string>766006747222-iqa0ji0fgdj8snujti0jqr4565t7vgmi.apps.googleusercontent.com</string>
 		<key>CFBundleURLTypes</key>
 		<array>
 			<dict>
@@ -53,7 +63,7 @@
 				<string>Editor</string>
 				<key>CFBundleURLSchemes</key>
 				<array>
-					<string>REVERSED_CLIENT_ID</string>
+					<string>com.googleusercontent.apps.766006747222-iqa0ji0fgdj8snujti0jqr4565t7vgmi</string>
 				</array>
 			</dict>
 		</array>
