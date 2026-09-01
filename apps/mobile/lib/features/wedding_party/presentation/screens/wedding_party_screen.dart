@@ -170,11 +170,29 @@ class _WeddingPartyScreenState extends ConsumerState<WeddingPartyScreen>
               ],
             ),
       floatingActionButton: FloatingActionButton(
-        onPressed: () => _showCreateMenu(context, state),
+        // The Rehearsal tab has nothing in the generic "+Create" menu that
+        // relates to it — tapping + there now opens the same rehearsal
+        // form as the pencil icon on that tab, instead of an unrelated
+        // Member/Responsibility/Message menu.
+        onPressed: () => _tabs.index == 5
+            ? _openAddRehearsalFromFab(context, state)
+            : _showCreateMenu(context, state),
         backgroundColor: AppTheme.udoGreen,
         foregroundColor: Colors.white,
         child: const Icon(Icons.add),
       ),
+    );
+  }
+
+  void _openAddRehearsalFromFab(BuildContext context, WeddingPartyState state) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+      builder: (_) => _AddRehearsalSheet(
+          members: state.members,
+          rehearsal: _findUpcomingRehearsal(state.rehearsals)),
     );
   }
 
@@ -1961,17 +1979,29 @@ class _ResponsibilityEditorSheetState
           decoration: const BoxDecoration(
               color: Colors.white,
               borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
-          padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
-          child: Row(children: [
-            Expanded(
-                child: Text(
-                    _isEdit ? 'Edit responsibility' : 'New responsibility',
-                    style: const TextStyle(
-                        fontSize: 18, fontWeight: FontWeight.w600))),
-            IconButton(
-                onPressed: () => Navigator.pop(context),
-                icon: const Icon(Icons.close),
-                padding: EdgeInsets.zero),
+          padding: const EdgeInsets.fromLTRB(20, 10, 20, 12),
+          child: Column(children: [
+            Center(
+              child: Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                    color: AppTheme.udoBorder,
+                    borderRadius: BorderRadius.circular(2)),
+              ),
+            ),
+            const SizedBox(height: 10),
+            Row(children: [
+              Expanded(
+                  child: Text(
+                      _isEdit ? 'Edit responsibility' : 'New responsibility',
+                      style: const TextStyle(
+                          fontSize: 18, fontWeight: FontWeight.w600))),
+              IconButton(
+                  onPressed: () => Navigator.pop(context),
+                  icon: const Icon(Icons.close),
+                  padding: EdgeInsets.zero),
+            ]),
           ]),
         ),
         const Divider(height: 1),
@@ -3131,22 +3161,26 @@ class _TravelBadge extends StatelessWidget {
 
 // ── REHEARSAL TAB ──────────────────────────────────────────────────────────────
 
+Map<String, dynamic>? _findUpcomingRehearsal(
+    List<Map<String, dynamic>> rehearsals) {
+  if (rehearsals.isEmpty) return null;
+  final sorted = [...rehearsals]..sort((a, b) {
+      final da = DateTime.tryParse(a['event_date'] as String? ?? '');
+      final db = DateTime.tryParse(b['event_date'] as String? ?? '');
+      if (da == null && db == null) return 0;
+      if (da == null) return 1;
+      if (db == null) return -1;
+      return da.compareTo(db);
+    });
+  return sorted.first;
+}
+
 class _RehearsalTab extends ConsumerWidget {
   final WeddingPartyState state;
   const _RehearsalTab({required this.state});
 
-  Map<String, dynamic>? _upcomingRehearsal() {
-    if (state.rehearsals.isEmpty) return null;
-    final sorted = [...state.rehearsals]..sort((a, b) {
-        final da = DateTime.tryParse(a['event_date'] as String? ?? '');
-        final db = DateTime.tryParse(b['event_date'] as String? ?? '');
-        if (da == null && db == null) return 0;
-        if (da == null) return 1;
-        if (db == null) return -1;
-        return da.compareTo(db);
-      });
-    return sorted.first;
-  }
+  Map<String, dynamic>? _upcomingRehearsal() =>
+      _findUpcomingRehearsal(state.rehearsals);
 
   void _openAddRehearsal(BuildContext context,
       {Map<String, dynamic>? rehearsal}) {

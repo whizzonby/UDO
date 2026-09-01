@@ -32,6 +32,11 @@ class ApiClient {
   /// no indication that the real problem is "you're signed out".
   void Function()? onUnauthorized;
 
+  /// Fired on any 402 from any request — a plan limit was hit. Wired once,
+  /// in UdoApp, to surface the server's exact limit message and route to
+  /// the paywall, instead of the action just failing with a generic error.
+  void Function(String message)? onLimitReached;
+
   ApiClient() {
     final hostHeader = AppConstants.apiHostHeader;
     _dio = Dio(BaseOptions(
@@ -87,8 +92,15 @@ class ApiClient {
     }
   }
 
-  Future<dynamic> post(String path, {dynamic data}) async {
-    return _request(() => _dio.post(path, data: data));
+  Future<dynamic> post(String path,
+      {dynamic data, Duration? receiveTimeout, Map<String, dynamic>? headers}) async {
+    return _request(() => _dio.post(
+          path,
+          data: data,
+          options: (receiveTimeout != null || headers != null)
+              ? Options(receiveTimeout: receiveTimeout, headers: headers)
+              : null,
+        ));
   }
 
   Future<dynamic> patch(String path, {dynamic data}) async {
@@ -111,6 +123,9 @@ class ApiClient {
       if (e.error is AppException) rethrow;
       final statusCode = e.response?.statusCode;
       final message = _extractMessage(e.response?.data) ?? _networkMessage(e);
+      if (statusCode == 402) {
+        onLimitReached?.call(message);
+      }
       throw ServerException(message, statusCode: statusCode);
     }
   }

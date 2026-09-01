@@ -162,7 +162,32 @@ class _AiAssistantChatScreenState extends ConsumerState<AiAssistantChatScreen> {
               ),
             ]),
           )
-        else
+        else ...[
+          if (state.error != null && state.error!.trim().isNotEmpty)
+            Container(
+              width: double.infinity,
+              margin: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: AppTheme.udoPastelCrimson.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(
+                    color: AppTheme.udoPastelCrimson.withValues(alpha: 0.45)),
+              ),
+              child:
+                  Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                const Icon(Icons.info_outline,
+                    size: 18, color: AppTheme.udoCrimson),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(state.error!,
+                      style: UdoDesign.sans(
+                          size: 12.5,
+                          height: 1.35,
+                          color: AppTheme.udoCrimson)),
+                ),
+              ]),
+            ),
           SafeArea(
             top: false,
             child: Padding(
@@ -208,6 +233,7 @@ class _AiAssistantChatScreenState extends ConsumerState<AiAssistantChatScreen> {
               ]),
             ),
           ),
+        ],
       ]),
     );
   }

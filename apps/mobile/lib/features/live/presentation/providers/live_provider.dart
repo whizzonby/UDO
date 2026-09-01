@@ -173,15 +173,12 @@ class LiveNotifier extends StateNotifier<LiveState> {
         DateTime? cachedAt
       })> _fetchWeather() async {
     try {
-      final cached = await _api.getCached('/weather');
-      final res = cached.data as Map<String, dynamic>;
+      final res = await _api.get('/weather') as Map<String, dynamic>;
       return (
         data: res['data'] as Map<String, dynamic>?,
-        message: cached.fromCache
-            ? 'Showing saved weather.'
-            : res['message'] as String?,
-        fromCache: cached.fromCache,
-        cachedAt: cached.cachedAt,
+        message: res['message'] as String?,
+        fromCache: false,
+        cachedAt: null,
       );
     } catch (e) {
       return (
@@ -218,6 +215,24 @@ class LiveNotifier extends StateNotifier<LiveState> {
       state = state.copyWith(updates: [newUpdate, ...state.updates]);
       return true;
     } catch (_) {
+      return false;
+    }
+  }
+
+  /// Bulk-sets which live updates are shown on the guest link — mirrors
+  /// LogisticsNotifier's updateTransportVisibility()/
+  /// updateAccommodationVisibility() for the "Live Updates" guest-portal
+  /// picker.
+  Future<bool> updateVisibility(List<int> visibleIds) async {
+    try {
+      final res = await _api.patch('/live-visibility',
+          data: {'visible_ids': visibleIds}) as Map<String, dynamic>;
+      final updated =
+          (res['data'] as List? ?? []).cast<Map<String, dynamic>>();
+      state = state.copyWith(updates: updated, updatesError: null);
+      return true;
+    } catch (e) {
+      state = state.copyWith(updatesError: e.toString());
       return false;
     }
   }

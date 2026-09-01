@@ -4,13 +4,27 @@ import 'package:go_router/go_router.dart';
 import '../../../../shared/widgets/udo_design_system.dart';
 import '../providers/notifications_provider.dart';
 
-class NotificationsScreen extends ConsumerWidget {
+class NotificationsScreen extends ConsumerStatefulWidget {
   const NotificationsScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<NotificationsScreen> createState() =>
+      _NotificationsScreenState();
+}
+
+class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
+  bool _markedSeen = false;
+
+  @override
+  Widget build(BuildContext context) {
     final state = ref.watch(notificationsProvider);
     final notifier = ref.read(notificationsProvider.notifier);
+    if (!_markedSeen && !state.isLoading && state.alerts.isNotEmpty) {
+      _markedSeen = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) notifier.markVisibleAsSeen();
+      });
+    }
 
     return Scaffold(
       backgroundColor: UdoDesign.bg,
@@ -18,12 +32,14 @@ class NotificationsScreen extends ConsumerWidget {
         backgroundColor: Colors.white,
         elevation: 0,
         foregroundColor: Colors.black,
-        title: Text('Notifications', style: UdoDesign.sans(size: 16, weight: FontWeight.w700)),
+        title: Text('Notifications',
+            style: UdoDesign.sans(size: 16, weight: FontWeight.w700)),
         actions: [
           TextButton(
             onPressed: () => notifier.toggleShowResolved(!state.showResolved),
             child: Text(state.showResolved ? 'Hide resolved' : 'Show resolved',
-                style: UdoDesign.sans(size: 12, weight: FontWeight.w600, color: UdoDesign.plan)),
+                style: UdoDesign.sans(
+                    size: 12, weight: FontWeight.w600, color: UdoDesign.plan)),
           ),
         ],
       ),
@@ -31,7 +47,8 @@ class NotificationsScreen extends ConsumerWidget {
         onRefresh: notifier.refresh,
         color: UdoDesign.plan,
         child: state.isLoading
-            ? const Center(child: CircularProgressIndicator(color: UdoDesign.plan))
+            ? const Center(
+                child: CircularProgressIndicator(color: UdoDesign.plan))
             : state.error != null
                 ? _ErrorState(message: state.error!, onRetry: notifier.refresh)
                 : state.alerts.isEmpty
@@ -42,7 +59,8 @@ class NotificationsScreen extends ConsumerWidget {
                         separatorBuilder: (_, __) => const SizedBox(height: 10),
                         itemBuilder: (context, index) => _AlertCard(
                           alert: state.alerts[index],
-                          onResolve: () => notifier.resolve(state.alerts[index]['id'] as int),
+                          onResolve: () => notifier
+                              .resolve(state.alerts[index]['id'] as int),
                         ),
                       ),
       ),
@@ -57,13 +75,14 @@ class _EmptyState extends StatelessWidget {
   Widget build(BuildContext context) => ListView(
         padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 100),
         children: [
-          const Icon(Icons.notifications_none, size: 48, color: UdoDesign.muted),
+          const Icon(Icons.notifications_none,
+              size: 48, color: UdoDesign.muted),
           const SizedBox(height: 16),
           Text("You're all caught up",
-              textAlign: TextAlign.center,
-              style: UdoDesign.serif(size: 22)),
+              textAlign: TextAlign.center, style: UdoDesign.serif(size: 22)),
           const SizedBox(height: 8),
-          Text('No active alerts right now — anything that needs your attention will show up here.',
+          Text(
+              'No active alerts right now — anything that needs your attention will show up here.',
               textAlign: TextAlign.center,
               style: UdoDesign.sans(size: 13, color: UdoDesign.sub)),
         ],
@@ -82,9 +101,12 @@ class _ErrorState extends StatelessWidget {
           const Icon(Icons.error_outline, size: 40, color: UdoDesign.muted),
           const SizedBox(height: 12),
           Text("Couldn't load notifications.",
-              textAlign: TextAlign.center, style: UdoDesign.sans(size: 14, color: UdoDesign.sub)),
+              textAlign: TextAlign.center,
+              style: UdoDesign.sans(size: 14, color: UdoDesign.sub)),
           const SizedBox(height: 16),
-          Center(child: OutlinedButton(onPressed: onRetry, child: const Text('Retry'))),
+          Center(
+              child: OutlinedButton(
+                  onPressed: onRetry, child: const Text('Retry'))),
         ],
       );
 }
@@ -142,12 +164,14 @@ class _AlertCard extends StatelessWidget {
           width: 36,
           height: 36,
           decoration: BoxDecoration(
-              color: _severityColor.withValues(alpha: 0.12), shape: BoxShape.circle),
+              color: _severityColor.withValues(alpha: 0.12),
+              shape: BoxShape.circle),
           child: Icon(_typeIcon, color: _severityColor, size: 18),
         ),
         const SizedBox(width: 12),
         Expanded(
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          child:
+              Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Text(alert['title'] as String? ?? '',
                 style: UdoDesign.sans(
                     size: 14,
@@ -155,7 +179,8 @@ class _AlertCard extends StatelessWidget {
                     color: resolved ? UdoDesign.muted : UdoDesign.text)),
             const SizedBox(height: 4),
             Text(alert['body'] as String? ?? '',
-                style: UdoDesign.sans(size: 12, color: UdoDesign.sub, height: 1.4)),
+                style: UdoDesign.sans(
+                    size: 12, color: UdoDesign.sub, height: 1.4)),
             const SizedBox(height: 8),
             Row(children: [
               Text(_timeAgo(alert['trigger_at'] as String?),
@@ -163,7 +188,10 @@ class _AlertCard extends StatelessWidget {
               const Spacer(),
               if (resolved)
                 Text('Resolved',
-                    style: UdoDesign.sans(size: 11, weight: FontWeight.w600, color: UdoDesign.sage))
+                    style: UdoDesign.sans(
+                        size: 11,
+                        weight: FontWeight.w600,
+                        color: UdoDesign.sage))
               else ...[
                 if (target != null)
                   TextButton(
@@ -173,7 +201,10 @@ class _AlertCard extends StatelessWidget {
                         minimumSize: const Size(0, 0),
                         tapTargetSize: MaterialTapTargetSize.shrinkWrap),
                     child: Text(actionLabel ?? 'View',
-                        style: UdoDesign.sans(size: 12, weight: FontWeight.w700, color: UdoDesign.plan)),
+                        style: UdoDesign.sans(
+                            size: 12,
+                            weight: FontWeight.w700,
+                            color: UdoDesign.plan)),
                   ),
                 const SizedBox(width: 12),
                 TextButton(
@@ -182,7 +213,8 @@ class _AlertCard extends StatelessWidget {
                       padding: EdgeInsets.zero,
                       minimumSize: const Size(0, 0),
                       tapTargetSize: MaterialTapTargetSize.shrinkWrap),
-                  child: Text('Dismiss', style: UdoDesign.sans(size: 12, color: UdoDesign.muted)),
+                  child: Text('Dismiss',
+                      style: UdoDesign.sans(size: 12, color: UdoDesign.muted)),
                 ),
               ],
             ]),

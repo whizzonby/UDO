@@ -13,6 +13,7 @@ import '../../../../shared/utils/date_formatters.dart' as udo_dates;
 import '../../../../shared/widgets/place_search_field.dart';
 import '../../../../shared/widgets/udo_design_system.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
+import '../../../gallery/presentation/providers/gallery_provider.dart';
 import '../../../home/presentation/providers/home_provider.dart';
 import '../../../live/presentation/providers/live_provider.dart';
 import '../../../more/presentation/providers/more_operations_provider.dart';
@@ -21,6 +22,7 @@ import '../providers/logistics_provider.dart';
 import '../providers/messages_provider.dart';
 import '../providers/experience_provider.dart';
 import '../providers/invitation_provider.dart';
+import '../../../registry/presentation/providers/registry_provider.dart';
 import 'invitation_shared.dart';
 import 'invitation_wizard_screen.dart';
 
@@ -64,6 +66,9 @@ class _GuestsScreenState extends ConsumerState<GuestsScreen>
   String? _infoFilter;
   bool _quickInviteMode = true;
   bool _drawerOpen = false;
+  final _tabHistory = <int>[];
+  double? _dragStartX;
+  double _dragDeltaX = 0;
   Timer? _dailyRefreshTimer;
   DateTime? _lastDailyRefresh;
 
@@ -77,7 +82,7 @@ class _GuestsScreenState extends ConsumerState<GuestsScreen>
           .read(guestsProvider.notifier)
           .loadFiltered(search: _search, status: statusFilter);
     }
-    _tabs.animateTo(1);
+    _navigateGuestPage(1);
   }
 
   static const _tabLabels = [
@@ -137,52 +142,76 @@ class _GuestsScreenState extends ConsumerState<GuestsScreen>
       backgroundColor: UdoDesign.bg,
       body: Stack(
         children: [
-          Column(
-            children: [
-              _GuestWorkspaceHeader(
-                title: _guestPages[_tabs.index].title,
-                totalGuests: state.guests.length,
-                onMenuTap: () => setState(() => _drawerOpen = true),
-                onSearchTap: () => _tabs.animateTo(1),
-                onAddGuest: () => _showAddModal(context, notifier),
-              ),
-              if (state.isOffline)
-                _GuestStaleBanner(
-                    cachedAt: state.cachedAt, onRefresh: notifier.refresh),
-              Expanded(
-                child: TabBarView(
-                  controller: _tabs,
-                  physics: const NeverScrollableScrollPhysics(),
-                  children: [
-                    _OverviewTab(
-                      state: state,
-                      onGoToList: () => _tabs.animateTo(1),
-                      onAddGuest: () => _showAddModal(context, notifier),
-                      onGoToLogistics: () => _tabs.animateTo(6),
-                      onGuestTap: (g) => context.push('/guests/${g['id']}'),
-                      onJumpToGuestList: _jumpToGuestList,
-                    ),
-                    _GuestListTab(
-                      state: state,
-                      search: _search,
-                      statusFilter: _statusFilter,
-                      infoFilter: _infoFilter,
-                      onSearchChanged: (v) => setState(() => _search = v),
-                      onFilterChanged: (v) => setState(() => _statusFilter = v),
-                      onInfoFilterChanged: (v) =>
-                          setState(() => _infoFilter = v),
-                      onAddGuest: () => _showAddModal(context, notifier),
-                      onGuestTap: (g) => context.push('/guests/${g['id']}'),
-                    ),
-                    const _InvitationsTab(),
-                    _ExperienceTab(onGoToList: () => _tabs.animateTo(1)),
-                    const _MessagesTab(),
-                    const _CheckInTab(),
-                    _LogisticsTab(onJumpToGuestList: _jumpToGuestList),
-                  ],
+          GestureDetector(
+            behavior: HitTestBehavior.translucent,
+            onHorizontalDragStart: (details) {
+              _dragStartX = details.localPosition.dx;
+              _dragDeltaX = 0;
+            },
+            onHorizontalDragUpdate: (details) {
+              _dragDeltaX += details.delta.dx;
+            },
+            onHorizontalDragEnd: (details) {
+              final fromLeftEdge = (_dragStartX ?? double.infinity) <= 36;
+              final fastRightSwipe = details.primaryVelocity != null &&
+                  details.primaryVelocity! > 450;
+              if (!_drawerOpen &&
+                  _tabs.index != 0 &&
+                  fromLeftEdge &&
+                  (_dragDeltaX > 72 || fastRightSwipe)) {
+                _goBackGuestPage();
+              }
+              _dragStartX = null;
+              _dragDeltaX = 0;
+            },
+            child: Column(
+              children: [
+                _GuestWorkspaceHeader(
+                  title: _guestPages[_tabs.index].title,
+                  totalGuests: state.guests.length,
+                  onMenuTap: () => setState(() => _drawerOpen = true),
+                  onSearchTap: () => _navigateGuestPage(1),
+                  onAddGuest: () => _showAddModal(context, notifier),
                 ),
-              ),
-            ],
+                if (state.isOffline)
+                  _GuestStaleBanner(
+                      cachedAt: state.cachedAt, onRefresh: notifier.refresh),
+                Expanded(
+                  child: TabBarView(
+                    controller: _tabs,
+                    physics: const NeverScrollableScrollPhysics(),
+                    children: [
+                      _OverviewTab(
+                        state: state,
+                        onGoToList: () => _navigateGuestPage(1),
+                        onAddGuest: () => _showAddModal(context, notifier),
+                        onGoToLogistics: () => _navigateGuestPage(6),
+                        onGuestTap: (g) => context.push('/guests/${g['id']}'),
+                        onJumpToGuestList: _jumpToGuestList,
+                      ),
+                      _GuestListTab(
+                        state: state,
+                        search: _search,
+                        statusFilter: _statusFilter,
+                        infoFilter: _infoFilter,
+                        onSearchChanged: (v) => setState(() => _search = v),
+                        onFilterChanged: (v) =>
+                            setState(() => _statusFilter = v),
+                        onInfoFilterChanged: (v) =>
+                            setState(() => _infoFilter = v),
+                        onAddGuest: () => _showAddModal(context, notifier),
+                        onGuestTap: (g) => context.push('/guests/${g['id']}'),
+                      ),
+                      const _InvitationsTab(),
+                      _ExperienceTab(onGoToList: () => _navigateGuestPage(1)),
+                      const _MessagesTab(),
+                      const _CheckInTab(),
+                      _LogisticsTab(onJumpToGuestList: _jumpToGuestList),
+                    ],
+                  ),
+                ),
+              ],
+            ),
           ),
           _GuestWorkspaceDrawer(
             open: _drawerOpen,
@@ -192,13 +221,6 @@ class _GuestsScreenState extends ConsumerState<GuestsScreen>
             onNavigate: _navigateGuestPage,
           ),
         ],
-      ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => _showAddModal(context, notifier),
-        backgroundColor: AppTheme.udoGreen,
-        foregroundColor: Colors.white,
-        icon: const Icon(Icons.person_add_outlined),
-        label: const Text('Guest Assistant'),
       ),
     );
   }
@@ -214,14 +236,27 @@ class _GuestsScreenState extends ConsumerState<GuestsScreen>
       builder: (_) => _AddGuestModal(
           notifier: notifier,
           quickMode: _quickInviteMode,
-          onToggleMode: (v) => setState(() => _quickInviteMode = v)),
+          onToggleMode: (v) => setState(() => _quickInviteMode = v),
+          mealOptionsLimit: (ref.read(authProvider).user?.subscription?['limits']
+              as Map<String, dynamic>?)?['meal_options'] as int?),
     );
   }
 
   void _navigateGuestPage(int index) {
     if (index < 0 || index >= _tabs.length) return;
+    if (index != _tabs.index) {
+      _tabHistory.remove(_tabs.index);
+      _tabHistory.add(_tabs.index);
+      if (_tabHistory.length > 12) _tabHistory.removeAt(0);
+    }
     _tabs.animateTo(index);
     if (_drawerOpen) setState(() => _drawerOpen = false);
+  }
+
+  void _goBackGuestPage() {
+    final previous = _tabHistory.isNotEmpty ? _tabHistory.removeLast() : 0;
+    if (previous == _tabs.index) return;
+    _tabs.animateTo(previous);
   }
 }
 
@@ -3103,6 +3138,10 @@ class _RsvpSection extends StatelessWidget {
         _InfoRow(
             'RSVP status', _statusLabel(guest['attending_status'] as String?)),
         _InfoRow('Plus one', guest['plus_one_count']?.toString() ?? '0'),
+        if ((guest['plus_one_name'] as String?)?.isNotEmpty == true)
+          _InfoRow('Plus-one name', guest['plus_one_name'] as String),
+        if ((guest['plus_one_email'] as String?)?.isNotEmpty == true)
+          _InfoRow('Plus-one email', guest['plus_one_email'] as String),
         _InfoRow(
             'Invite status', guest['invite_status'] as String? ?? 'Not sent'),
         const SizedBox(height: 8),
@@ -3651,8 +3690,12 @@ class _EditGuestModalState extends ConsumerState<_EditGuestModal> {
       _lastName,
       _email,
       _phone,
-      _notes;
+      _notes,
+      _plusOneName,
+      _plusOneEmail;
   late String _status;
+  late bool _plusOneAllowed;
+  late int _plusOneCount;
   bool _loading = false;
   String? _error;
 
@@ -3665,7 +3708,11 @@ class _EditGuestModalState extends ConsumerState<_EditGuestModal> {
     _email = TextEditingController(text: g['email'] as String? ?? '');
     _phone = TextEditingController(text: g['phone'] as String? ?? '');
     _notes = TextEditingController(text: g['notes'] as String? ?? '');
+    _plusOneName = TextEditingController(text: g['plus_one_name'] as String? ?? '');
+    _plusOneEmail = TextEditingController(text: g['plus_one_email'] as String? ?? '');
     _status = g['attending_status'] as String? ?? 'pending';
+    _plusOneAllowed = g['plus_one_allowed'] == true;
+    _plusOneCount = (g['plus_one_count'] as num?)?.toInt() ?? 0;
   }
 
   Future<void> _submit() async {
@@ -3686,6 +3733,14 @@ class _EditGuestModalState extends ConsumerState<_EditGuestModal> {
       'phone': _phone.text.trim().isEmpty ? null : _phone.text.trim(),
       'attending_status': _status,
       'notes': _notes.text.trim().isEmpty ? null : _notes.text.trim(),
+      'plus_one_allowed': _plusOneAllowed,
+      'plus_one_count': _plusOneAllowed ? _plusOneCount : 0,
+      'plus_one_name': _plusOneAllowed && _plusOneName.text.trim().isNotEmpty
+          ? _plusOneName.text.trim()
+          : null,
+      'plus_one_email': _plusOneAllowed && _plusOneEmail.text.trim().isNotEmpty
+          ? _plusOneEmail.text.trim()
+          : null,
     }).timeout(const Duration(seconds: 35), onTimeout: () => false);
     if (!mounted) return;
     if (ok) {
@@ -3769,6 +3824,44 @@ class _EditGuestModalState extends ConsumerState<_EditGuestModal> {
                           setState(() => _status = v ?? 'pending'),
                     ),
                     const SizedBox(height: 12),
+                    Row(children: [
+                      const Expanded(
+                          child: Text('Plus-one allowed',
+                              style: TextStyle(
+                                  fontSize: 14, fontWeight: FontWeight.w500))),
+                      Switch(
+                          value: _plusOneAllowed,
+                          onChanged: (v) => setState(() {
+                                _plusOneAllowed = v;
+                                if (!v) _plusOneCount = 0;
+                              }),
+                          activeThumbColor: AppTheme.udoGreen),
+                    ]),
+                    if (_plusOneAllowed) ...[
+                      const SizedBox(height: 6),
+                      const Text('Plus-one count',
+                          style: TextStyle(
+                              fontSize: 14, fontWeight: FontWeight.w500)),
+                      const SizedBox(height: 6),
+                      DropdownButtonFormField<int>(
+                        initialValue: _plusOneCount,
+                        decoration: _dropDeco(),
+                        items: [
+                          for (var i = 0; i <= 5; i++)
+                            DropdownMenuItem(value: i, child: Text('$i')),
+                        ],
+                        onChanged: (v) =>
+                            setState(() => _plusOneCount = v ?? 0),
+                      ),
+                      const SizedBox(height: 12),
+                      _FieldWrap('Plus-one name (optional)',
+                          controller: _plusOneName),
+                      const SizedBox(height: 12),
+                      _FieldWrap('Plus-one email (optional)',
+                          controller: _plusOneEmail,
+                          type: TextInputType.emailAddress),
+                    ],
+                    const SizedBox(height: 12),
                     _FieldWrap('Notes', controller: _notes),
                     if (_error != null) ...[
                       const SizedBox(height: 12),
@@ -3817,6 +3910,8 @@ class _EditGuestModalState extends ConsumerState<_EditGuestModal> {
     _email.dispose();
     _phone.dispose();
     _notes.dispose();
+    _plusOneName.dispose();
+    _plusOneEmail.dispose();
     super.dispose();
   }
 }
@@ -3827,13 +3922,26 @@ class _AddGuestModal extends StatefulWidget {
   final GuestsNotifier notifier;
   final bool quickMode;
   final ValueChanged<bool> onToggleMode;
+  final int? mealOptionsLimit;
   const _AddGuestModal(
       {required this.notifier,
       required this.quickMode,
-      required this.onToggleMode});
+      required this.onToggleMode,
+      this.mealOptionsLimit});
 
   @override
   State<_AddGuestModal> createState() => _AddGuestModalState();
+}
+
+/// Slices [_kMealPreferenceOptions] down to a plan's meal-option limit,
+/// always keeping "No preference" since it isn't a real menu choice.
+Map<String, String> _mealOptionsFor(int? limit) {
+  if (limit == null) return _kMealPreferenceOptions;
+  final real = _kMealPreferenceOptions.entries.where((e) => e.key.isNotEmpty);
+  return {
+    '': _kMealPreferenceOptions[''] as String,
+    for (final entry in real.take(limit)) entry.key: entry.value,
+  };
 }
 
 const _kMealPreferenceOptions = {
@@ -3852,6 +3960,8 @@ class _AddGuestModalState extends State<_AddGuestModal> {
   final _email = TextEditingController();
   final _phone = TextEditingController();
   final _dietaryNote = TextEditingController();
+  final _plusOneName = TextEditingController();
+  final _plusOneEmail = TextEditingController();
   String _rsvpStatus = 'pending';
   bool _plusOneAllowed = false;
   int _plusOneCount = 0;
@@ -3950,7 +4060,8 @@ class _AddGuestModalState extends State<_AddGuestModal> {
                       initialValue: _mealPreference,
                       decoration: _dropDeco(),
                       items: [
-                        for (final entry in _kMealPreferenceOptions.entries)
+                        for (final entry
+                            in _mealOptionsFor(widget.mealOptionsLimit).entries)
                           DropdownMenuItem(
                               value: entry.key, child: Text(entry.value)),
                       ],
@@ -3987,6 +4098,13 @@ class _AddGuestModalState extends State<_AddGuestModal> {
                         onChanged: (v) =>
                             setState(() => _plusOneCount = v ?? 0),
                       ),
+                      const SizedBox(height: 12),
+                      _FieldWrap('Plus-one name (optional)',
+                          controller: _plusOneName),
+                      const SizedBox(height: 12),
+                      _FieldWrap('Plus-one email (optional)',
+                          controller: _plusOneEmail,
+                          type: TextInputType.emailAddress),
                     ],
                     const SizedBox(height: 12),
                     _FieldWrap('Dietary note (optional)',
@@ -4043,6 +4161,12 @@ class _AddGuestModalState extends State<_AddGuestModal> {
       sendInviteAfter: _quickMode,
       plusOneAllowed: _quickMode ? null : _plusOneAllowed,
       plusOneCount: _quickMode ? null : _plusOneCount,
+      plusOneName: _quickMode || _plusOneName.text.trim().isEmpty
+          ? null
+          : _plusOneName.text.trim(),
+      plusOneEmail: _quickMode || _plusOneEmail.text.trim().isEmpty
+          ? null
+          : _plusOneEmail.text.trim(),
       mealPreference: _quickMode ? null : _mealPreference,
       dietaryNote: _quickMode ? null : _dietaryNote.text.trim(),
     );
@@ -4083,6 +4207,8 @@ class _AddGuestModalState extends State<_AddGuestModal> {
     _email.dispose();
     _phone.dispose();
     _dietaryNote.dispose();
+    _plusOneName.dispose();
+    _plusOneEmail.dispose();
     super.dispose();
   }
 }
@@ -4264,41 +4390,6 @@ class _CheckInTabState extends ConsumerState<_CheckInTab> {
                       const AlwaysStoppedAnimation<Color>(UdoDesign.gold),
                 ),
               ),
-              const SizedBox(height: 16),
-              Row(children: [
-                Expanded(
-                  child: ElevatedButton.icon(
-                    onPressed: () => context.push('/guests/check-in/qr'),
-                    icon: const Icon(Icons.qr_code_scanner_outlined, size: 18),
-                    label: const Text('QR scanner'),
-                    style: ElevatedButton.styleFrom(
-                      minimumSize: const Size(double.infinity, 48),
-                      backgroundColor: _guestAccent,
-                      foregroundColor: Colors.white,
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: OutlinedButton.icon(
-                    onPressed: () {
-                      _scrollController.animateTo(
-                        250,
-                        duration: const Duration(milliseconds: 280),
-                        curve: Curves.easeOutCubic,
-                      );
-                      _searchFocusNode.requestFocus();
-                    },
-                    icon: const Icon(Icons.checklist_outlined, size: 18),
-                    label: const Text('Manual list'),
-                    style: OutlinedButton.styleFrom(
-                      minimumSize: const Size(double.infinity, 48),
-                      foregroundColor: _guestAccent,
-                      side: const BorderSide(color: UdoDesign.border),
-                    ),
-                  ),
-                ),
-              ]),
             ]),
           ),
           const SizedBox(height: 16),
@@ -4413,110 +4504,6 @@ class _CheckInGuestRow extends StatelessWidget {
       ]),
     );
   }
-}
-
-class GuestQrScannerScreen extends StatefulWidget {
-  const GuestQrScannerScreen({super.key});
-
-  @override
-  State<GuestQrScannerScreen> createState() => _GuestQrScannerScreenState();
-}
-
-class _GuestQrScannerScreenState extends State<GuestQrScannerScreen> {
-  bool _opening = false;
-
-  @override
-  void initState() {
-    super.initState();
-    Future.microtask(_openCamera);
-  }
-
-  Future<void> _openCamera() async {
-    if (_opening) return;
-    setState(() => _opening = true);
-    try {
-      await ImagePicker().pickImage(source: ImageSource.camera);
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text('Camera opened. Use manual list to finish check-in.')));
-    } finally {
-      if (mounted) setState(() => _opening = false);
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) => Scaffold(
-        backgroundColor: Colors.black,
-        appBar: AppBar(
-          backgroundColor: Colors.black,
-          foregroundColor: Colors.white,
-          title: const Text('QR Scanner'),
-        ),
-        body: SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.all(24),
-            child: Column(
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: [
-                  const Spacer(),
-                  Container(
-                    width: double.infinity,
-                    height: 300,
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(28),
-                      border: Border.all(color: Colors.white, width: 2),
-                    ),
-                    child: Center(
-                      child: Icon(Icons.qr_code_scanner_outlined,
-                          color: Colors.white.withValues(alpha: 0.86),
-                          size: 96),
-                    ),
-                  ),
-                  const SizedBox(height: 28),
-                  const Text('Point the camera at a guest QR code',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 18,
-                          fontWeight: FontWeight.w700)),
-                  const SizedBox(height: 8),
-                  Text('Manual checklist remains available for walk-ins.',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                          color: Colors.white.withValues(alpha: 0.68),
-                          fontSize: 13)),
-                  const Spacer(),
-                  ElevatedButton.icon(
-                    onPressed: _opening ? null : _openCamera,
-                    icon: _opening
-                        ? const SizedBox(
-                            width: 16,
-                            height: 16,
-                            child: CircularProgressIndicator(
-                                strokeWidth: 2, color: Colors.white))
-                        : const Icon(Icons.camera_alt_outlined),
-                    label: Text(_opening ? 'Opening camera...' : 'Open camera'),
-                    style: ElevatedButton.styleFrom(
-                      minimumSize: const Size(double.infinity, 52),
-                      backgroundColor: UdoDesign.gold,
-                      foregroundColor: Colors.black,
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-                  OutlinedButton(
-                    onPressed: () => Navigator.pop(context),
-                    style: OutlinedButton.styleFrom(
-                      minimumSize: const Size(double.infinity, 52),
-                      foregroundColor: Colors.white,
-                      side: BorderSide(
-                          color: Colors.white.withValues(alpha: 0.4)),
-                    ),
-                    child: const Text('Back to checklist'),
-                  ),
-                ]),
-          ),
-        ),
-      );
 }
 
 class _InvitationsTab extends ConsumerStatefulWidget {
@@ -4920,6 +4907,17 @@ class _InvitationCommandCentrePageState
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 120),
       children: [
+        ElevatedButton.icon(
+          onPressed: widget.onSendInvitations,
+          icon: const Icon(Icons.send_outlined, size: 18),
+          label: const Text('Send Invitations'),
+          style: ElevatedButton.styleFrom(
+            minimumSize: const Size(double.infinity, 50),
+            backgroundColor: _guestAccent,
+            foregroundColor: Colors.white,
+          ),
+        ),
+        const SizedBox(height: 16),
         _InvitationHeroCard(
           completion: completion,
           rsvpd: widget.rsvpd,
@@ -4980,17 +4978,6 @@ class _InvitationCommandCentrePageState
         else
           for (final guest in filteredGuests.take(8))
             _InvitationGuestCard(guest: guest),
-        const SizedBox(height: 12),
-        ElevatedButton.icon(
-          onPressed: widget.onSendInvitations,
-          icon: const Icon(Icons.send_outlined, size: 18),
-          label: const Text('Send Invitations'),
-          style: ElevatedButton.styleFrom(
-            minimumSize: const Size(double.infinity, 50),
-            backgroundColor: _guestAccent,
-            foregroundColor: Colors.white,
-          ),
-        ),
       ],
     );
   }
@@ -5437,6 +5424,15 @@ class _ExperienceTab extends ConsumerWidget {
               category: _portalCategory(item.$1),
               enabled: config[item.$1] == true,
               onChanged: (value) => notifier.toggleField(item.$1, value),
+              onCustomize: switch (item.$1) {
+                'show_transport' => () => _showTransportVisibilityModal(context, ref),
+                'show_accommodation' => () =>
+                    _showAccommodationVisibilityModal(context, ref),
+                'show_registry' => () => _showRegistryVisibilityModal(context, ref),
+                'show_gallery' => () => _showGalleryVisibilityModal(context, ref),
+                'show_live_feed' => () => _showLiveVisibilityModal(context, ref),
+                _ => null,
+              },
             );
           },
         ),
@@ -5635,6 +5631,1265 @@ String _portalCategory(String field) {
     return 'Memory';
   }
   return 'Details';
+}
+
+// ── TRANSPORT GUEST-LINK VISIBILITY MODAL ──────────────────────────────────────
+
+void _showTransportVisibilityModal(BuildContext context, WidgetRef ref) {
+  showModalBottomSheet(
+    context: context,
+    isScrollControlled: true,
+    useRootNavigator: true,
+    backgroundColor: Colors.white,
+    shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+    builder: (_) => const _TransportVisibilityModal(),
+  );
+}
+
+class _TransportVisibilityModal extends ConsumerStatefulWidget {
+  const _TransportVisibilityModal();
+
+  @override
+  ConsumerState<_TransportVisibilityModal> createState() =>
+      _TransportVisibilityModalState();
+}
+
+class _TransportVisibilityModalState
+    extends ConsumerState<_TransportVisibilityModal> {
+  Set<int>? _selected;
+  bool _saving = false;
+
+  Future<void> _save(List<int> visibleIds) async {
+    setState(() => _saving = true);
+    final ok = await ref
+        .read(logisticsProvider.notifier)
+        .updateTransportVisibility(visibleIds);
+    if (!mounted) return;
+    if (!ok) {
+      setState(() => _saving = false);
+      return;
+    }
+    Navigator.pop(context);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final logistics = ref.watch(logisticsProvider);
+    final experience = ref.watch(experienceProvider);
+    final transports = logistics.transports;
+
+    _selected ??= transports
+        .where((route) => route['visible_to_guests'] != false)
+        .map((route) => route['id'] as int)
+        .toSet();
+    final selected = _selected!;
+    final allSelected = transports.isNotEmpty && selected.length == transports.length;
+
+    return SafeArea(
+      child: Padding(
+        padding: EdgeInsets.fromLTRB(
+            20, 20, 20, 20 + MediaQuery.of(context).viewInsets.bottom),
+        child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(children: [
+                Expanded(
+                    child: Text('Transport Info',
+                        style: UdoDesign.sans(size: 18, weight: FontWeight.w800))),
+                IconButton(
+                    onPressed: () => Navigator.pop(context),
+                    icon: const Icon(Icons.close)),
+              ]),
+              const SizedBox(height: 4),
+              Text('Choose the routes you want guests to see on their link.',
+                  style: UdoDesign.sans(
+                      size: 12.5, color: UdoDesign.muted, height: 1.4)),
+              const SizedBox(height: 14),
+              if (logistics.isLoading && transports.isEmpty)
+                const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 32),
+                  child:
+                      Center(child: CircularProgressIndicator(color: _guestAccent)),
+                )
+              else ...[
+                Row(children: [
+                  Expanded(
+                    child: InkWell(
+                      onTap: transports.isEmpty
+                          ? null
+                          : () => setState(() {
+                                _selected = allSelected
+                                    ? <int>{}
+                                    : transports
+                                        .map((route) => route['id'] as int)
+                                        .toSet();
+                              }),
+                      child: Row(mainAxisSize: MainAxisSize.min, children: [
+                        Checkbox(
+                          value: allSelected,
+                          activeColor: _guestAccent,
+                          onChanged: transports.isEmpty
+                              ? null
+                              : (v) => setState(() {
+                                    _selected = (v ?? false)
+                                        ? transports
+                                            .map((route) => route['id'] as int)
+                                            .toSet()
+                                        : <int>{};
+                                  }),
+                        ),
+                        Text('Select all',
+                            style:
+                                UdoDesign.sans(size: 13, weight: FontWeight.w700)),
+                      ]),
+                    ),
+                  ),
+                  Text('Show pickup times',
+                      style: UdoDesign.sans(size: 12.5, color: UdoDesign.muted)),
+                  const SizedBox(width: 6),
+                  Switch(
+                    value: experience.config['show_transport_pickup_times'] != false,
+                    activeThumbColor: _guestAccent,
+                    materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    onChanged: (v) => ref
+                        .read(experienceProvider.notifier)
+                        .toggleField('show_transport_pickup_times', v),
+                  ),
+                ]),
+                const Divider(height: 20),
+                if (transports.isEmpty)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 24),
+                    child: Text(
+                        "You haven't added any transport routes yet. Add one from the Logistics tab first.",
+                        style: UdoDesign.sans(
+                            size: 13, color: UdoDesign.muted, height: 1.4)),
+                  )
+                else
+                  ConstrainedBox(
+                    constraints: BoxConstraints(
+                        maxHeight: MediaQuery.of(context).size.height * 0.42),
+                    child: ListView.separated(
+                      shrinkWrap: true,
+                      itemCount: transports.length,
+                      separatorBuilder: (_, __) => const SizedBox(height: 8),
+                      itemBuilder: (_, index) {
+                        final route = transports[index];
+                        final id = route['id'] as int;
+                        return _TransportRouteTile(
+                          route: route,
+                          checked: selected.contains(id),
+                          onChanged: (checked) => setState(() {
+                            if (checked) {
+                              selected.add(id);
+                            } else {
+                              selected.remove(id);
+                            }
+                          }),
+                        );
+                      },
+                    ),
+                  ),
+                const SizedBox(height: 12),
+                Row(children: [
+                  const Icon(Icons.info_outline, size: 13, color: UdoDesign.muted),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text('Pickup times are local to the event location.',
+                        style: UdoDesign.sans(size: 11, color: UdoDesign.muted)),
+                  ),
+                ]),
+                const SizedBox(height: 16),
+                Row(children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: () => Navigator.pop(context),
+                      style: OutlinedButton.styleFrom(
+                          minimumSize: const Size.fromHeight(48),
+                          side: const BorderSide(color: UdoDesign.border)),
+                      child: const Text('Cancel'),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: ElevatedButton(
+                      onPressed: _saving || transports.isEmpty
+                          ? null
+                          : () => _save(selected.toList()),
+                      style: ElevatedButton.styleFrom(
+                          minimumSize: const Size.fromHeight(48),
+                          backgroundColor: _guestAccent,
+                          foregroundColor: Colors.white),
+                      child: _saving
+                          ? const SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(
+                                  strokeWidth: 2, color: Colors.white))
+                          : const Text('Save'),
+                    ),
+                  ),
+                ]),
+              ],
+            ]),
+      ),
+    );
+  }
+}
+
+class _TransportRouteTile extends StatelessWidget {
+  final Map<String, dynamic> route;
+  final bool checked;
+  final ValueChanged<bool> onChanged;
+  const _TransportRouteTile(
+      {required this.route, required this.checked, required this.onChanged});
+
+  @override
+  Widget build(BuildContext context) {
+    final name = route['name'] as String? ?? 'Route';
+    final pickup = route['pickup_location'] as String?;
+    final dropoff = route['dropoff_location'] as String?;
+    final routeLine = [pickup, dropoff]
+        .where((value) => value != null && value.isNotEmpty)
+        .join('  ->  ');
+    final timeLabel = udo_dates.formatApiTime(route['departure_time']);
+
+    return InkWell(
+      borderRadius: BorderRadius.circular(12),
+      onTap: () => onChanged(!checked),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+        decoration: BoxDecoration(
+          color: checked ? const Color(0xFFFFFCF6) : UdoDesign.card,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+              color:
+                  checked ? _guestAccent.withValues(alpha: 0.4) : UdoDesign.border),
+        ),
+        child: Row(children: [
+          Checkbox(
+              value: checked,
+              activeColor: _guestAccent,
+              onChanged: (v) => onChanged(v ?? false)),
+          const SizedBox(width: 4),
+          Expanded(
+            child:
+                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(name, style: UdoDesign.sans(size: 13.5, weight: FontWeight.w700)),
+              if (routeLine.isNotEmpty) ...[
+                const SizedBox(height: 2),
+                Text(routeLine,
+                    style: UdoDesign.sans(size: 11.5, color: UdoDesign.muted)),
+              ],
+            ]),
+          ),
+          if (timeLabel.isNotEmpty)
+            Row(mainAxisSize: MainAxisSize.min, children: [
+              const Icon(Icons.access_time, size: 13, color: _guestAccent),
+              const SizedBox(width: 3),
+              Text(timeLabel,
+                  style: UdoDesign.sans(
+                      size: 11.5, weight: FontWeight.w700, color: _guestAccent)),
+            ]),
+        ]),
+      ),
+    );
+  }
+}
+
+// ── ACCOMMODATION GUEST-LINK VISIBILITY MODAL ──────────────────────────────────
+
+void _showAccommodationVisibilityModal(BuildContext context, WidgetRef ref) {
+  showModalBottomSheet(
+    context: context,
+    isScrollControlled: true,
+    useRootNavigator: true,
+    backgroundColor: Colors.white,
+    shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+    builder: (_) => const _AccommodationVisibilityModal(),
+  );
+}
+
+class _AccommodationVisibilityModal extends ConsumerStatefulWidget {
+  const _AccommodationVisibilityModal();
+
+  @override
+  ConsumerState<_AccommodationVisibilityModal> createState() =>
+      _AccommodationVisibilityModalState();
+}
+
+class _AccommodationVisibilityModalState
+    extends ConsumerState<_AccommodationVisibilityModal> {
+  Set<int>? _selected;
+  bool _saving = false;
+
+  Future<void> _save(List<int> visibleIds) async {
+    setState(() => _saving = true);
+    final ok = await ref
+        .read(logisticsProvider.notifier)
+        .updateAccommodationVisibility(visibleIds);
+    if (!mounted) return;
+    if (!ok) {
+      setState(() => _saving = false);
+      return;
+    }
+    Navigator.pop(context);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final logistics = ref.watch(logisticsProvider);
+    final experience = ref.watch(experienceProvider);
+    final accommodations = logistics.accommodations;
+
+    _selected ??= accommodations
+        .where((option) => option['visible_to_guests'] != false)
+        .map((option) => option['id'] as int)
+        .toSet();
+    final selected = _selected!;
+    final allSelected =
+        accommodations.isNotEmpty && selected.length == accommodations.length;
+
+    return SafeArea(
+      child: Padding(
+        padding: EdgeInsets.fromLTRB(
+            20, 20, 20, 20 + MediaQuery.of(context).viewInsets.bottom),
+        child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(children: [
+                Expanded(
+                    child: Text('Accommodation Info',
+                        style: UdoDesign.sans(size: 18, weight: FontWeight.w800))),
+                IconButton(
+                    onPressed: () => Navigator.pop(context),
+                    icon: const Icon(Icons.close)),
+              ]),
+              const SizedBox(height: 4),
+              Text(
+                  'Choose the hotels and stays you want guests to see on their link.',
+                  style: UdoDesign.sans(
+                      size: 12.5, color: UdoDesign.muted, height: 1.4)),
+              const SizedBox(height: 14),
+              if (logistics.isLoading && accommodations.isEmpty)
+                const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 32),
+                  child:
+                      Center(child: CircularProgressIndicator(color: _guestAccent)),
+                )
+              else ...[
+                Row(children: [
+                  Expanded(
+                    child: InkWell(
+                      onTap: accommodations.isEmpty
+                          ? null
+                          : () => setState(() {
+                                _selected = allSelected
+                                    ? <int>{}
+                                    : accommodations
+                                        .map((option) => option['id'] as int)
+                                        .toSet();
+                              }),
+                      child: Row(mainAxisSize: MainAxisSize.min, children: [
+                        Checkbox(
+                          value: allSelected,
+                          activeColor: _guestAccent,
+                          onChanged: accommodations.isEmpty
+                              ? null
+                              : (v) => setState(() {
+                                    _selected = (v ?? false)
+                                        ? accommodations
+                                            .map((option) => option['id'] as int)
+                                            .toSet()
+                                        : <int>{};
+                                  }),
+                        ),
+                        Text('Select all',
+                            style:
+                                UdoDesign.sans(size: 13, weight: FontWeight.w700)),
+                      ]),
+                    ),
+                  ),
+                  Text('Show pricing',
+                      style: UdoDesign.sans(size: 12.5, color: UdoDesign.muted)),
+                  const SizedBox(width: 6),
+                  Switch(
+                    value: experience.config['show_accommodation_pricing'] != false,
+                    activeThumbColor: _guestAccent,
+                    materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    onChanged: (v) => ref
+                        .read(experienceProvider.notifier)
+                        .toggleField('show_accommodation_pricing', v),
+                  ),
+                ]),
+                const Divider(height: 20),
+                if (accommodations.isEmpty)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 24),
+                    child: Text(
+                        "You haven't added any accommodation options yet. Add one from the Logistics tab first.",
+                        style: UdoDesign.sans(
+                            size: 13, color: UdoDesign.muted, height: 1.4)),
+                  )
+                else
+                  ConstrainedBox(
+                    constraints: BoxConstraints(
+                        maxHeight: MediaQuery.of(context).size.height * 0.42),
+                    child: ListView.separated(
+                      shrinkWrap: true,
+                      itemCount: accommodations.length,
+                      separatorBuilder: (_, __) => const SizedBox(height: 8),
+                      itemBuilder: (_, index) {
+                        final option = accommodations[index];
+                        final id = option['id'] as int;
+                        return _AccommodationOptionTile(
+                          option: option,
+                          checked: selected.contains(id),
+                          onChanged: (checked) => setState(() {
+                            if (checked) {
+                              selected.add(id);
+                            } else {
+                              selected.remove(id);
+                            }
+                          }),
+                        );
+                      },
+                    ),
+                  ),
+                const SizedBox(height: 16),
+                Row(children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: () => Navigator.pop(context),
+                      style: OutlinedButton.styleFrom(
+                          minimumSize: const Size.fromHeight(48),
+                          side: const BorderSide(color: UdoDesign.border)),
+                      child: const Text('Cancel'),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: ElevatedButton(
+                      onPressed: _saving || accommodations.isEmpty
+                          ? null
+                          : () => _save(selected.toList()),
+                      style: ElevatedButton.styleFrom(
+                          minimumSize: const Size.fromHeight(48),
+                          backgroundColor: _guestAccent,
+                          foregroundColor: Colors.white),
+                      child: _saving
+                          ? const SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(
+                                  strokeWidth: 2, color: Colors.white))
+                          : const Text('Save'),
+                    ),
+                  ),
+                ]),
+              ],
+            ]),
+      ),
+    );
+  }
+}
+
+class _AccommodationOptionTile extends StatelessWidget {
+  final Map<String, dynamic> option;
+  final bool checked;
+  final ValueChanged<bool> onChanged;
+  const _AccommodationOptionTile(
+      {required this.option, required this.checked, required this.onChanged});
+
+  @override
+  Widget build(BuildContext context) {
+    final name = option['name'] as String? ?? 'Accommodation';
+    final locationLine = [option['city'], option['country']]
+        .where((value) => value != null && (value as String).isNotEmpty)
+        .join(', ');
+    final rate = option['price_per_night'];
+
+    return InkWell(
+      borderRadius: BorderRadius.circular(12),
+      onTap: () => onChanged(!checked),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+        decoration: BoxDecoration(
+          color: checked ? const Color(0xFFFFFCF6) : UdoDesign.card,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+              color:
+                  checked ? _guestAccent.withValues(alpha: 0.4) : UdoDesign.border),
+        ),
+        child: Row(children: [
+          Checkbox(
+              value: checked,
+              activeColor: _guestAccent,
+              onChanged: (v) => onChanged(v ?? false)),
+          const SizedBox(width: 4),
+          Expanded(
+            child:
+                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(name, style: UdoDesign.sans(size: 13.5, weight: FontWeight.w700)),
+              if (locationLine.isNotEmpty) ...[
+                const SizedBox(height: 2),
+                Text(locationLine,
+                    style: UdoDesign.sans(size: 11.5, color: UdoDesign.muted)),
+              ],
+            ]),
+          ),
+          if (rate != null)
+            Text('\$$rate/night',
+                style: UdoDesign.sans(
+                    size: 11.5, weight: FontWeight.w700, color: _guestAccent)),
+        ]),
+      ),
+    );
+  }
+}
+
+// ── REGISTRY GUEST-LINK VISIBILITY MODAL ───────────────────────────────────────
+
+void _showRegistryVisibilityModal(BuildContext context, WidgetRef ref) {
+  showModalBottomSheet(
+    context: context,
+    isScrollControlled: true,
+    useRootNavigator: true,
+    backgroundColor: Colors.white,
+    shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+    builder: (_) => const _RegistryVisibilityModal(),
+  );
+}
+
+class _RegistryVisibilityModal extends ConsumerStatefulWidget {
+  const _RegistryVisibilityModal();
+
+  @override
+  ConsumerState<_RegistryVisibilityModal> createState() =>
+      _RegistryVisibilityModalState();
+}
+
+class _RegistryVisibilityModalState
+    extends ConsumerState<_RegistryVisibilityModal> {
+  Set<int>? _selected;
+  bool _saving = false;
+
+  Future<void> _save(List<int> visibleIds) async {
+    setState(() => _saving = true);
+    final ok =
+        await ref.read(registryProvider.notifier).updateVisibility(visibleIds);
+    if (!mounted) return;
+    if (!ok) {
+      setState(() => _saving = false);
+      return;
+    }
+    Navigator.pop(context);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final registry = ref.watch(registryProvider);
+    final experience = ref.watch(experienceProvider);
+    final items = registry.items;
+
+    _selected ??= items
+        .where((item) => item['is_visible'] != false)
+        .map((item) => item['id'] as int)
+        .toSet();
+    final selected = _selected!;
+    final allSelected = items.isNotEmpty && selected.length == items.length;
+
+    return SafeArea(
+      child: Padding(
+        padding: EdgeInsets.fromLTRB(
+            20, 20, 20, 20 + MediaQuery.of(context).viewInsets.bottom),
+        child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(children: [
+                Expanded(
+                    child: Text('Gift Registry',
+                        style: UdoDesign.sans(size: 18, weight: FontWeight.w800))),
+                IconButton(
+                    onPressed: () => Navigator.pop(context),
+                    icon: const Icon(Icons.close)),
+              ]),
+              const SizedBox(height: 4),
+              Text('Choose the gifts and funds you want guests to see on their link.',
+                  style: UdoDesign.sans(
+                      size: 12.5, color: UdoDesign.muted, height: 1.4)),
+              const SizedBox(height: 14),
+              if (registry.isLoading && items.isEmpty)
+                const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 32),
+                  child:
+                      Center(child: CircularProgressIndicator(color: _guestAccent)),
+                )
+              else ...[
+                Row(children: [
+                  Expanded(
+                    child: InkWell(
+                      onTap: items.isEmpty
+                          ? null
+                          : () => setState(() {
+                                _selected = allSelected
+                                    ? <int>{}
+                                    : items
+                                        .map((item) => item['id'] as int)
+                                        .toSet();
+                              }),
+                      child: Row(mainAxisSize: MainAxisSize.min, children: [
+                        Checkbox(
+                          value: allSelected,
+                          activeColor: _guestAccent,
+                          onChanged: items.isEmpty
+                              ? null
+                              : (v) => setState(() {
+                                    _selected = (v ?? false)
+                                        ? items
+                                            .map((item) => item['id'] as int)
+                                            .toSet()
+                                        : <int>{};
+                                  }),
+                        ),
+                        Text('Select all',
+                            style:
+                                UdoDesign.sans(size: 13, weight: FontWeight.w700)),
+                      ]),
+                    ),
+                  ),
+                  Text('Show pricing',
+                      style: UdoDesign.sans(size: 12.5, color: UdoDesign.muted)),
+                  const SizedBox(width: 6),
+                  Switch(
+                    value: experience.config['show_registry_pricing'] != false,
+                    activeThumbColor: _guestAccent,
+                    materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    onChanged: (v) => ref
+                        .read(experienceProvider.notifier)
+                        .toggleField('show_registry_pricing', v),
+                  ),
+                ]),
+                const Divider(height: 20),
+                if (items.isEmpty)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 24),
+                    child: Text(
+                        "You haven't added any registry items yet. Add one from the Registry tab first.",
+                        style: UdoDesign.sans(
+                            size: 13, color: UdoDesign.muted, height: 1.4)),
+                  )
+                else
+                  ConstrainedBox(
+                    constraints: BoxConstraints(
+                        maxHeight: MediaQuery.of(context).size.height * 0.42),
+                    child: ListView.separated(
+                      shrinkWrap: true,
+                      itemCount: items.length,
+                      separatorBuilder: (_, __) => const SizedBox(height: 8),
+                      itemBuilder: (_, index) {
+                        final item = items[index];
+                        final id = item['id'] as int;
+                        return _RegistryItemTile(
+                          item: item,
+                          checked: selected.contains(id),
+                          onChanged: (checked) => setState(() {
+                            if (checked) {
+                              selected.add(id);
+                            } else {
+                              selected.remove(id);
+                            }
+                          }),
+                        );
+                      },
+                    ),
+                  ),
+                const SizedBox(height: 16),
+                Row(children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: () => Navigator.pop(context),
+                      style: OutlinedButton.styleFrom(
+                          minimumSize: const Size.fromHeight(48),
+                          side: const BorderSide(color: UdoDesign.border)),
+                      child: const Text('Cancel'),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: ElevatedButton(
+                      onPressed: _saving || items.isEmpty
+                          ? null
+                          : () => _save(selected.toList()),
+                      style: ElevatedButton.styleFrom(
+                          minimumSize: const Size.fromHeight(48),
+                          backgroundColor: _guestAccent,
+                          foregroundColor: Colors.white),
+                      child: _saving
+                          ? const SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(
+                                  strokeWidth: 2, color: Colors.white))
+                          : const Text('Save'),
+                    ),
+                  ),
+                ]),
+              ],
+            ]),
+      ),
+    );
+  }
+}
+
+class _RegistryItemTile extends StatelessWidget {
+  final Map<String, dynamic> item;
+  final bool checked;
+  final ValueChanged<bool> onChanged;
+  const _RegistryItemTile(
+      {required this.item, required this.checked, required this.onChanged});
+
+  @override
+  Widget build(BuildContext context) {
+    final name = item['name'] as String? ?? 'Registry item';
+    final type = item['type'] as String?;
+    final isFund = type == 'cash_fund';
+    final price = item['price'];
+    final fundGoal = item['fund_goal'];
+    final priceLabel = isFund
+        ? (fundGoal != null ? 'Goal \$$fundGoal' : null)
+        : (price != null ? '\$$price' : null);
+
+    return InkWell(
+      borderRadius: BorderRadius.circular(12),
+      onTap: () => onChanged(!checked),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+        decoration: BoxDecoration(
+          color: checked ? const Color(0xFFFFFCF6) : UdoDesign.card,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+              color:
+                  checked ? _guestAccent.withValues(alpha: 0.4) : UdoDesign.border),
+        ),
+        child: Row(children: [
+          Checkbox(
+              value: checked,
+              activeColor: _guestAccent,
+              onChanged: (v) => onChanged(v ?? false)),
+          const SizedBox(width: 4),
+          Expanded(
+            child:
+                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(name, style: UdoDesign.sans(size: 13.5, weight: FontWeight.w700)),
+              if (isFund) ...[
+                const SizedBox(height: 2),
+                Text('Cash fund',
+                    style: UdoDesign.sans(size: 11.5, color: UdoDesign.muted)),
+              ],
+            ]),
+          ),
+          if (priceLabel != null)
+            Text(priceLabel,
+                style: UdoDesign.sans(
+                    size: 11.5, weight: FontWeight.w700, color: _guestAccent)),
+        ]),
+      ),
+    );
+  }
+}
+
+// ── GALLERY GUEST-LINK VISIBILITY MODAL ────────────────────────────────────────
+
+void _showGalleryVisibilityModal(BuildContext context, WidgetRef ref) {
+  showModalBottomSheet(
+    context: context,
+    isScrollControlled: true,
+    useRootNavigator: true,
+    backgroundColor: Colors.white,
+    shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+    builder: (_) => const _GalleryVisibilityModal(),
+  );
+}
+
+class _GalleryVisibilityModal extends ConsumerStatefulWidget {
+  const _GalleryVisibilityModal();
+
+  @override
+  ConsumerState<_GalleryVisibilityModal> createState() =>
+      _GalleryVisibilityModalState();
+}
+
+class _GalleryVisibilityModalState
+    extends ConsumerState<_GalleryVisibilityModal> {
+  Set<int>? _selected;
+  bool _saving = false;
+
+  Future<void> _save(List<int> visibleIds) async {
+    setState(() => _saving = true);
+    final ok =
+        await ref.read(galleryProvider.notifier).updateVisibility(visibleIds);
+    if (!mounted) return;
+    if (!ok) {
+      setState(() => _saving = false);
+      return;
+    }
+    Navigator.pop(context);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final gallery = ref.watch(galleryProvider);
+    // Only approved photos/videos can ever appear on the guest link — an
+    // unapproved one showing "selected" here wouldn't actually be visible
+    // until it clears moderation on the Gallery tab.
+    final approved =
+        gallery.assets.where((asset) => asset['approved'] == true).toList();
+
+    _selected ??= approved
+        .where((asset) => asset['visible_to_guests'] != false)
+        .map((asset) => asset['id'] as int)
+        .toSet();
+    final selected = _selected!;
+    final allSelected = approved.isNotEmpty && selected.length == approved.length;
+
+    return SafeArea(
+      child: Padding(
+        padding: EdgeInsets.fromLTRB(
+            20, 20, 20, 20 + MediaQuery.of(context).viewInsets.bottom),
+        child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(children: [
+                Expanded(
+                    child: Text('Photo Gallery',
+                        style: UdoDesign.sans(size: 18, weight: FontWeight.w800))),
+                IconButton(
+                    onPressed: () => Navigator.pop(context),
+                    icon: const Icon(Icons.close)),
+              ]),
+              const SizedBox(height: 4),
+              Text('Choose the photos and videos you want guests to see on their link.',
+                  style: UdoDesign.sans(
+                      size: 12.5, color: UdoDesign.muted, height: 1.4)),
+              const SizedBox(height: 14),
+              if (gallery.isLoading && approved.isEmpty)
+                const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 32),
+                  child:
+                      Center(child: CircularProgressIndicator(color: _guestAccent)),
+                )
+              else ...[
+                InkWell(
+                  onTap: approved.isEmpty
+                      ? null
+                      : () => setState(() {
+                            _selected = allSelected
+                                ? <int>{}
+                                : approved
+                                    .map((asset) => asset['id'] as int)
+                                    .toSet();
+                          }),
+                  child: Row(mainAxisSize: MainAxisSize.min, children: [
+                    Checkbox(
+                      value: allSelected,
+                      activeColor: _guestAccent,
+                      onChanged: approved.isEmpty
+                          ? null
+                          : (v) => setState(() {
+                                _selected = (v ?? false)
+                                    ? approved
+                                        .map((asset) => asset['id'] as int)
+                                        .toSet()
+                                    : <int>{};
+                              }),
+                    ),
+                    Text('Select all',
+                        style: UdoDesign.sans(size: 13, weight: FontWeight.w700)),
+                  ]),
+                ),
+                const Divider(height: 20),
+                if (approved.isEmpty)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 24),
+                    child: Text(
+                        "You don't have any approved photos yet. Approve some from the Gallery tab first.",
+                        style: UdoDesign.sans(
+                            size: 13, color: UdoDesign.muted, height: 1.4)),
+                  )
+                else
+                  ConstrainedBox(
+                    constraints: BoxConstraints(
+                        maxHeight: MediaQuery.of(context).size.height * 0.42),
+                    child: GridView.builder(
+                      shrinkWrap: true,
+                      itemCount: approved.length,
+                      gridDelegate:
+                          const SliverGridDelegateWithFixedCrossAxisCount(
+                              crossAxisCount: 3,
+                              crossAxisSpacing: 8,
+                              mainAxisSpacing: 8,
+                              childAspectRatio: 1),
+                      itemBuilder: (_, index) {
+                        final asset = approved[index];
+                        final id = asset['id'] as int;
+                        return _GalleryAssetTile(
+                          asset: asset,
+                          checked: selected.contains(id),
+                          onChanged: (checked) => setState(() {
+                            if (checked) {
+                              selected.add(id);
+                            } else {
+                              selected.remove(id);
+                            }
+                          }),
+                        );
+                      },
+                    ),
+                  ),
+                const SizedBox(height: 16),
+                Row(children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: () => Navigator.pop(context),
+                      style: OutlinedButton.styleFrom(
+                          minimumSize: const Size.fromHeight(48),
+                          side: const BorderSide(color: UdoDesign.border)),
+                      child: const Text('Cancel'),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: ElevatedButton(
+                      onPressed: _saving || approved.isEmpty
+                          ? null
+                          : () => _save(selected.toList()),
+                      style: ElevatedButton.styleFrom(
+                          minimumSize: const Size.fromHeight(48),
+                          backgroundColor: _guestAccent,
+                          foregroundColor: Colors.white),
+                      child: _saving
+                          ? const SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(
+                                  strokeWidth: 2, color: Colors.white))
+                          : const Text('Save'),
+                    ),
+                  ),
+                ]),
+              ],
+            ]),
+      ),
+    );
+  }
+}
+
+class _GalleryAssetTile extends StatelessWidget {
+  final Map<String, dynamic> asset;
+  final bool checked;
+  final ValueChanged<bool> onChanged;
+  const _GalleryAssetTile(
+      {required this.asset, required this.checked, required this.onChanged});
+
+  @override
+  Widget build(BuildContext context) {
+    final url = (asset['thumbnail_url'] as String?) ??
+        (asset['url'] as String?) ??
+        '';
+    final isVideo = asset['type'] == 'video';
+
+    return GestureDetector(
+      onTap: () => onChanged(!checked),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(10),
+        child: Stack(fit: StackFit.expand, children: [
+          Container(color: UdoDesign.card),
+          if (url.isNotEmpty)
+            Image.network(
+              url,
+              fit: BoxFit.cover,
+              errorBuilder: (context, error, stack) => const Center(
+                  child: Icon(Icons.broken_image_outlined,
+                      color: UdoDesign.muted, size: 22)),
+            )
+          else
+            const Center(
+                child: Icon(Icons.image_outlined,
+                    color: UdoDesign.muted, size: 22)),
+          if (isVideo)
+            const Center(
+                child: Icon(Icons.play_circle_fill,
+                    color: Colors.white, size: 28)),
+          Container(
+            decoration: BoxDecoration(
+              border: Border.all(
+                  color: checked ? _guestAccent : Colors.transparent, width: 3),
+              borderRadius: BorderRadius.circular(10),
+            ),
+          ),
+          Positioned(
+            top: 5,
+            right: 5,
+            child: Container(
+              width: 20,
+              height: 20,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: checked ? _guestAccent : Colors.black.withValues(alpha: 0.35),
+                border: Border.all(color: Colors.white, width: 1.5),
+              ),
+              child: checked
+                  ? const Icon(Icons.check, size: 13, color: Colors.white)
+                  : null,
+            ),
+          ),
+        ]),
+      ),
+    );
+  }
+}
+
+// ── LIVE UPDATES GUEST-LINK VISIBILITY MODAL ───────────────────────────────────
+
+void _showLiveVisibilityModal(BuildContext context, WidgetRef ref) {
+  showModalBottomSheet(
+    context: context,
+    isScrollControlled: true,
+    useRootNavigator: true,
+    backgroundColor: Colors.white,
+    shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+    builder: (_) => const _LiveVisibilityModal(),
+  );
+}
+
+class _LiveVisibilityModal extends ConsumerStatefulWidget {
+  const _LiveVisibilityModal();
+
+  @override
+  ConsumerState<_LiveVisibilityModal> createState() =>
+      _LiveVisibilityModalState();
+}
+
+class _LiveVisibilityModalState extends ConsumerState<_LiveVisibilityModal> {
+  Set<int>? _selected;
+  bool _saving = false;
+
+  Future<void> _save(List<int> visibleIds) async {
+    setState(() => _saving = true);
+    final ok =
+        await ref.read(liveProvider.notifier).updateVisibility(visibleIds);
+    if (!mounted) return;
+    if (!ok) {
+      setState(() => _saving = false);
+      return;
+    }
+    Navigator.pop(context);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final live = ref.watch(liveProvider);
+    final updates = live.updates;
+
+    _selected ??= updates
+        .where((update) => update['visible_to_guests'] != false)
+        .map((update) => update['id'] as int)
+        .toSet();
+    final selected = _selected!;
+    final allSelected = updates.isNotEmpty && selected.length == updates.length;
+
+    return SafeArea(
+      child: Padding(
+        padding: EdgeInsets.fromLTRB(
+            20, 20, 20, 20 + MediaQuery.of(context).viewInsets.bottom),
+        child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(children: [
+                Expanded(
+                    child: Text('Live Updates',
+                        style: UdoDesign.sans(size: 18, weight: FontWeight.w800))),
+                IconButton(
+                    onPressed: () => Navigator.pop(context),
+                    icon: const Icon(Icons.close)),
+              ]),
+              const SizedBox(height: 4),
+              Text('Choose the updates you want guests to see on their link.',
+                  style: UdoDesign.sans(
+                      size: 12.5, color: UdoDesign.muted, height: 1.4)),
+              const SizedBox(height: 14),
+              if (live.isLoading && updates.isEmpty)
+                const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 32),
+                  child:
+                      Center(child: CircularProgressIndicator(color: _guestAccent)),
+                )
+              else ...[
+                InkWell(
+                  onTap: updates.isEmpty
+                      ? null
+                      : () => setState(() {
+                            _selected = allSelected
+                                ? <int>{}
+                                : updates
+                                    .map((update) => update['id'] as int)
+                                    .toSet();
+                          }),
+                  child: Row(mainAxisSize: MainAxisSize.min, children: [
+                    Checkbox(
+                      value: allSelected,
+                      activeColor: _guestAccent,
+                      onChanged: updates.isEmpty
+                          ? null
+                          : (v) => setState(() {
+                                _selected = (v ?? false)
+                                    ? updates
+                                        .map((update) => update['id'] as int)
+                                        .toSet()
+                                    : <int>{};
+                              }),
+                    ),
+                    Text('Select all',
+                        style: UdoDesign.sans(size: 13, weight: FontWeight.w700)),
+                  ]),
+                ),
+                const Divider(height: 20),
+                if (updates.isEmpty)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 24),
+                    child: Text(
+                        "You haven't posted any live updates yet. Post one from the Live tab first.",
+                        style: UdoDesign.sans(
+                            size: 13, color: UdoDesign.muted, height: 1.4)),
+                  )
+                else
+                  ConstrainedBox(
+                    constraints: BoxConstraints(
+                        maxHeight: MediaQuery.of(context).size.height * 0.42),
+                    child: ListView.separated(
+                      shrinkWrap: true,
+                      itemCount: updates.length,
+                      separatorBuilder: (_, __) => const SizedBox(height: 8),
+                      itemBuilder: (_, index) {
+                        final update = updates[index];
+                        final id = update['id'] as int;
+                        return _LiveUpdateTile(
+                          update: update,
+                          checked: selected.contains(id),
+                          onChanged: (checked) => setState(() {
+                            if (checked) {
+                              selected.add(id);
+                            } else {
+                              selected.remove(id);
+                            }
+                          }),
+                        );
+                      },
+                    ),
+                  ),
+                const SizedBox(height: 16),
+                Row(children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: () => Navigator.pop(context),
+                      style: OutlinedButton.styleFrom(
+                          minimumSize: const Size.fromHeight(48),
+                          side: const BorderSide(color: UdoDesign.border)),
+                      child: const Text('Cancel'),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: ElevatedButton(
+                      onPressed: _saving || updates.isEmpty
+                          ? null
+                          : () => _save(selected.toList()),
+                      style: ElevatedButton.styleFrom(
+                          minimumSize: const Size.fromHeight(48),
+                          backgroundColor: _guestAccent,
+                          foregroundColor: Colors.white),
+                      child: _saving
+                          ? const SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(
+                                  strokeWidth: 2, color: Colors.white))
+                          : const Text('Save'),
+                    ),
+                  ),
+                ]),
+              ],
+            ]),
+      ),
+    );
+  }
+}
+
+class _LiveUpdateTile extends StatelessWidget {
+  final Map<String, dynamic> update;
+  final bool checked;
+  final ValueChanged<bool> onChanged;
+  const _LiveUpdateTile(
+      {required this.update, required this.checked, required this.onChanged});
+
+  @override
+  Widget build(BuildContext context) {
+    final title = update['title'] as String? ?? 'Update';
+    final type = (update['type'] as String? ?? '').replaceAll('_', ' ');
+    final pinned = update['pinned'] == true;
+
+    return InkWell(
+      borderRadius: BorderRadius.circular(12),
+      onTap: () => onChanged(!checked),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+        decoration: BoxDecoration(
+          color: checked ? const Color(0xFFFFFCF6) : UdoDesign.card,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+              color:
+                  checked ? _guestAccent.withValues(alpha: 0.4) : UdoDesign.border),
+        ),
+        child: Row(children: [
+          Checkbox(
+              value: checked,
+              activeColor: _guestAccent,
+              onChanged: (v) => onChanged(v ?? false)),
+          const SizedBox(width: 4),
+          Expanded(
+            child:
+                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: UdoDesign.sans(size: 13.5, weight: FontWeight.w700)),
+              if (type.isNotEmpty) ...[
+                const SizedBox(height: 2),
+                Text(type,
+                    style: UdoDesign.sans(
+                        size: 11.5,
+                        color: UdoDesign.muted,
+                        weight: FontWeight.w600)),
+              ],
+            ]),
+          ),
+          if (pinned)
+            const Icon(Icons.push_pin, size: 14, color: _guestAccent),
+        ]),
+      ),
+    );
+  }
 }
 
 class _PortalHeroCard extends StatelessWidget {
@@ -6124,6 +7379,7 @@ class _PortalModuleCard extends StatelessWidget {
   final String category;
   final bool enabled;
   final ValueChanged<bool> onChanged;
+  final VoidCallback? onCustomize;
 
   const _PortalModuleCard({
     required this.field,
@@ -6132,6 +7388,7 @@ class _PortalModuleCard extends StatelessWidget {
     required this.category,
     required this.enabled,
     required this.onChanged,
+    this.onCustomize,
   });
 
   @override
@@ -6167,6 +7424,19 @@ class _PortalModuleCard extends StatelessWidget {
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
               style: UdoDesign.sans(size: 13.5, weight: FontWeight.w800)),
+          if (onCustomize != null && enabled) ...[
+            const SizedBox(height: 6),
+            GestureDetector(
+              onTap: onCustomize,
+              child: Row(mainAxisSize: MainAxisSize.min, children: [
+                Text('Choose what shows',
+                    style: UdoDesign.sans(
+                        size: 11, weight: FontWeight.w700, color: _guestAccent)),
+                const SizedBox(width: 2),
+                Icon(Icons.chevron_right, size: 14, color: _guestAccent),
+              ]),
+            ),
+          ],
         ]),
       );
 }
@@ -9021,17 +10291,35 @@ class AddHotelModal extends StatefulWidget {
 class _AddHotelModalState extends State<AddHotelModal> {
   final _name = TextEditingController();
   final _rate = TextEditingController();
-  final _rooms = TextEditingController();
   final _address = TextEditingController();
+  final _roomBlockStart = TextEditingController();
+  final _roomBlockEnd = TextEditingController();
+  final _roomInput = TextEditingController();
+  final _roomInputFocus = FocusNode();
   final _bookingCode = TextEditingController();
   final _bookingUrl = TextEditingController();
   final _contactName = TextEditingController();
   final _contactPhone = TextEditingController();
   final _notes = TextEditingController();
+  final List<String> _roomLabels = [];
+  bool _addingRoom = false;
   DateTime? _checkIn;
   DateTime? _checkOut;
   bool _loading = false;
   String? _error;
+
+  void _commitRoomInput() {
+    final parts = _roomInput.text
+        .split(',')
+        .map((label) => label.trim())
+        .where((label) => label.isNotEmpty);
+    setState(() {
+      for (final label in parts) {
+        if (!_roomLabels.contains(label)) _roomLabels.add(label);
+      }
+      _roomInput.clear();
+    });
+  }
 
   @override
   Widget build(BuildContext context) => Padding(
@@ -9080,11 +10368,12 @@ class _AddHotelModalState extends State<AddHotelModal> {
               const SizedBox(height: 10),
               _GField('Address', _address),
               const SizedBox(height: 10),
-              _GField('Room numbers / labels', _rooms,
-                  hint: '101, 102, 103, King Suite, Accessible Room'),
-              const SizedBox(height: 10),
-              _GField('Rate/night', _rate,
-                  type: const TextInputType.numberWithOptions(decimal: true)),
+              Row(children: [
+                Expanded(
+                    child: _RangeField('Room block start', _roomBlockStart)),
+                const SizedBox(width: 10),
+                Expanded(child: _RangeField('Room block end', _roomBlockEnd)),
+              ]),
               const SizedBox(height: 10),
               Row(children: [
                 Expanded(
@@ -9102,6 +10391,9 @@ class _AddHotelModalState extends State<AddHotelModal> {
                 )),
               ]),
               const SizedBox(height: 10),
+              _GField('Rate/night', _rate,
+                  type: const TextInputType.numberWithOptions(decimal: true)),
+              const SizedBox(height: 10),
               Row(children: [
                 Expanded(child: _GField('Booking code', _bookingCode)),
                 const SizedBox(width: 10),
@@ -9117,6 +10409,102 @@ class _AddHotelModalState extends State<AddHotelModal> {
               ]),
               const SizedBox(height: 10),
               _GField('Notes', _notes),
+              const SizedBox(height: 16),
+              _Card(
+                child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                        Expanded(
+                          child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text('Room block',
+                                    style: UdoDesign.sans(
+                                        size: 14, weight: FontWeight.w800)),
+                                const SizedBox(height: 2),
+                                Text(
+                                    'Add room numbers, names or any identifiers',
+                                    style: UdoDesign.sans(
+                                        size: 11.5, color: UdoDesign.muted)),
+                              ]),
+                        ),
+                        TextButton.icon(
+                          onPressed: () {
+                            setState(() => _addingRoom = true);
+                            WidgetsBinding.instance.addPostFrameCallback(
+                                (_) => _roomInputFocus.requestFocus());
+                          },
+                          icon: const Icon(Icons.add_circle_outline, size: 16),
+                          label: const Text('Add room'),
+                          style: TextButton.styleFrom(
+                              foregroundColor: _guestAccent,
+                              visualDensity: VisualDensity.compact),
+                        ),
+                      ]),
+                      if (_addingRoom) ...[
+                        const SizedBox(height: 8),
+                        TextField(
+                          controller: _roomInput,
+                          focusNode: _roomInputFocus,
+                          textInputAction: TextInputAction.done,
+                          onSubmitted: (_) => _commitRoomInput(),
+                          decoration: InputDecoration(
+                            hintText: 'e.g. 101, 102, King Suite',
+                            hintStyle: UdoDesign.sans(
+                                size: 13, color: UdoDesign.muted),
+                            isDense: true,
+                            filled: true,
+                            fillColor: AppTheme.udoCardFill,
+                            border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                                borderSide: BorderSide.none),
+                            contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 12, vertical: 10),
+                            suffixIcon: IconButton(
+                              icon: const Icon(Icons.check, size: 18),
+                              color: _guestAccent,
+                              onPressed: () {
+                                _commitRoomInput();
+                                setState(() => _addingRoom = false);
+                              },
+                            ),
+                          ),
+                        ),
+                      ],
+                      if (_roomLabels.isNotEmpty) ...[
+                        const SizedBox(height: 12),
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          children: _roomLabels
+                              .map((label) => InputChip(
+                                    label: Text(label,
+                                        style: UdoDesign.sans(
+                                            size: 12.5,
+                                            weight: FontWeight.w700,
+                                            color: _guestAccent)),
+                                    backgroundColor:
+                                        _guestAccent.withOpacity(0.10),
+                                    side: BorderSide.none,
+                                    visualDensity: VisualDensity.compact,
+                                    materialTapTargetSize:
+                                        MaterialTapTargetSize.shrinkWrap,
+                                    deleteIcon: Icon(Icons.close,
+                                        size: 15, color: _guestAccent),
+                                    onDeleted: () => setState(
+                                        () => _roomLabels.remove(label)),
+                                  ))
+                              .toList(),
+                        ),
+                      ],
+                      const SizedBox(height: 10),
+                      Text(
+                          '${_roomLabels.length} room${_roomLabels.length == 1 ? '' : 's'} added',
+                          style: UdoDesign.sans(
+                              size: 11.5, color: UdoDesign.muted)),
+                    ]),
+              ),
               if (_error != null) ...[
                 const SizedBox(height: 10),
                 Text(_error!,
@@ -9146,11 +10534,9 @@ class _AddHotelModalState extends State<AddHotelModal> {
 
   Future<void> _submit() async {
     if (_name.text.trim().isEmpty) return;
-    final roomLabels = _rooms.text
-        .split(',')
-        .map((label) => label.trim())
-        .where((label) => label.isNotEmpty)
-        .toList();
+    if (_addingRoom && _roomInput.text.trim().isNotEmpty) _commitRoomInput();
+    final roomBlockStart = int.tryParse(_roomBlockStart.text.trim());
+    final roomBlockEnd = int.tryParse(_roomBlockEnd.text.trim());
     setState(() {
       _loading = true;
       _error = null;
@@ -9158,8 +10544,10 @@ class _AddHotelModalState extends State<AddHotelModal> {
     final errorMessage = await widget.notifier.addAccommodation({
       'name': _name.text.trim(),
       if (_address.text.trim().isNotEmpty) 'address': _address.text.trim(),
-      if (roomLabels.isNotEmpty) 'total_rooms': roomLabels.length,
-      if (roomLabels.isNotEmpty) 'room_labels': roomLabels,
+      if (_roomLabels.isNotEmpty) 'total_rooms': _roomLabels.length,
+      if (_roomLabels.isNotEmpty) 'room_labels': _roomLabels,
+      if (roomBlockStart != null) 'room_block_start': roomBlockStart,
+      if (roomBlockEnd != null) 'room_block_end': roomBlockEnd,
       if (_rate.text.trim().isNotEmpty)
         'price_per_night': double.tryParse(_rate.text.trim()),
       if (_checkIn != null) 'check_in_date': _dateOnly(_checkIn!),
@@ -9191,8 +10579,11 @@ class _AddHotelModalState extends State<AddHotelModal> {
   void dispose() {
     _name.dispose();
     _rate.dispose();
-    _rooms.dispose();
     _address.dispose();
+    _roomBlockStart.dispose();
+    _roomBlockEnd.dispose();
+    _roomInput.dispose();
+    _roomInputFocus.dispose();
     _bookingCode.dispose();
     _bookingUrl.dispose();
     _contactName.dispose();
@@ -9444,6 +10835,28 @@ Widget _GField(String label, TextEditingController ctrl,
                 borderSide: BorderSide.none),
             contentPadding:
                 const EdgeInsets.symmetric(horizontal: 14, vertical: 12)));
+
+/// A numeric field that keeps its [label] visible above the value at all
+/// times, rather than hiding it once typed — used for fields like a room
+/// block range where the number alone would be ambiguous.
+Widget _RangeField(String label, TextEditingController ctrl) => TextField(
+    controller: ctrl,
+    keyboardType: TextInputType.number,
+    style: UdoDesign.sans(size: 15, weight: FontWeight.w700),
+    decoration: InputDecoration(
+        labelText: label,
+        floatingLabelBehavior: FloatingLabelBehavior.always,
+        labelStyle: UdoDesign.sans(size: 11.5, color: UdoDesign.muted),
+        filled: true,
+        fillColor: AppTheme.udoCardFill,
+        border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(14),
+            borderSide: BorderSide.none),
+        enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(14),
+            borderSide: BorderSide.none),
+        contentPadding:
+            const EdgeInsets.symmetric(horizontal: 14, vertical: 10)));
 
 // ── SHARED ─────────────────────────────────────────────────────────────────────
 

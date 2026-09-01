@@ -50,20 +50,23 @@ class AuthService {
       'email': email,
       'two_factor_token': twoFactorToken,
     });
-    return (data is Map ? data['message']?.toString() : null) ?? 'A new code is on its way.';
+    return (data is Map ? data['message']?.toString() : null) ??
+        'A new code is on its way.';
   }
 
   Future<AuthUser> enableTwoFactor(String currentPassword) async {
     final data = await _api.post('/auth/two-factor/enable',
         data: {'current_password': currentPassword});
-    final rawUser = data is Map && data['user'] is Map ? data['user'] as Map : data as Map;
+    final rawUser =
+        data is Map && data['user'] is Map ? data['user'] as Map : data as Map;
     return AuthUser.fromJson(Map<String, dynamic>.from(rawUser));
   }
 
   Future<AuthUser> disableTwoFactor(String currentPassword) async {
     final data = await _api.post('/auth/two-factor/disable',
         data: {'current_password': currentPassword});
-    final rawUser = data is Map && data['user'] is Map ? data['user'] as Map : data as Map;
+    final rawUser =
+        data is Map && data['user'] is Map ? data['user'] as Map : data as Map;
     return AuthUser.fromJson(Map<String, dynamic>.from(rawUser));
   }
 
@@ -85,7 +88,7 @@ class AuthService {
   }
 
   Future<AuthResponse> socialLogin({
-    required String provider,   // 'google' | 'apple'
+    required String provider, // 'google' | 'apple'
     required String token,
     String? firstName,
     String? lastName,
@@ -101,7 +104,8 @@ class AuthService {
 
   Future<AuthUser> me() async {
     final data = await _api.get('/auth/me');
-    final rawUser = data is Map && data['user'] is Map ? data['user'] as Map : data as Map;
+    final rawUser =
+        data is Map && data['user'] is Map ? data['user'] as Map : data as Map;
     return AuthUser.fromJson(Map<String, dynamic>.from(rawUser));
   }
 
@@ -119,9 +123,11 @@ class AuthService {
       'first_name': firstName,
       'last_name': lastName ?? '',
       'email': email,
-      if (avatarUrl != null && avatarUrl.trim().isNotEmpty) 'avatar_url': avatarUrl.trim(),
+      if (avatarUrl != null && avatarUrl.trim().isNotEmpty)
+        'avatar_url': avatarUrl.trim(),
     });
-    final rawUser = data is Map && data['user'] is Map ? data['user'] as Map : data as Map;
+    final rawUser =
+        data is Map && data['user'] is Map ? data['user'] as Map : data as Map;
     return AuthUser.fromJson(Map<String, dynamic>.from(rawUser));
   }
 
@@ -130,10 +136,12 @@ class AuthService {
     Map<String, dynamic>? supportPreferences,
   }) async {
     final data = await _api.patch('/auth/preferences', data: {
-      if (notificationPreferences != null) 'notification_preferences': notificationPreferences,
+      if (notificationPreferences != null)
+        'notification_preferences': notificationPreferences,
       if (supportPreferences != null) 'support_preferences': supportPreferences,
     });
-    final rawUser = data is Map && data['user'] is Map ? data['user'] as Map : data as Map;
+    final rawUser =
+        data is Map && data['user'] is Map ? data['user'] as Map : data as Map;
     return AuthUser.fromJson(Map<String, dynamic>.from(rawUser));
   }
 
@@ -143,8 +151,10 @@ class AuthService {
   }
 
   Future<String> forgotPassword(String email) async {
-    final data = await _api.post('/auth/forgot-password', data: {'email': email});
-    return (data is Map ? data['message']?.toString() : null) ?? 'If that email is registered, a reset link is on its way.';
+    final data =
+        await _api.post('/auth/forgot-password', data: {'email': email});
+    return (data is Map ? data['message']?.toString() : null) ??
+        'If that email is registered, a reset link is on its way.';
   }
 
   Future<void> changePassword({
@@ -167,19 +177,31 @@ class AuthService {
   }
 
   Future<void> saveSession(String token, AuthUser user) async {
-    await _storage.write(key: AppConstants.tokenKey, value: token);
-    await _storage.write(key: AppConstants.userKey, value: jsonEncode(user.toJson()));
+    await _storage
+        .write(key: AppConstants.tokenKey, value: token)
+        .timeout(const Duration(seconds: 3));
+    await _storage
+        .write(key: AppConstants.userKey, value: jsonEncode(user.toJson()))
+        .timeout(const Duration(seconds: 3));
   }
 
   Future<void> clearSession() async {
-    await _storage.delete(key: AppConstants.tokenKey);
-    await _storage.delete(key: AppConstants.userKey);
+    await _storage
+        .delete(key: AppConstants.tokenKey)
+        .timeout(const Duration(seconds: 3));
+    await _storage
+        .delete(key: AppConstants.userKey)
+        .timeout(const Duration(seconds: 3));
   }
 
-  Future<String?> getToken() => _storage.read(key: AppConstants.tokenKey);
+  Future<String?> getToken() => _storage
+      .read(key: AppConstants.tokenKey)
+      .timeout(const Duration(seconds: 3));
 
   Future<AuthUser?> getCachedUser() async {
-    final raw = await _storage.read(key: AppConstants.userKey);
+    final raw = await _storage
+        .read(key: AppConstants.userKey)
+        .timeout(const Duration(seconds: 3));
     if (raw == null) return null;
     return AuthUser.fromJson(jsonDecode(raw));
   }

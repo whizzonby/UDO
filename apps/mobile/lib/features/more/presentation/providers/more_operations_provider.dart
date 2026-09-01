@@ -55,7 +55,8 @@ class MoreOperationsState {
 class MoreOperationsNotifier extends StateNotifier<MoreOperationsState> {
   final ApiClient _api;
 
-  MoreOperationsNotifier(this._api) : super(const MoreOperationsState(isLoading: true)) {
+  MoreOperationsNotifier(this._api)
+      : super(const MoreOperationsState(isLoading: true)) {
     refresh();
   }
 
@@ -101,7 +102,9 @@ class MoreOperationsNotifier extends StateNotifier<MoreOperationsState> {
         team: _mapList(teamRes?['data']),
         roles: _mapList(teamRes?['roles']),
         auditLogs: _mapList(auditRes?['data']),
-        approvalCategories: (teamRes?['approval_categories'] as List? ?? []).map((c) => c.toString()).toList(),
+        approvalCategories: (teamRes?['approval_categories'] as List? ?? [])
+            .map((c) => c.toString())
+            .toList(),
         approvals: _mapList(approvalsRes?['data']),
       );
     } catch (e) {
@@ -109,15 +112,19 @@ class MoreOperationsNotifier extends StateNotifier<MoreOperationsState> {
     }
   }
 
-  Future<bool> voteOnApproval(int approvalRequestId, String decision, {String? note}) async {
+  Future<bool> voteOnApproval(int approvalRequestId, String decision,
+      {String? note}) async {
     try {
-      final res = _map(await _api.post('/approvals/$approvalRequestId/vote', data: {
+      final res =
+          _map(await _api.post('/approvals/$approvalRequestId/vote', data: {
         'decision': decision,
         if (note != null) 'note': note,
       }));
       final updated = Map<String, dynamic>.from(res['data'] as Map);
       state = state.copyWith(
-        approvals: state.approvals.map((a) => a['id'] == updated['id'] ? updated : a).toList(),
+        approvals: state.approvals
+            .map((a) => a['id'] == updated['id'] ? updated : a)
+            .toList(),
         error: null,
       );
       return true;
@@ -138,11 +145,15 @@ class MoreOperationsNotifier extends StateNotifier<MoreOperationsState> {
         'email': email,
         'role': role,
         if (isDecisionMaker != null) 'is_decision_maker': isDecisionMaker,
-        if (approvalCategories != null) 'approval_categories': approvalCategories,
+        if (approvalCategories != null)
+          'approval_categories': approvalCategories,
       }));
       final member = Map<String, dynamic>.from(res['data'] as Map);
       state = state.copyWith(
-        team: [...state.team.where((item) => item['user_id'] != member['user_id']), member],
+        team: [
+          ...state.team.where((item) => item['user_id'] != member['user_id']),
+          member
+        ],
         error: null,
       );
       return true;
@@ -152,15 +163,18 @@ class MoreOperationsNotifier extends StateNotifier<MoreOperationsState> {
     }
   }
 
-  Future<bool> updateCollaborator(int id, {bool? isDecisionMaker, List<String>? approvalCategories}) async {
+  Future<bool> updateCollaborator(int id,
+      {bool? isDecisionMaker, List<String>? approvalCategories}) async {
     try {
       final res = _map(await _api.patch('/wedding/team/$id', data: {
         if (isDecisionMaker != null) 'is_decision_maker': isDecisionMaker,
-        if (approvalCategories != null) 'approval_categories': approvalCategories,
+        if (approvalCategories != null)
+          'approval_categories': approvalCategories,
       }));
       final member = Map<String, dynamic>.from(res['data'] as Map);
       state = state.copyWith(
-        team: state.team.map((item) => item['id'] == id ? member : item).toList(),
+        team:
+            state.team.map((item) => item['id'] == id ? member : item).toList(),
         error: null,
       );
       return true;
@@ -174,10 +188,12 @@ class MoreOperationsNotifier extends StateNotifier<MoreOperationsState> {
     try {
       await _api.post('/weddings/switch', data: {'wedding_id': weddingId});
       state = state.copyWith(
-        weddings: state.weddings.map((wedding) => {
-          ...wedding,
-          'is_active': wedding['id'] == weddingId,
-        }).toList(),
+        weddings: state.weddings
+            .map((wedding) => {
+                  ...wedding,
+                  'is_active': wedding['id'] == weddingId,
+                })
+            .toList(),
         team: const [],
         auditLogs: const [],
         error: null,
@@ -202,13 +218,19 @@ class MoreOperationsNotifier extends StateNotifier<MoreOperationsState> {
       final wedding = _map(await _api.post('/weddings', data: {
         if (title != null && title.trim().isNotEmpty) 'title': title.trim(),
         'couple_name_primary': primaryName.trim(),
-        if (secondaryName != null && secondaryName.trim().isNotEmpty) 'couple_name_secondary': secondaryName.trim(),
-        if (eventDate != null && eventDate.trim().isNotEmpty) 'event_date': eventDate.trim(),
+        if (secondaryName != null && secondaryName.trim().isNotEmpty)
+          'couple_name_secondary': secondaryName.trim(),
+        if (eventDate != null && eventDate.trim().isNotEmpty)
+          'event_date': eventDate.trim(),
         if (city != null && city.trim().isNotEmpty) 'city': city.trim(),
-        if (country != null && country.trim().isNotEmpty) 'country': country.trim(),
+        if (country != null && country.trim().isNotEmpty)
+          'country': country.trim(),
       }));
       state = state.copyWith(
-        weddings: [...state.weddings.map((item) => {...item, 'is_active': false}), wedding],
+        weddings: [
+          ...state.weddings.map((item) => {...item, 'is_active': false}),
+          wedding
+        ],
         team: const [],
         auditLogs: const [],
         error: null,
@@ -239,6 +261,37 @@ class MoreOperationsNotifier extends StateNotifier<MoreOperationsState> {
       return false;
     }
   }
+
+  Future<List<Map<String, dynamic>>> searchPlaces(
+      String query, String sessionToken,
+      {String? type}) async {
+    try {
+      final res = await _api.get('/places/search', query: {
+        'query': query,
+        'session_token': sessionToken,
+        if (type != null) 'type': type,
+      }) as Map<String, dynamic>;
+      return (res['data'] as List? ?? [])
+          .whereType<Map>()
+          .map((place) => Map<String, dynamic>.from(place))
+          .toList();
+    } catch (_) {
+      return const [];
+    }
+  }
+
+  Future<Map<String, dynamic>?> fetchPlaceDetails(
+      String placeId, String sessionToken) async {
+    try {
+      final res = await _api.get('/places/$placeId', query: {
+        'session_token': sessionToken,
+      }) as Map<String, dynamic>;
+      final data = res['data'];
+      return data is Map ? Map<String, dynamic>.from(data) : null;
+    } catch (_) {
+      return null;
+    }
+  }
 }
 
 List<Map<String, dynamic>> _mapList(dynamic value) {
@@ -256,6 +309,7 @@ Map<String, dynamic> _map(dynamic value) {
   return Map<String, dynamic>.from(value as Map);
 }
 
-final moreOperationsProvider = StateNotifierProvider<MoreOperationsNotifier, MoreOperationsState>((ref) {
+final moreOperationsProvider =
+    StateNotifierProvider<MoreOperationsNotifier, MoreOperationsState>((ref) {
   return MoreOperationsNotifier(ref.read(apiClientProvider));
 });

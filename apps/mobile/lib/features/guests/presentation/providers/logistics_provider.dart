@@ -173,6 +173,40 @@ class LogisticsNotifier extends StateNotifier<LogisticsState> {
     }
   }
 
+  /// Bulk-sets which transport routes are shown on the guest link — used by
+  /// the "Transport Info" guest-portal picker so a multi-route selection
+  /// saves in one request instead of one PATCH per route.
+  Future<bool> updateTransportVisibility(List<int> visibleIds) async {
+    try {
+      final res = await _api.patch('/logistics/transport-visibility',
+          data: {'visible_ids': visibleIds}) as Map<String, dynamic>;
+      final updated =
+          (res['data'] as List? ?? []).cast<Map<String, dynamic>>();
+      state = state.copyWith(transports: updated, error: null);
+      return true;
+    } catch (e) {
+      state = state.copyWith(error: e.toString());
+      return false;
+    }
+  }
+
+  /// Bulk-sets which accommodation options are shown on the guest link —
+  /// mirrors updateTransportVisibility() for the "Accommodation Info"
+  /// guest-portal picker.
+  Future<bool> updateAccommodationVisibility(List<int> visibleIds) async {
+    try {
+      final res = await _api.patch('/logistics/accommodation-visibility',
+          data: {'visible_ids': visibleIds}) as Map<String, dynamic>;
+      final updated =
+          (res['data'] as List? ?? []).cast<Map<String, dynamic>>();
+      state = state.copyWith(accommodations: updated, error: null);
+      return true;
+    } catch (e) {
+      state = state.copyWith(error: e.toString());
+      return false;
+    }
+  }
+
   Future<bool> assignTransport(int transportId, int guestId) async {
     try {
       await _api.post('/logistics/transport/$transportId/assign',

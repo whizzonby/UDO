@@ -35,7 +35,6 @@ class _InvitationWizardScreenState extends ConsumerState<InvitationWizardScreen>
   bool _fNotYetInvited = false;
   bool _fVip = false;
   bool _fTravelling = false;
-  bool _fHasPhone = false;
   DateTime? _fAddedAfter;
   Set<int> _manualGuestIds = {};
 
@@ -61,7 +60,15 @@ class _InvitationWizardScreenState extends ConsumerState<InvitationWizardScreen>
   bool _sending = false;
 
   static const _subjectTemplate = "You're invited to {{wedding_title}}";
-  static const _bodyTemplate = "Hi {{first_name}}, we'd love to celebrate with you. Open your personal invitation here: {{rsvp_url}}";
+  static const _bodyTemplate = "Hi {{first_name}}! \u{1F48C}\n\n"
+      "You're invited to celebrate with us on our wedding day! \u{1F495}\n\n"
+      "View your invitation, RSVP, choose your meal and find all the details in one place.\n\n"
+      "✨ Tap the link below to open your personal invitation.\n"
+      "\u{1F447}\n"
+      "{{rsvp_url}}\n\n"
+      "We can't wait to celebrate with you! \u{1F389}\n\n"
+      "With love,\n"
+      "{{couple_names}}";
 
   @override
   void initState() {
@@ -109,7 +116,6 @@ class _InvitationWizardScreenState extends ConsumerState<InvitationWizardScreen>
     if (_fNotYetInvited) f['invite_status'] = 'not_sent';
     if (_fVip) f['vip_flag'] = true;
     if (_fTravelling) f['travel_required'] = true;
-    if (_fHasPhone) f['has_phone'] = true;
     if (_fAddedAfter != null) f['added_after'] = _fAddedAfter!.toIso8601String().split('T').first;
     return f;
   }
@@ -128,7 +134,7 @@ class _InvitationWizardScreenState extends ConsumerState<InvitationWizardScreen>
         .toSet();
     setState(() {
       _manualGuestIds = ids;
-      _fNotYetInvited = _fVip = _fTravelling = _fHasPhone = false;
+      _fNotYetInvited = _fVip = _fTravelling = false;
       _fAddedAfter = null;
     });
     _refreshPreview();
@@ -274,7 +280,6 @@ class _InvitationWizardScreenState extends ConsumerState<InvitationWizardScreen>
         _filterChip('Not yet invited', _manualGuestIds.isEmpty && _fNotYetInvited, () => _toggleFilter(() => _fNotYetInvited = !_fNotYetInvited)),
         _filterChip('VIP', _manualGuestIds.isEmpty && _fVip, () => _toggleFilter(() => _fVip = !_fVip)),
         _filterChip('Travelling', _manualGuestIds.isEmpty && _fTravelling, () => _toggleFilter(() => _fTravelling = !_fTravelling)),
-        _filterChip('Has phone', _manualGuestIds.isEmpty && _fHasPhone, () => _toggleFilter(() => _fHasPhone = !_fHasPhone)),
         _filterChip('Wedding party', _manualGuestIds.isNotEmpty, _selectWeddingParty),
         ActionChip(
           label: Text(_fAddedAfter == null ? 'Added after...' : 'Added after ${_fAddedAfter!.month}/${_fAddedAfter!.day}'),
@@ -363,7 +368,7 @@ class _InvitationWizardScreenState extends ConsumerState<InvitationWizardScreen>
                       } else {
                         _manualGuestIds.remove(id);
                       }
-                      _fNotYetInvited = _fVip = _fTravelling = _fHasPhone = false;
+                      _fNotYetInvited = _fVip = _fTravelling = false;
                       _fAddedAfter = null;
                     }),
                   );

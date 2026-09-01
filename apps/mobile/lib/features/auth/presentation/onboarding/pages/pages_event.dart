@@ -180,12 +180,6 @@ class CoreEventArchitecturePage extends StatelessWidget {
 
 const kVenueStatuses = ['Not started', 'Shortlisting', 'Booked'];
 const kGuestTravelOptions = ['Mostly local', 'Mixed', 'Mostly international'];
-const kTravelSupportOptions = [
-  'Accommodation coordination',
-  'Travel booking support',
-  'Visa guidance',
-  'Shuttle services'
-];
 
 class LocationTravelPage extends StatelessWidget {
   final OnboardingAnswers answers;
@@ -259,17 +253,6 @@ class LocationTravelPage extends StatelessWidget {
                             dense: true),
                       ))
                   .toList(),
-            ),
-          ),
-          OnboardingSection(
-            title: 'Support needed',
-            helper:
-                'The more we understand travel complexity, the better we can organize communication and logistics.',
-            child: MultiSelectChips(
-              options: kTravelSupportOptions,
-              selected: answers.travelSupport,
-              onToggle: (v) =>
-                  setState(() => answers.toggle(answers.travelSupport, v)),
             ),
           ),
         ],

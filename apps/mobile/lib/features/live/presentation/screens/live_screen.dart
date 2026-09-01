@@ -134,6 +134,8 @@ class _LiveScreenState extends ConsumerState<LiveScreen>
   late final TabController _tabs;
   Timer? _autoRefresh;
   bool _drawerOpen = false;
+  double? _dragStartX;
+  double _dragDeltaX = 0;
 
   static const _pages = [
     _LivePageMeta('Mission Control', Icons.radar_outlined),
@@ -167,9 +169,8 @@ class _LiveScreenState extends ConsumerState<LiveScreen>
   @override
   void didUpdateWidget(covariant LiveScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (widget.resetToken != oldWidget.resetToken && _tabs.index != 0) {
-      _tabs.animateTo(0);
-      setState(() => _drawerOpen = false);
+    if (widget.resetToken != oldWidget.resetToken) {
+      _returnToMissionControl(animated: _tabs.index != 0);
     }
   }
 
@@ -182,6 +183,13 @@ class _LiveScreenState extends ConsumerState<LiveScreen>
     setState(() => _drawerOpen = false);
   }
 
+  void _returnToMissionControl({bool animated = true}) {
+    if (_tabs.index != 0) {
+      animated ? _tabs.animateTo(0) : _tabs.index = 0;
+    }
+    if (mounted) setState(() => _drawerOpen = false);
+  }
+
   @override
   Widget build(BuildContext context) {
     final state = ref.watch(liveProvider);
@@ -192,64 +200,86 @@ class _LiveScreenState extends ConsumerState<LiveScreen>
       body: state.isLoading
           ? const Center(
               child: CircularProgressIndicator(color: UdoDesign.live))
-          : Stack(
-              children: [
-                Column(
-                  children: [
-                    _LiveHeader(
-                      title: _pages[_tabs.index].title,
-                      isMainPage: _tabs.index == 0,
-                      onNavTap: _goToLiveHome,
-                      onRefresh: notifier.refresh,
-                    ),
-                    if (state.isOffline)
-                      _StaleLiveBanner(
-                          cachedAt: state.cachedAt,
-                          onRefresh: notifier.refresh),
-                    Expanded(
-                      child: TabBarView(
-                        controller: _tabs,
-                        physics: const NeverScrollableScrollPhysics(),
-                        children: [
-                          RefreshIndicator(
-                              onRefresh: notifier.refresh,
-                              child: _TodayTab(
-                                  state: state,
-                                  onUpdatesTap: () => _tabs.animateTo(4))),
-                          RefreshIndicator(
-                              onRefresh: notifier.refresh,
-                              child: _TimelineTab(state: state)),
-                          RefreshIndicator(
-                              onRefresh: notifier.refresh,
-                              child: _MapTab(state: state)),
-                          RefreshIndicator(
-                              onRefresh: notifier.refresh,
-                              child: _WeatherTab(state: state)),
-                          RefreshIndicator(
-                              onRefresh: notifier.refresh,
-                              child: _UpdatesTab(state: state)),
-                          RefreshIndicator(
-                              onRefresh: notifier.refresh,
-                              child: _TeamTab(state: state)),
-                          RefreshIndicator(
-                              onRefresh: notifier.refresh,
-                              child: _EmergencyTab(state: state)),
-                        ],
+          : GestureDetector(
+              behavior: HitTestBehavior.translucent,
+              onHorizontalDragStart: (details) {
+                _dragStartX = details.localPosition.dx;
+                _dragDeltaX = 0;
+              },
+              onHorizontalDragUpdate: (details) {
+                _dragDeltaX += details.delta.dx;
+              },
+              onHorizontalDragEnd: (details) {
+                final fromLeftEdge = (_dragStartX ?? double.infinity) <= 36;
+                final fastRightSwipe = details.primaryVelocity != null &&
+                    details.primaryVelocity! > 450;
+                if (_tabs.index != 0 &&
+                    fromLeftEdge &&
+                    (_dragDeltaX > 72 || fastRightSwipe)) {
+                  _returnToMissionControl();
+                }
+                _dragStartX = null;
+                _dragDeltaX = 0;
+              },
+              child: Stack(
+                children: [
+                  Column(
+                    children: [
+                      _LiveHeader(
+                        title: _pages[_tabs.index].title,
+                        isMainPage: _tabs.index == 0,
+                        onNavTap: _goToLiveHome,
+                        onRefresh: notifier.refresh,
                       ),
-                    ),
-                  ],
-                ),
-                _LiveWorkspaceDrawer(
-                  open: _drawerOpen,
-                  activeIndex: _tabs.index,
-                  state: state,
-                  onClose: () => setState(() => _drawerOpen = false),
-                  onNavigate: (index) {
-                    _tabs.animateTo(index);
-                    setState(() => _drawerOpen = false);
-                  },
-                ),
-              ],
+                      if (state.isOffline)
+                        _StaleLiveBanner(
+                            cachedAt: state.cachedAt,
+                            onRefresh: notifier.refresh),
+                      Expanded(
+                        child: TabBarView(
+                          controller: _tabs,
+                          physics: const NeverScrollableScrollPhysics(),
+                          children: [
+                            RefreshIndicator(
+                                onRefresh: notifier.refresh,
+                                child: _TodayTab(
+                                    state: state,
+                                    onUpdatesTap: () => _tabs.animateTo(4))),
+                            RefreshIndicator(
+                                onRefresh: notifier.refresh,
+                                child: _TimelineTab(state: state)),
+                            RefreshIndicator(
+                                onRefresh: notifier.refresh,
+                                child: _MapTab(state: state)),
+                            RefreshIndicator(
+                                onRefresh: notifier.refresh,
+                                child: _WeatherTab(state: state)),
+                            RefreshIndicator(
+                                onRefresh: notifier.refresh,
+                                child: _UpdatesTab(state: state)),
+                            RefreshIndicator(
+                                onRefresh: notifier.refresh,
+                                child: _TeamTab(state: state)),
+                            RefreshIndicator(
+                                onRefresh: notifier.refresh,
+                                child: _EmergencyTab(state: state)),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                  _LiveWorkspaceDrawer(
+                    open: _drawerOpen,
+                    activeIndex: _tabs.index,
+                    state: state,
+                    onClose: () => setState(() => _drawerOpen = false),
+                    onNavigate: (index) {
+                      _tabs.animateTo(index);
+                      setState(() => _drawerOpen = false);
+                    },
+                  ),
+                ],
+              ),
             ),
     );
   }
@@ -3609,13 +3639,17 @@ class _EmergencyTab extends ConsumerWidget {
     );
   }
 
-  void _openAddEmergencyContact(BuildContext context) {
+  void _openAddEmergencyContact(BuildContext context,
+      {String? initialName, String? initialRelationship}) {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       shape: const RoundedRectangleBorder(
           borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
-      builder: (_) => const _LiveAddEmergencyContactSheet(),
+      builder: (_) => _LiveAddEmergencyContactSheet(
+        initialName: initialName,
+        initialRelationship: initialRelationship,
+      ),
     );
   }
 
@@ -3708,6 +3742,8 @@ class _EmergencyTab extends ConsumerWidget {
         const SizedBox(height: 12),
         _EmergencyNumbersChecklist(
           onAdd: () => _openAddEmergencyContact(context),
+          onAddItem: (name, detail) => _openAddEmergencyContact(context,
+              initialName: name, initialRelationship: detail),
         ),
         const SizedBox(height: 12),
         _Card(
@@ -3755,8 +3791,10 @@ class _EmergencyTab extends ConsumerWidget {
 
 class _EmergencyNumbersChecklist extends StatelessWidget {
   final VoidCallback onAdd;
+  final void Function(String name, String detail) onAddItem;
 
-  const _EmergencyNumbersChecklist({required this.onAdd});
+  const _EmergencyNumbersChecklist(
+      {required this.onAdd, required this.onAddItem});
 
   static const _items = [
     (Icons.local_police_outlined, 'Police', 'Official local emergency line'),
@@ -3798,6 +3836,7 @@ class _EmergencyNumbersChecklist extends StatelessWidget {
                 icon: item.$1,
                 title: item.$2,
                 subtitle: item.$3,
+                onTap: () => onAddItem(item.$2, item.$3),
               )),
           const SizedBox(height: 10),
           OutlinedButton.icon(
@@ -3824,43 +3863,54 @@ class _EmergencyChecklistRow extends StatelessWidget {
   final IconData icon;
   final String title;
   final String subtitle;
+  final VoidCallback onTap;
 
   const _EmergencyChecklistRow({
     required this.icon,
     required this.title,
     required this.subtitle,
+    required this.onTap,
   });
 
   @override
-  Widget build(BuildContext context) => Container(
-        margin: const EdgeInsets.only(bottom: 8),
-        padding: const EdgeInsets.all(10),
-        decoration: BoxDecoration(
-          color: AppTheme.udoCardFill,
+  Widget build(BuildContext context) => Material(
+        color: AppTheme.udoCardFill,
+        borderRadius: BorderRadius.circular(12),
+        child: InkWell(
+          onTap: onTap,
           borderRadius: BorderRadius.circular(12),
-        ),
-        child: Row(children: [
-          Icon(icon, color: AppTheme.udoCrimson, size: 18),
-          const SizedBox(width: 10),
-          Expanded(
-            child:
-                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(title,
-                  style: const TextStyle(
-                      fontSize: 12.5, fontWeight: FontWeight.w700)),
-              Text(subtitle,
-                  style: const TextStyle(
-                      fontSize: 11, color: AppTheme.udoTextSecondary)),
+          child: Container(
+            margin: const EdgeInsets.only(bottom: 8),
+            padding: const EdgeInsets.all(10),
+            child: Row(children: [
+              Icon(icon, color: AppTheme.udoCrimson, size: 18),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(title,
+                          style: const TextStyle(
+                              fontSize: 12.5, fontWeight: FontWeight.w700)),
+                      Text(subtitle,
+                          style: const TextStyle(
+                              fontSize: 11, color: AppTheme.udoTextSecondary)),
+                    ]),
+              ),
+              const Icon(Icons.add_circle_outline,
+                  color: AppTheme.udoCrimson, size: 18),
             ]),
           ),
-          const Icon(Icons.add_circle_outline,
-              color: AppTheme.udoTextSecondary, size: 18),
-        ]),
+        ),
       );
 }
 
 class _LiveAddEmergencyContactSheet extends ConsumerStatefulWidget {
-  const _LiveAddEmergencyContactSheet();
+  final String? initialName;
+  final String? initialRelationship;
+
+  const _LiveAddEmergencyContactSheet(
+      {this.initialName, this.initialRelationship});
 
   @override
   ConsumerState<_LiveAddEmergencyContactSheet> createState() =>
@@ -3869,8 +3919,10 @@ class _LiveAddEmergencyContactSheet extends ConsumerStatefulWidget {
 
 class _LiveAddEmergencyContactSheetState
     extends ConsumerState<_LiveAddEmergencyContactSheet> {
-  final _name = TextEditingController();
-  final _relationship = TextEditingController();
+  late final _name =
+      TextEditingController(text: widget.initialName ?? '');
+  late final _relationship =
+      TextEditingController(text: widget.initialRelationship ?? '');
   final _phone = TextEditingController();
   bool _saving = false;
 
@@ -3917,10 +3969,11 @@ class _LiveAddEmergencyContactSheetState
                   padding: EdgeInsets.zero),
             ]),
             const SizedBox(height: 16),
-            _LiveContactField('Name', _name),
+            _LiveContactField('Name', _name,
+                hint: 'Police, ambulance, venue security...'),
             const SizedBox(height: 12),
-            _LiveContactField('Relationship', _relationship,
-                hint: 'Venue coordinator, doctor, security'),
+            _LiveContactField('Role / relationship', _relationship,
+                hint: 'Official emergency line, venue coordinator, doctor'),
             const SizedBox(height: 12),
             _LiveContactField('Phone', _phone, type: TextInputType.phone),
             const SizedBox(height: 20),

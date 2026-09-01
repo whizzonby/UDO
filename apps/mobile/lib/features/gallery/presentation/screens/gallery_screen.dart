@@ -9,7 +9,6 @@ import 'package:photo_view/photo_view.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 import 'package:qr_flutter/qr_flutter.dart';
-import 'package:url_launcher/url_launcher.dart';
 import 'package:video_player/video_player.dart';
 import '../../../../core/constants/app_constants.dart';
 import '../../../../core/theme/app_theme.dart';
@@ -27,6 +26,9 @@ class _GalleryScreenState extends ConsumerState<GalleryScreen>
     with SingleTickerProviderStateMixin {
   late final TabController _tabs;
   bool _drawerOpen = false;
+  final _tabHistory = <int>[];
+  double? _dragStartX;
+  double _dragDeltaX = 0;
 
   static const _pages = [
     _GalleryPageMeta('Overview', Icons.auto_awesome_mosaic_outlined),
@@ -60,32 +62,57 @@ class _GalleryScreenState extends ConsumerState<GalleryScreen>
       backgroundColor: UdoDesign.bg,
       body: Stack(
         children: [
-          Column(
-            children: [
-              _GalleryWorkspaceHeader(
-                title: _pages[_tabs.index].title,
-                totalAssets: state.assets.length,
-                onMenuTap: () => setState(() => _drawerOpen = true),
-                onSearchTap: () => _showGallerySearch(context, state, notifier),
-                onUploadTap: () => _showUploadModal(context, notifier, state),
-              ),
-              Expanded(
-                child: state.isLoading
-                    ? const Center(
-                        child: CircularProgressIndicator(color: _galleryAccent))
-                    : TabBarView(
-                        controller: _tabs,
-                        physics: const NeverScrollableScrollPhysics(),
-                        children: [
-                          _InspirationTab(state: state, notifier: notifier),
-                          _GuestUploadsTab(state: state, notifier: notifier),
-                          _SavedTab(state: state, notifier: notifier),
-                          _ArchiveTab(state: state, notifier: notifier),
-                          _MomentsTab(state: state, notifier: notifier),
-                        ],
-                      ),
-              ),
-            ],
+          GestureDetector(
+            behavior: HitTestBehavior.translucent,
+            onHorizontalDragStart: (details) {
+              _dragStartX = details.localPosition.dx;
+              _dragDeltaX = 0;
+            },
+            onHorizontalDragUpdate: (details) {
+              _dragDeltaX += details.delta.dx;
+            },
+            onHorizontalDragEnd: (details) {
+              final fromLeftEdge = (_dragStartX ?? double.infinity) <= 36;
+              final fastRightSwipe = details.primaryVelocity != null &&
+                  details.primaryVelocity! > 450;
+              if (!_drawerOpen &&
+                  _tabs.index != 0 &&
+                  fromLeftEdge &&
+                  (_dragDeltaX > 72 || fastRightSwipe)) {
+                _goBackGalleryPage();
+              }
+              _dragStartX = null;
+              _dragDeltaX = 0;
+            },
+            child: Column(
+              children: [
+                _GalleryWorkspaceHeader(
+                  title: _pages[_tabs.index].title,
+                  totalAssets: state.assets.length,
+                  onMenuTap: () => setState(() => _drawerOpen = true),
+                  onSearchTap: () =>
+                      _showGallerySearch(context, state, notifier),
+                  onUploadTap: () => _showUploadModal(context, notifier, state),
+                ),
+                Expanded(
+                  child: state.isLoading
+                      ? const Center(
+                          child:
+                              CircularProgressIndicator(color: _galleryAccent))
+                      : TabBarView(
+                          controller: _tabs,
+                          physics: const NeverScrollableScrollPhysics(),
+                          children: [
+                            _InspirationTab(state: state, notifier: notifier),
+                            _GuestUploadsTab(state: state, notifier: notifier),
+                            _SavedTab(state: state, notifier: notifier),
+                            _ArchiveTab(state: state, notifier: notifier),
+                            _MomentsTab(state: state, notifier: notifier),
+                          ],
+                        ),
+                ),
+              ],
+            ),
           ),
           _GalleryWorkspaceDrawer(
             open: _drawerOpen,
@@ -93,17 +120,10 @@ class _GalleryScreenState extends ConsumerState<GalleryScreen>
             state: state,
             onClose: () => setState(() => _drawerOpen = false),
             onNavigate: (index) {
-              _tabs.animateTo(index);
-              setState(() => _drawerOpen = false);
+              _navigateGalleryPage(index);
             },
           ),
         ],
-      ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () => _showUploadModal(context, notifier, state),
-        backgroundColor: AppTheme.udoGreen,
-        foregroundColor: Colors.white,
-        child: const Icon(Icons.add_photo_alternate_outlined),
       ),
     );
   }
@@ -117,6 +137,23 @@ class _GalleryScreenState extends ConsumerState<GalleryScreen>
           borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
       builder: (_) => _UploadModal(notifier: notifier, state: state),
     );
+  }
+
+  void _navigateGalleryPage(int index) {
+    if (index < 0 || index >= _tabs.length) return;
+    if (index != _tabs.index) {
+      _tabHistory.remove(_tabs.index);
+      _tabHistory.add(_tabs.index);
+      if (_tabHistory.length > 12) _tabHistory.removeAt(0);
+    }
+    _tabs.animateTo(index);
+    if (_drawerOpen) setState(() => _drawerOpen = false);
+  }
+
+  void _goBackGalleryPage() {
+    final previous = _tabHistory.isNotEmpty ? _tabHistory.removeLast() : 0;
+    if (previous == _tabs.index) return;
+    _tabs.animateTo(previous);
   }
 }
 
@@ -927,42 +964,12 @@ class _InspirationTabState extends ConsumerState<_InspirationTab>
   String? _selectedBoard;
 
   @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addObserver(this);
-    widget.notifier.fetchPinterestStatus();
-  }
-
-  @override
-  void dispose() {
-    WidgetsBinding.instance.removeObserver(this);
-    super.dispose();
-  }
-
-  @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     // The user completes the Pinterest OAuth flow in an external browser â€”
     // re-check connection status when they switch back to the app.
     if (state == AppLifecycleState.resumed) {
       widget.notifier.fetchPinterestStatus();
     }
-  }
-
-  Future<void> _connectPinterest(BuildContext context) async {
-    final url = await widget.notifier.connectPinterest();
-    if (url == null) return;
-    await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
-  }
-
-  void _openBoardPicker(BuildContext context) {
-    widget.notifier.fetchPinterestBoards();
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
-      builder: (_) => _PinterestBoardsSheet(notifier: widget.notifier),
-    );
   }
 
   Map<String, List<Map<String, dynamic>>> _grouped(
@@ -1114,13 +1121,6 @@ class _InspirationTabState extends ConsumerState<_InspirationTab>
           saved: state.assets.where((a) => a['is_saved'] == true).length,
           featured: state.assets.where((a) => a['is_featured'] == true).length,
           cover: state.assets.isEmpty ? null : state.assets.first,
-        ),
-        const SizedBox(height: 16),
-        _PinterestCard(
-          state: state,
-          onConnect: () => _connectPinterest(context),
-          onImport: () => _openBoardPicker(context),
-          onDisconnect: () => widget.notifier.disconnectPinterest(),
         ),
         const SizedBox(height: 16),
         Text('${items.length} saved for inspiration',
@@ -1556,6 +1556,7 @@ class _GallerySectionHero extends StatelessWidget {
       );
 }
 
+// ignore: unused_element
 class _PinterestCard extends StatelessWidget {
   final GalleryState state;
   final VoidCallback onConnect;
@@ -1643,6 +1644,7 @@ class _PinterestCard extends StatelessWidget {
   }
 }
 
+// ignore: unused_element
 class _PinterestBoardsSheet extends ConsumerWidget {
   final GalleryNotifier notifier;
   const _PinterestBoardsSheet({required this.notifier});

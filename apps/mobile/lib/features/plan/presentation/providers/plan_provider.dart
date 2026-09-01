@@ -268,6 +268,55 @@ class PlanNotifier extends StateNotifier<PlanState> {
     }
   }
 
+  Future<bool> updateTask(
+    int taskId, {
+    String? title,
+    String? category,
+    DateTime? dueDate,
+    bool clearDueDate = false,
+    String? priority,
+  }) async {
+    final idx = state.tasks.indexWhere((t) => t['id'] == taskId);
+    if (idx == -1) return false;
+    try {
+      final res = await _api.patch('/plan/tasks/$taskId', data: {
+        if (title != null) 'title': title,
+        if (category != null) 'category': category,
+        if (clearDueDate)
+          'due_date': null
+        else if (dueDate != null)
+          'due_date': dueDate.toIso8601String().split('T').first,
+        if (priority != null) 'priority': priority,
+      });
+      final updated = (res is Map && res['data'] != null)
+          ? res['data'] as Map<String, dynamic>
+          : res as Map<String, dynamic>;
+      final list = [...state.tasks];
+      list[idx] = updated;
+      state = state.copyWith(tasks: list);
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<bool> deleteTask(int taskId) async {
+    final idx = state.tasks.indexWhere((t) => t['id'] == taskId);
+    if (idx == -1) return false;
+    final original = state.tasks[idx];
+    final optimistic = [...state.tasks]..removeAt(idx);
+    state = state.copyWith(tasks: optimistic);
+    try {
+      await _api.delete('/plan/tasks/$taskId');
+      return true;
+    } catch (_) {
+      final reverted = [...state.tasks];
+      reverted.insert(idx, original);
+      state = state.copyWith(tasks: reverted);
+      return false;
+    }
+  }
+
   Future<bool> createTask({
     required String title,
     String? description,
@@ -303,6 +352,7 @@ class PlanNotifier extends StateNotifier<PlanState> {
     String? endTime,
     String? location,
     String? notes,
+    bool visibleToGuests = true,
   }) async {
     try {
       final res = await _api.post('/plan/timeline', data: {
@@ -313,6 +363,7 @@ class PlanNotifier extends StateNotifier<PlanState> {
         if (endTime != null && endTime.isNotEmpty) 'end_time': endTime,
         if (location != null && location.isNotEmpty) 'location': location,
         if (notes != null && notes.isNotEmpty) 'notes': notes,
+        'visible_to_guests': visibleToGuests,
       });
       final created = (res is Map && res['data'] != null)
           ? res['data'] as Map<String, dynamic>
@@ -334,6 +385,7 @@ class PlanNotifier extends StateNotifier<PlanState> {
     String? endTime,
     String location = '',
     String notes = '',
+    bool visibleToGuests = true,
   }) async {
     try {
       final res = await _api.patch('/plan/timeline/$id', data: {
@@ -344,6 +396,7 @@ class PlanNotifier extends StateNotifier<PlanState> {
         if (endTime != null && endTime.isNotEmpty) 'end_time': endTime,
         'location': location,
         'notes': notes,
+        'visible_to_guests': visibleToGuests,
       });
       final updated = (res is Map && res['data'] != null)
           ? res['data'] as Map<String, dynamic>
@@ -606,6 +659,41 @@ class PlanNotifier extends StateNotifier<PlanState> {
       );
     } catch (_) {
       return (0, 0);
+    }
+  }
+
+  /// Updates a single vendor. `gated: true` means the change (e.g.
+  /// confirming a booking) needs Decision-maker approval and hasn't been
+  /// applied yet — mirrors the response shape `bulkUpdateVendors` already
+  /// handles.
+  Future<({bool ok, bool gated})> updateVendor(
+      int vendorId, Map<String, dynamic> updates) async {
+    if (updates.isEmpty) return (ok: true, gated: false);
+    try {
+      final res = await _api.patch('/plan/vendors/$vendorId', data: updates)
+          as Map<String, dynamic>;
+      final updated = res['data'];
+      if (updated is Map<String, dynamic>) {
+        state = state.copyWith(
+            vendors: state.vendors
+                .map((vendor) => vendor['id'] == vendorId ? updated : vendor)
+                .toList());
+      }
+      return (ok: true, gated: res['gated'] == true);
+    } catch (_) {
+      return (ok: false, gated: false);
+    }
+  }
+
+  Future<bool> deleteVendor(int vendorId) async {
+    try {
+      await _api.delete('/plan/vendors/$vendorId');
+      state = state.copyWith(
+          vendors:
+              state.vendors.where((vendor) => vendor['id'] != vendorId).toList());
+      return true;
+    } catch (_) {
+      return false;
     }
   }
 }

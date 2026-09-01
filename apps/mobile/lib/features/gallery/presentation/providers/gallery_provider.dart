@@ -159,6 +159,24 @@ class GalleryNotifier extends StateNotifier<GalleryState> {
     }
   }
 
+  /// Bulk-sets which approved photos/videos are shown on the guest link —
+  /// mirrors LogisticsNotifier's updateTransportVisibility()/
+  /// updateAccommodationVisibility(). Kept separate from approve()/reject()
+  /// so curating the guest link never changes a photo's moderation status.
+  Future<bool> updateVisibility(List<int> visibleIds) async {
+    try {
+      final res = await _api.patch('/gallery-visibility',
+          data: {'visible_ids': visibleIds}) as Map<String, dynamic>;
+      final updated =
+          (res['data'] as List? ?? []).cast<Map<String, dynamic>>();
+      state = state.copyWith(assets: updated, error: null);
+      return true;
+    } catch (e) {
+      state = state.copyWith(error: e.toString());
+      return false;
+    }
+  }
+
   Future<void> refresh() => _load();
 
   Future<List<Map<String, dynamic>>> _loadAlbums() async {

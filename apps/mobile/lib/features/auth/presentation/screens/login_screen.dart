@@ -8,6 +8,7 @@ import 'package:go_router/go_router.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../shared/widgets/udo_button.dart';
 import '../../../../shared/widgets/udo_text_field.dart';
+import '../../../../shared/widgets/app_scaffold_messenger.dart';
 import '../providers/auth_provider.dart';
 import '../widgets/auth_experience_shell.dart';
 import 'two_factor_verify_screen.dart';
@@ -37,13 +38,33 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     final email = _emailCtrl.text.trim();
     final result =
         await ref.read(authProvider.notifier).login(email, _passwordCtrl.text);
-    if (!mounted || result == null || !result.requiresTwoFactor) return;
-    context.push('/two-factor',
-        extra: TwoFactorChallenge(
-          email: email,
-          token: result.twoFactorToken!,
-          message: result.message!,
-        ));
+    if (!mounted || result == null) return;
+    if (result.requiresTwoFactor) {
+      context.push('/two-factor',
+          extra: TwoFactorChallenge(
+            email: email,
+            token: result.twoFactorToken!,
+            message: result.message!,
+          ));
+      return;
+    }
+    showAuthToast('Signed in successfully.');
+  }
+
+  Future<void> _submitGoogle() async {
+    await ref.read(authProvider.notifier).loginWithGoogle();
+    if (!mounted) return;
+    if (ref.read(authProvider).status == AuthStatus.authenticated) {
+      showAuthToast('Signed in successfully.');
+    }
+  }
+
+  Future<void> _submitApple() async {
+    await ref.read(authProvider.notifier).loginWithApple();
+    if (!mounted) return;
+    if (ref.read(authProvider).status == AuthStatus.authenticated) {
+      showAuthToast('Signed in successfully.');
+    }
   }
 
   @override
@@ -149,18 +170,14 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             _SocialButton(
               icon: const SizedBox(width: 20, height: 20, child: _GoogleLogo()),
               label: 'Continue with Google',
-              onTap: isLoading
-                  ? null
-                  : () => ref.read(authProvider.notifier).loginWithGoogle(),
+              onTap: isLoading ? null : _submitGoogle,
             ),
             const SizedBox(height: 12),
             if (!kIsWeb && defaultTargetPlatform == TargetPlatform.iOS)
               _SocialButton(
                 icon: const Icon(Icons.apple, size: 24, color: Colors.white),
                 label: 'Continue with Apple',
-                onTap: isLoading
-                    ? null
-                    : () => ref.read(authProvider.notifier).loginWithApple(),
+                onTap: isLoading ? null : _submitApple,
                 backgroundColor: Colors.black,
                 foregroundColor: Colors.white,
                 borderColor: Colors.black,

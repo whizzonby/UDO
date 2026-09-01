@@ -138,10 +138,11 @@ class _MainScaffoldState extends State<MainScaffold> {
   Future<void> _navigateTo(String path) async {
     final index = _tabs.indexWhere((tab) => tab.path == path);
     final currentLocation = GoRouterState.of(context).matchedLocation;
+    if (path == '/live' && index == _lastTabIndex) {
+      context.go('/live?reset=${DateTime.now().millisecondsSinceEpoch}');
+      return;
+    }
     if (index == _lastTabIndex && currentLocation == path) {
-      if (path == '/live') {
-        context.go('/live?reset=${DateTime.now().millisecondsSinceEpoch}');
-      }
       return;
     }
     if (ModalRoute.of(context)?.isCurrent == false) {

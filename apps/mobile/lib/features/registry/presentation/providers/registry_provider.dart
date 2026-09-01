@@ -138,6 +138,23 @@ class RegistryNotifier extends StateNotifier<RegistryState> {
     }
   }
 
+  /// Bulk-sets which registry items are shown on the guest link — mirrors
+  /// LogisticsNotifier's updateTransportVisibility()/
+  /// updateAccommodationVisibility() for the "Registry" guest-portal picker.
+  Future<bool> updateVisibility(List<int> visibleIds) async {
+    try {
+      final res = await _api.patch('/registry-visibility',
+          data: {'visible_ids': visibleIds}) as Map<String, dynamic>;
+      final updated =
+          (res['data'] as List? ?? []).cast<Map<String, dynamic>>();
+      state = state.copyWith(items: updated, error: null);
+      return true;
+    } catch (e) {
+      state = state.copyWith(error: e.toString());
+      return false;
+    }
+  }
+
   Future<void> refresh() => _load();
 }
 

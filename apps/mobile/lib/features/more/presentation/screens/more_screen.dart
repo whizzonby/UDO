@@ -1,19 +1,34 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../../../core/theme/app_theme.dart';
+import '../../../../core/network/api_client.dart';
 import '../../../../shared/utils/date_formatters.dart' as udo_dates;
+import '../../../../shared/widgets/place_search_field.dart';
 import '../../../../shared/widgets/udo_design_system.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
 import '../providers/about_provider.dart';
 import '../providers/ai_assistant_provider.dart';
 import '../providers/more_operations_provider.dart';
+import '../providers/support_provider.dart';
 import 'ai_assistant_chat_screen.dart';
 import 'content_page_screen.dart';
 import 'release_notes_screen.dart';
 
 const _moreAccent = Color(0xFF4B4D52);
+
+ImageProvider<Object>? _safeNetworkImage(String? value) {
+  final raw = value?.trim();
+  if (raw == null || raw.isEmpty) return null;
+  final uri = Uri.tryParse(raw);
+  if (uri == null || !uri.hasScheme || uri.host.isEmpty) return null;
+  if (uri.scheme != 'http' && uri.scheme != 'https') return null;
+  return NetworkImage(raw);
+}
 
 /// Shared with other modules (e.g. the Plan drawer's "Help & Support" row)
 /// so they open the same Help sheet instead of duplicating it.
@@ -481,6 +496,7 @@ class _MoreNavigationDrawer extends StatelessWidget {
     final name = user?.fullName ?? 'Welcome';
     final email = user?.email ?? '';
     final initials = name.isNotEmpty ? name[0].toUpperCase() : '?';
+    final avatarImage = _safeNetworkImage(user?.avatarUrl?.toString());
 
     return Drawer(
       width: MediaQuery.sizeOf(context).width * 0.85,
@@ -495,10 +511,8 @@ class _MoreNavigationDrawer extends StatelessWidget {
               CircleAvatar(
                 radius: 24,
                 backgroundColor: _moreAccent,
-                backgroundImage: user?.avatarUrl != null
-                    ? NetworkImage(user!.avatarUrl as String)
-                    : null,
-                child: user?.avatarUrl == null
+                backgroundImage: avatarImage,
+                child: avatarImage == null
                     ? Text(initials,
                         style: UdoDesign.sans(
                             size: 18,
@@ -651,6 +665,7 @@ class _WorkspaceProfileCard extends StatelessWidget {
     final stage = wedding?['planning_stage']?.toString() ??
         wedding?['status']?.toString() ??
         'Planning';
+    final avatarImage = _safeNetworkImage(user?.avatarUrl?.toString());
 
     return UdoCard(
       onTap: onTap,
@@ -660,10 +675,8 @@ class _WorkspaceProfileCard extends StatelessWidget {
           CircleAvatar(
             radius: 34,
             backgroundColor: _moreAccent,
-            backgroundImage: user?.avatarUrl != null
-                ? NetworkImage(user!.avatarUrl as String)
-                : null,
-            child: user?.avatarUrl == null
+            backgroundImage: avatarImage,
+            child: avatarImage == null
                 ? Text(initials,
                     style: UdoDesign.sans(
                         size: 23, weight: FontWeight.w700, color: Colors.white))
@@ -1299,6 +1312,21 @@ class _LiveSubscriptionSheet extends StatelessWidget {
                       ])),
               ],
               const SizedBox(height: 16),
+              if (entitlements?['plan'] != 'lifetime') ...[
+                ElevatedButton.icon(
+                  onPressed: () {
+                    Navigator.pop(context);
+                    context.push('/paywall');
+                  },
+                  icon: const Icon(Icons.workspace_premium, size: 18),
+                  label: const Text('Upgrade to Wedding Pass'),
+                  style: ElevatedButton.styleFrom(
+                      minimumSize: const Size(double.infinity, 48),
+                      backgroundColor: AppTheme.udoGreen,
+                      foregroundColor: Colors.white),
+                ),
+                const SizedBox(height: 10),
+              ],
               OutlinedButton(
                 onPressed: () => Navigator.pop(context),
                 style: OutlinedButton.styleFrom(
@@ -1653,6 +1681,12 @@ class _WeddingSettingsSheetState extends ConsumerState<WeddingSettingsSheet> {
   final _couplePhotoPath = TextEditingController();
   final _timezone = TextEditingController();
   final _approvalThreshold = TextEditingController();
+  String? _venuePlaceId;
+  double? _venueLat;
+  double? _venueLng;
+  String _seedVenueName = '';
+  String _seedVenueAddress = '';
+  bool _selectedVenueFromPlaces = false;
   bool _seeded = false;
   bool _saving = false;
 
@@ -1779,10 +1813,31 @@ class _WeddingSettingsSheetState extends ConsumerState<WeddingSettingsSheet> {
                           decoration: _sheetInput('Country'))),
                 ]),
                 const SizedBox(height: 8),
-                TextField(
+                if (canManage)
+                  PlaceSearchField(
                     controller: _venueName,
-                    enabled: canManage,
-                    decoration: _sheetInput('Venue name')),
+                    hint: 'Venue name',
+                    search:
+                        ref.read(moreOperationsProvider.notifier).searchPlaces,
+                    fetchDetails: ref
+                        .read(moreOperationsProvider.notifier)
+                        .fetchPlaceDetails,
+                    onPlaceSelected: (place) {
+                      _venuePlaceId = place['place_id']?.toString();
+                      _venueLat = _asDouble(place['lat']);
+                      _venueLng = _asDouble(place['lng']);
+                      _selectedVenueFromPlaces = true;
+                      final address = place['address']?.toString();
+                      if (address != null && address.isNotEmpty) {
+                        _venueAddress.text = address;
+                      }
+                    },
+                  )
+                else
+                  TextField(
+                      controller: _venueName,
+                      enabled: false,
+                      decoration: _sheetInput('Venue name')),
                 const SizedBox(height: 8),
                 TextField(
                     controller: _venueAddress,
@@ -1862,6 +1917,12 @@ class _WeddingSettingsSheetState extends ConsumerState<WeddingSettingsSheet> {
     _country.text = wedding['country']?.toString() ?? '';
     _venueName.text = wedding['primary_venue_name']?.toString() ?? '';
     _venueAddress.text = wedding['primary_venue_address']?.toString() ?? '';
+    _seedVenueName = _venueName.text.trim();
+    _seedVenueAddress = _venueAddress.text.trim();
+    _venuePlaceId = wedding['venue_place_id']?.toString();
+    _venueLat = _asDouble(wedding['venue_lat']);
+    _venueLng = _asDouble(wedding['venue_lng']);
+    _selectedVenueFromPlaces = false;
     _hashtag.text = wedding['hashtag']?.toString() ?? '';
     _coverPhotoPath.text = wedding['cover_photo_path']?.toString() ?? '';
     _couplePhotoPath.text = wedding['couple_photo_path']?.toString() ?? '';
@@ -1887,6 +1948,9 @@ class _WeddingSettingsSheetState extends ConsumerState<WeddingSettingsSheet> {
     } else {
       settings['approval_auto_threshold'] = num.tryParse(thresholdText);
     }
+    final locationTextChanged = _venueName.text.trim() != _seedVenueName ||
+        _venueAddress.text.trim() != _seedVenueAddress;
+    final trustCoordinates = !locationTextChanged || _selectedVenueFromPlaces;
     final ok = await ref.read(moreOperationsProvider.notifier).updateWedding({
       'title': _nullIfBlank(_title.text),
       'couple_name_primary': _nullIfBlank(_primaryName.text),
@@ -1897,6 +1961,9 @@ class _WeddingSettingsSheetState extends ConsumerState<WeddingSettingsSheet> {
       'country': _nullIfBlank(_country.text),
       'primary_venue_name': _nullIfBlank(_venueName.text),
       'primary_venue_address': _nullIfBlank(_venueAddress.text),
+      'venue_place_id': trustCoordinates ? _venuePlaceId : null,
+      'venue_lat': trustCoordinates ? _venueLat : null,
+      'venue_lng': trustCoordinates ? _venueLng : null,
       'hashtag': _nullIfBlank(_hashtag.text),
       'cover_photo_path': _nullIfBlank(_coverPhotoPath.text),
       'couple_photo_path': _nullIfBlank(_couplePhotoPath.text),
@@ -1914,6 +1981,12 @@ class _WeddingSettingsSheetState extends ConsumerState<WeddingSettingsSheet> {
       Navigator.pop(context);
     }
   }
+}
+
+double? _asDouble(dynamic value) {
+  if (value == null) return null;
+  if (value is num) return value.toDouble();
+  return double.tryParse(value.toString());
 }
 
 class _CollaboratorsSheet extends ConsumerStatefulWidget {
@@ -2691,115 +2764,285 @@ class _ProfileSheet extends ConsumerStatefulWidget {
 }
 
 class _ProfileSheetState extends ConsumerState<_ProfileSheet> {
-  late final TextEditingController _name;
+  late final TextEditingController _firstName;
+  late final TextEditingController _lastName;
   late final TextEditingController _email;
   late final TextEditingController _avatarUrl;
   bool _saving = false;
+  bool _exporting = false;
+  String? _error;
 
   @override
   void initState() {
     super.initState();
-    _name = TextEditingController(text: widget.user?.fullName ?? '');
+    _firstName = TextEditingController(text: widget.user?.firstName ?? '');
+    _lastName = TextEditingController(text: widget.user?.lastName ?? '');
     _email = TextEditingController(text: widget.user?.email ?? '');
     _avatarUrl = TextEditingController(text: widget.user?.avatarUrl ?? '');
   }
 
   @override
   void dispose() {
-    _name.dispose();
+    _firstName.dispose();
+    _lastName.dispose();
     _email.dispose();
     _avatarUrl.dispose();
     super.dispose();
   }
 
-  @override
-  Widget build(BuildContext context) => SafeArea(
-        child: Padding(
-          padding: EdgeInsets.only(
-              bottom: MediaQuery.of(context).viewInsets.bottom,
-              left: 20,
-              right: 20,
-              top: 24),
-          child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(children: [
-                  const Expanded(
-                      child: Text('Profile',
-                          style: TextStyle(
-                              fontSize: 18, fontWeight: FontWeight.w600))),
-                  IconButton(
-                      onPressed: () => Navigator.pop(context),
-                      icon: const Icon(Icons.close),
-                      padding: EdgeInsets.zero),
-                ]),
-                const SizedBox(height: 16),
-                const Text('Full name',
-                    style:
-                        TextStyle(fontSize: 14, fontWeight: FontWeight.w500)),
-                const SizedBox(height: 6),
-                TextField(controller: _name, decoration: _dec('Your name')),
-                const SizedBox(height: 12),
-                const Text('Email',
-                    style:
-                        TextStyle(fontSize: 14, fontWeight: FontWeight.w500)),
-                const SizedBox(height: 6),
-                TextField(
-                    controller: _email,
-                    keyboardType: TextInputType.emailAddress,
-                    decoration: _dec('Email address')),
-                const SizedBox(height: 12),
-                const Text('Avatar URL',
-                    style:
-                        TextStyle(fontSize: 14, fontWeight: FontWeight.w500)),
-                const SizedBox(height: 6),
-                TextField(
-                    controller: _avatarUrl,
-                    keyboardType: TextInputType.url,
-                    decoration: _dec('https://...')),
-                const SizedBox(height: 20),
-                ElevatedButton(
-                  onPressed: _saving ? null : _save,
-                  style: ElevatedButton.styleFrom(
-                      minimumSize: const Size(double.infinity, 48),
-                      backgroundColor: AppTheme.udoGreen,
-                      foregroundColor: Colors.white),
-                  child: Text(_saving ? 'Saving...' : 'Save changes'),
-                ),
-              ]),
-        ),
-      );
-
   Future<void> _save() async {
-    final parts = _name.text
-        .trim()
-        .split(RegExp(r'\s+'))
-        .where((part) => part.isNotEmpty)
-        .toList();
-    final firstName = parts.isEmpty ? '' : parts.first;
-    final lastName = parts.length > 1 ? parts.skip(1).join(' ') : '';
+    final firstName = _firstName.text.trim();
+    final lastName = _lastName.text.trim();
     final email = _email.text.trim();
-    if (firstName.isEmpty || email.isEmpty) return;
+    if (firstName.isEmpty || email.isEmpty) {
+      setState(() => _error = 'First name and email are required.');
+      return;
+    }
 
-    setState(() => _saving = true);
+    setState(() {
+      _saving = true;
+      _error = null;
+    });
     final ok = await ref.read(authProvider.notifier).updateProfile(
           firstName: firstName,
           lastName: lastName,
           email: email,
-          avatarUrl: _avatarUrl.text,
+          avatarUrl: _avatarUrl.text.trim(),
         );
     if (!mounted) return;
     setState(() => _saving = false);
     if (ok) {
       ScaffoldMessenger.of(context)
           .showSnackBar(const SnackBar(content: Text('Profile saved')));
-      Navigator.pop(context);
+    } else {
+      setState(() =>
+          _error = ref.read(authProvider).error ?? 'Could not save profile.');
     }
   }
 
+  void _openSheet(Widget sheet) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+      builder: (_) => sheet,
+    );
+  }
+
+  Future<void> _exportAccountData() async {
+    setState(() {
+      _exporting = true;
+      _error = null;
+    });
+    try {
+      final data =
+          await ref.read(apiClientProvider).get('/auth/privacy/export');
+      const encoder = JsonEncoder.withIndent('  ');
+      await Clipboard.setData(ClipboardData(text: encoder.convert(data)));
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('Account data exported and copied to clipboard.')));
+    } catch (e) {
+      if (mounted) setState(() => _error = e.toString());
+    } finally {
+      if (mounted) setState(() => _exporting = false);
+    }
+  }
+
+  Future<void> _signOut() async {
+    Navigator.pop(context);
+    await ref.read(authProvider.notifier).logout();
+    if (mounted) context.go('/login');
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final user = ref.watch(authProvider).user ?? widget.user;
+    final role = user?.weddingRole?.toString() ?? 'Account member';
+    final subscription = user?.subscription is Map
+        ? Map<String, dynamic>.from(user.subscription as Map)
+        : const <String, dynamic>{};
+    final plan = subscription['label']?.toString() ??
+        subscription['plan']?.toString() ??
+        'Free';
+    final bottom = MediaQuery.of(context).viewInsets.bottom;
+    final avatarImage = _safeNetworkImage(user?.avatarUrl?.toString());
+    final displayName = (user?.fullName?.toString().trim().isNotEmpty ?? false)
+        ? user!.fullName.toString().trim()
+        : 'Udo user';
+    final displayEmail = user?.email?.toString() ?? '';
+    final initial = displayName.isNotEmpty
+        ? displayName.characters.first.toUpperCase()
+        : 'U';
+
+    return SafeArea(
+      child: Padding(
+        padding: EdgeInsets.only(bottom: bottom),
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(20, 24, 20, 20),
+          child:
+              Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Row(children: [
+              Expanded(
+                  child: Text('Profile Management',
+                      style: UdoDesign.serif(size: 30))),
+              IconButton(
+                  onPressed: () => Navigator.pop(context),
+                  icon: const Icon(Icons.close),
+                  padding: EdgeInsets.zero),
+            ]),
+            const SizedBox(height: 14),
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: UdoDesign.card,
+                borderRadius: BorderRadius.circular(18),
+                border: Border.all(color: UdoDesign.border),
+              ),
+              child: Row(children: [
+                CircleAvatar(
+                  radius: 28,
+                  backgroundColor: AppTheme.udoGreen.withValues(alpha: .12),
+                  backgroundImage: avatarImage,
+                  child: avatarImage != null
+                      ? null
+                      : Text(
+                          initial,
+                          style:
+                              UdoDesign.sans(size: 20, weight: FontWeight.w800),
+                        ),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                    child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                      Text(displayName,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: UdoDesign.sans(
+                              size: 16, weight: FontWeight.w800)),
+                      const SizedBox(height: 3),
+                      Text(displayEmail,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style:
+                              UdoDesign.sans(size: 12.5, color: UdoDesign.sub)),
+                      const SizedBox(height: 8),
+                      Wrap(spacing: 8, runSpacing: 6, children: [
+                        _ProfileChip(text: role),
+                        _ProfileChip(text: '$plan plan'),
+                        _ProfileChip(
+                            text: user?.twoFactorEnabled == true
+                                ? '2FA on'
+                                : '2FA off'),
+                      ]),
+                    ])),
+              ]),
+            ),
+            const SizedBox(height: 18),
+            Text('Personal details',
+                style: UdoDesign.sans(size: 15, weight: FontWeight.w800)),
+            const SizedBox(height: 10),
+            Row(children: [
+              Expanded(
+                  child: TextField(
+                      controller: _firstName,
+                      textInputAction: TextInputAction.next,
+                      decoration: _dec('First name'))),
+              const SizedBox(width: 10),
+              Expanded(
+                  child: TextField(
+                      controller: _lastName,
+                      textInputAction: TextInputAction.next,
+                      decoration: _dec('Last name'))),
+            ]),
+            const SizedBox(height: 12),
+            TextField(
+                controller: _email,
+                keyboardType: TextInputType.emailAddress,
+                textInputAction: TextInputAction.next,
+                decoration: _dec('Email address')),
+            const SizedBox(height: 12),
+            TextField(
+                controller: _avatarUrl,
+                keyboardType: TextInputType.url,
+                decoration: _dec('Avatar image URL')),
+            if (_error != null) ...[
+              const SizedBox(height: 10),
+              Text(_error!,
+                  style: const TextStyle(
+                      fontSize: 12.5, color: AppTheme.udoCrimson)),
+            ],
+            const SizedBox(height: 16),
+            ElevatedButton.icon(
+              onPressed: _saving ? null : _save,
+              icon: _saving
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2))
+                  : const Icon(Icons.save_outlined, size: 18),
+              style: ElevatedButton.styleFrom(
+                  minimumSize: const Size(double.infinity, 50),
+                  backgroundColor: AppTheme.udoGreen,
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16))),
+              label: Text(_saving ? 'Saving...' : 'Save profile'),
+            ),
+            const SizedBox(height: 22),
+            Text('Account settings',
+                style: UdoDesign.sans(size: 15, weight: FontWeight.w800)),
+            const SizedBox(height: 8),
+            _ProfileActionTile(
+                icon: Icons.notifications_outlined,
+                title: 'Notification preferences',
+                subtitle: 'RSVP, task, guest message and live alerts',
+                onTap: () => _openSheet(const _NotificationsSheet())),
+            _ProfileActionTile(
+                icon: Icons.support_agent_outlined,
+                title: 'Support preferences',
+                subtitle: 'Email support, live chat and response time',
+                onTap: () => _openSheet(const _SupportPrefsSheet())),
+            _ProfileActionTile(
+                icon: Icons.lock_outline,
+                title: 'Change password',
+                subtitle: 'Update your login password',
+                onTap: () => _openSheet(const _ChangePasswordSheet())),
+            _ProfileActionTile(
+                icon: Icons.phone_iphone_outlined,
+                title: 'Two-factor authentication',
+                subtitle: user?.twoFactorEnabled == true
+                    ? 'Currently enabled'
+                    : 'Add an email code at sign in',
+                onTap: () => _openSheet(const _TwoFactorSheet())),
+            _ProfileActionTile(
+                icon: Icons.download_outlined,
+                title: 'Export account data',
+                subtitle: 'Copy your profile and privacy export as JSON',
+                busy: _exporting,
+                onTap: _exporting ? null : _exportAccountData),
+            _ProfileActionTile(
+                icon: Icons.logout,
+                title: 'Sign out',
+                subtitle: 'End this session on this device',
+                onTap: _signOut),
+            _ProfileActionTile(
+                icon: Icons.delete_outline,
+                title: 'Delete account',
+                subtitle: 'Permanently remove your login and profile details',
+                danger: true,
+                onTap: () => _openSheet(const _DeleteAccountSheet())),
+          ]),
+        ),
+      ),
+    );
+  }
+
   InputDecoration _dec(String hint) => InputDecoration(
-        hintText: hint,
+        labelText: hint,
         hintStyle:
             const TextStyle(color: AppTheme.udoTextSecondary, fontSize: 14),
         filled: true,
@@ -2816,6 +3059,73 @@ class _ProfileSheetState extends ConsumerState<_ProfileSheet> {
         contentPadding:
             const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       );
+}
+
+class _ProfileChip extends StatelessWidget {
+  final String text;
+
+  const _ProfileChip({required this.text});
+
+  @override
+  Widget build(BuildContext context) => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+        decoration: BoxDecoration(
+          color: UdoDesign.bg,
+          borderRadius: BorderRadius.circular(99),
+          border: Border.all(color: UdoDesign.border),
+        ),
+        child: Text(text,
+            style: UdoDesign.sans(
+                size: 11, color: UdoDesign.sub, weight: FontWeight.w700)),
+      );
+}
+
+class _ProfileActionTile extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final VoidCallback? onTap;
+  final bool danger;
+  final bool busy;
+
+  const _ProfileActionTile({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+    this.danger = false,
+    this.busy = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final color = danger ? AppTheme.udoCrimson : AppTheme.udoTextPrimary;
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      decoration: BoxDecoration(
+        color: UdoDesign.card,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: UdoDesign.border),
+      ),
+      child: ListTile(
+        leading: Icon(icon, color: color, size: 20),
+        title: Text(title,
+            style: UdoDesign.sans(
+                size: 14, weight: FontWeight.w700, color: color)),
+        subtitle: Text(subtitle,
+            style: UdoDesign.sans(size: 12, color: UdoDesign.sub)),
+        trailing: busy
+            ? const SizedBox(
+                width: 18,
+                height: 18,
+                child: CircularProgressIndicator(strokeWidth: 2))
+            : const Icon(Icons.chevron_right,
+                size: 18, color: AppTheme.udoTextSecondary),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+        onTap: onTap,
+      ),
+    );
+  }
 }
 
 // ── NOTIFICATIONS SHEET ────────────────────────────────────────────────────────
@@ -3574,6 +3884,10 @@ class _AiAssistantSheet extends ConsumerWidget {
                         : UdoDesign.muted)),
             const SizedBox(height: 18),
             UdoCard(
+              onTap: () => Navigator.of(context).push(MaterialPageRoute(
+                  builder: (_) => const AiAssistantChatScreen(
+                      initialPrompt:
+                          'Give me today\'s Udo AI brief. Summarise my most important wedding planning priorities, risks, and next actions based on my saved wedding details.'))),
               color: UdoDesign.bg,
               padding: const EdgeInsets.all(16),
               child: Row(children: [
@@ -3600,6 +3914,9 @@ class _AiAssistantSheet extends ConsumerWidget {
                           style:
                               UdoDesign.sans(size: 12, color: UdoDesign.muted)),
                     ])),
+                const SizedBox(width: 10),
+                const Icon(Icons.chevron_right,
+                    size: 18, color: UdoDesign.muted),
               ]),
             ),
             const SizedBox(height: 16),
@@ -3646,41 +3963,49 @@ class _AiAssistantSheet extends ConsumerWidget {
   }
 }
 
-const _kSupportEmail = 'hello@whizzonby.com';
-const _kSupportWhatsapp = '+447355614524';
+const _kSupportEmail = 'hello@udowedding.com';
+const _kSupportWhatsapp = '447355614524';
 
 class _ContactSupportSheet extends StatelessWidget {
   const _ContactSupportSheet();
 
   Future<void> _openMailto(BuildContext context, String subject) async {
+    final messenger = ScaffoldMessenger.of(context);
     Navigator.pop(context);
     final uri = Uri(
         scheme: 'mailto',
         path: _kSupportEmail,
         query: 'subject=${Uri.encodeComponent(subject)}');
-    if (await canLaunchUrl(uri)) {
-      await launchUrl(uri);
-    } else if (context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Could not open an email app.')));
-    }
+    if (await launchUrl(uri, mode: LaunchMode.externalApplication)) return;
+    await Clipboard.setData(const ClipboardData(text: _kSupportEmail));
+    messenger.showSnackBar(const SnackBar(
+        content: Text('Could not open an email app. Support email copied.')));
   }
 
   Future<void> _openWhatsapp(BuildContext context) async {
+    final messenger = ScaffoldMessenger.of(context);
     Navigator.pop(context);
-    final uri = Uri.parse('https://wa.me/$_kSupportWhatsapp');
-    if (await canLaunchUrl(uri)) {
-      await launchUrl(uri, mode: LaunchMode.externalApplication);
-    } else if (context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Could not open WhatsApp.')));
-    }
+    final uri = Uri.https('wa.me', _kSupportWhatsapp, {
+      'text': 'Hello Udo Support, I need help with my wedding app.',
+    });
+    if (await launchUrl(uri, mode: LaunchMode.externalApplication)) return;
+    await Clipboard.setData(const ClipboardData(text: '+$_kSupportWhatsapp'));
+    messenger.showSnackBar(const SnackBar(
+        content: Text('Could not open WhatsApp. Number copied.')));
   }
 
   void _openLiveChat(BuildContext context) {
     Navigator.pop(context);
-    Navigator.of(context)
-        .push(MaterialPageRoute(builder: (_) => const AiAssistantChatScreen()));
+    Navigator.of(context, rootNavigator: true).push(MaterialPageRoute(
+        builder: (_) => const AiAssistantChatScreen(
+            initialPrompt:
+                'I need support with Udo. Help me troubleshoot this issue: ')));
+  }
+
+  void _openTickets(BuildContext context, {required bool createOnOpen}) {
+    Navigator.pop(context);
+    Navigator.of(context, rootNavigator: true).push(MaterialPageRoute(
+        builder: (_) => SupportTicketsScreen(showCreateOnOpen: createOnOpen)));
   }
 
   @override
@@ -3727,14 +4052,13 @@ class _ContactSupportSheet extends StatelessWidget {
                     Icons.confirmation_number_outlined,
                     'Submit Ticket',
                     'Create and track a formal request',
-                    (BuildContext c) => _openMailto(c, 'Support ticket'),
+                    (BuildContext c) => _openTickets(c, createOnOpen: true),
                   ),
                   (
                     Icons.history_outlined,
                     'Support History',
                     'Review earlier conversations and decisions',
-                    (BuildContext c) =>
-                        _openMailto(c, 'Request: past support history'),
+                    (BuildContext c) => _openTickets(c, createOnOpen: false),
                   ),
                 ])
                   Container(
@@ -3761,6 +4085,351 @@ class _ContactSupportSheet extends StatelessWidget {
               ]),
         ),
       );
+}
+
+class SupportTicketsScreen extends ConsumerStatefulWidget {
+  final bool showCreateOnOpen;
+
+  const SupportTicketsScreen({super.key, this.showCreateOnOpen = false});
+
+  @override
+  ConsumerState<SupportTicketsScreen> createState() =>
+      _SupportTicketsScreenState();
+}
+
+class _SupportTicketsScreenState extends ConsumerState<SupportTicketsScreen> {
+  bool _openedCreate = false;
+
+  @override
+  void initState() {
+    super.initState();
+    Future.microtask(() => ref.read(supportProvider.notifier).loadTickets());
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (widget.showCreateOnOpen && !_openedCreate) {
+      _openedCreate = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _showSubmitTicketSheet(context);
+      });
+    }
+  }
+
+  void _showSubmitTicketSheet(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+      builder: (_) => const _SubmitSupportTicketSheet(),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final state = ref.watch(supportProvider);
+
+    return Scaffold(
+      backgroundColor: UdoDesign.bg,
+      appBar: AppBar(
+        backgroundColor: UdoDesign.bg,
+        elevation: 0,
+        foregroundColor: UdoDesign.text,
+        title: Text('Support History',
+            style: UdoDesign.sans(size: 18, weight: FontWeight.w800)),
+        actions: [
+          IconButton(
+            tooltip: 'Refresh',
+            onPressed: state.isLoading
+                ? null
+                : () => ref.read(supportProvider.notifier).loadTickets(),
+            icon: const Icon(Icons.refresh),
+          ),
+        ],
+      ),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () => _showSubmitTicketSheet(context),
+        backgroundColor: _moreAccent,
+        foregroundColor: Colors.white,
+        icon: const Icon(Icons.add),
+        label: const Text('New ticket'),
+      ),
+      body: RefreshIndicator(
+        onRefresh: () => ref.read(supportProvider.notifier).loadTickets(),
+        child: ListView(
+          padding: const EdgeInsets.fromLTRB(18, 12, 18, 100),
+          children: [
+            if (state.error != null)
+              Container(
+                margin: const EdgeInsets.only(bottom: 12),
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFFF3F0),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: const Color(0xFFFFC8BA)),
+                ),
+                child: Text(state.error!,
+                    style: UdoDesign.sans(
+                        size: 13,
+                        color: const Color(0xFF9B2C14),
+                        weight: FontWeight.w700)),
+              ),
+            if (state.isLoading && state.tickets.isEmpty)
+              const Padding(
+                padding: EdgeInsets.only(top: 80),
+                child: Center(child: CircularProgressIndicator()),
+              )
+            else if (state.tickets.isEmpty)
+              Container(
+                padding: const EdgeInsets.all(22),
+                decoration: BoxDecoration(
+                  color: UdoDesign.card,
+                  borderRadius: BorderRadius.circular(18),
+                  border: Border.all(color: UdoDesign.border),
+                ),
+                child: Column(
+                  children: [
+                    const Icon(Icons.confirmation_number_outlined,
+                        color: _moreAccent, size: 34),
+                    const SizedBox(height: 12),
+                    Text('No support tickets yet',
+                        style:
+                            UdoDesign.sans(size: 16, weight: FontWeight.w800)),
+                    const SizedBox(height: 6),
+                    Text(
+                        'Create a ticket when you need the team to track an issue.',
+                        textAlign: TextAlign.center,
+                        style: UdoDesign.sans(size: 13, color: UdoDesign.sub)),
+                  ],
+                ),
+              )
+            else
+              for (final ticket in state.tickets)
+                _SupportTicketCard(ticket: ticket),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _SupportTicketCard extends StatelessWidget {
+  final Map<String, dynamic> ticket;
+
+  const _SupportTicketCard({required this.ticket});
+
+  @override
+  Widget build(BuildContext context) {
+    final status = (ticket['status'] ?? 'open').toString().replaceAll('_', ' ');
+    final priority = (ticket['priority'] ?? 'normal').toString();
+    final created = udo_dates.formatApiDate(ticket['created_at'], fallback: '');
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: UdoDesign.card,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: UdoDesign.border),
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          Expanded(
+            child: Text(ticket['subject']?.toString() ?? 'Support ticket',
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: UdoDesign.sans(size: 15, weight: FontWeight.w800)),
+          ),
+          const SizedBox(width: 8),
+          _SupportPill(text: status),
+        ]),
+        const SizedBox(height: 8),
+        Text(ticket['body']?.toString() ?? '',
+            maxLines: 3,
+            overflow: TextOverflow.ellipsis,
+            style: UdoDesign.sans(size: 13, color: UdoDesign.sub)),
+        const SizedBox(height: 12),
+        Wrap(spacing: 8, runSpacing: 8, children: [
+          _SupportMeta(
+              icon: Icons.tag, text: ticket['reference']?.toString() ?? ''),
+          _SupportMeta(icon: Icons.flag_outlined, text: priority),
+          if (created.isNotEmpty)
+            _SupportMeta(icon: Icons.schedule, text: created),
+        ]),
+      ]),
+    );
+  }
+}
+
+class _SupportPill extends StatelessWidget {
+  final String text;
+
+  const _SupportPill({required this.text});
+
+  @override
+  Widget build(BuildContext context) => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+        decoration: BoxDecoration(
+          color: const Color(0xFFEFF4F1),
+          borderRadius: BorderRadius.circular(99),
+        ),
+        child: Text(text,
+            style: UdoDesign.sans(
+                size: 11,
+                color: const Color(0xFF426453),
+                weight: FontWeight.w800)),
+      );
+}
+
+class _SupportMeta extends StatelessWidget {
+  final IconData icon;
+  final String text;
+
+  const _SupportMeta({required this.icon, required this.text});
+
+  @override
+  Widget build(BuildContext context) =>
+      Row(mainAxisSize: MainAxisSize.min, children: [
+        Icon(icon, size: 14, color: UdoDesign.muted),
+        const SizedBox(width: 4),
+        Text(text, style: UdoDesign.sans(size: 12, color: UdoDesign.muted)),
+      ]);
+}
+
+class _SubmitSupportTicketSheet extends ConsumerStatefulWidget {
+  const _SubmitSupportTicketSheet();
+
+  @override
+  ConsumerState<_SubmitSupportTicketSheet> createState() =>
+      _SubmitSupportTicketSheetState();
+}
+
+class _SubmitSupportTicketSheetState
+    extends ConsumerState<_SubmitSupportTicketSheet> {
+  final _formKey = GlobalKey<FormState>();
+  final _subject = TextEditingController();
+  final _body = TextEditingController();
+  String _priority = 'normal';
+
+  @override
+  void dispose() {
+    _subject.dispose();
+    _body.dispose();
+    super.dispose();
+  }
+
+  Future<void> _submit() async {
+    if (!_formKey.currentState!.validate()) return;
+    final ok = await ref.read(supportProvider.notifier).submitTicket(
+          subject: _subject.text.trim(),
+          body: _body.text.trim(),
+          priority: _priority,
+        );
+    if (!mounted) return;
+    if (ok) {
+      Navigator.pop(context);
+      ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Support ticket submitted.')));
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final state = ref.watch(supportProvider);
+    final bottom = MediaQuery.of(context).viewInsets.bottom;
+
+    return SafeArea(
+      child: Padding(
+        padding: EdgeInsets.fromLTRB(20, 22, 20, 20 + bottom),
+        child: Form(
+          key: _formKey,
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(children: [
+                  Expanded(
+                      child: Text('Submit Ticket',
+                          style: UdoDesign.serif(size: 30))),
+                  IconButton(
+                      onPressed: state.isSubmitting
+                          ? null
+                          : () => Navigator.pop(context),
+                      icon: const Icon(Icons.close)),
+                ]),
+                const SizedBox(height: 12),
+                TextFormField(
+                  controller: _subject,
+                  textInputAction: TextInputAction.next,
+                  decoration: const InputDecoration(labelText: 'Subject'),
+                  validator: (value) => (value == null || value.trim().isEmpty)
+                      ? 'Enter a subject'
+                      : null,
+                ),
+                const SizedBox(height: 12),
+                DropdownButtonFormField<String>(
+                  initialValue: _priority,
+                  decoration: const InputDecoration(labelText: 'Priority'),
+                  items: const [
+                    DropdownMenuItem(value: 'low', child: Text('Low')),
+                    DropdownMenuItem(value: 'normal', child: Text('Normal')),
+                    DropdownMenuItem(value: 'high', child: Text('High')),
+                    DropdownMenuItem(value: 'urgent', child: Text('Urgent')),
+                  ],
+                  onChanged: state.isSubmitting
+                      ? null
+                      : (value) =>
+                          setState(() => _priority = value ?? 'normal'),
+                ),
+                const SizedBox(height: 12),
+                TextFormField(
+                  controller: _body,
+                  minLines: 4,
+                  maxLines: 7,
+                  decoration: const InputDecoration(
+                      labelText: 'What do you need help with?'),
+                  validator: (value) => (value == null || value.trim().isEmpty)
+                      ? 'Describe the issue'
+                      : null,
+                ),
+                if (state.error != null) ...[
+                  const SizedBox(height: 12),
+                  Text(state.error!,
+                      style: UdoDesign.sans(
+                          size: 13,
+                          color: const Color(0xFF9B2C14),
+                          weight: FontWeight.w700)),
+                ],
+                const SizedBox(height: 18),
+                ElevatedButton.icon(
+                  onPressed: state.isSubmitting ? null : _submit,
+                  icon: state.isSubmitting
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.send_outlined, size: 18),
+                  label: Text(
+                      state.isSubmitting ? 'Submitting...' : 'Submit ticket'),
+                  style: ElevatedButton.styleFrom(
+                    minimumSize: const Size(double.infinity, 52),
+                    backgroundColor: _moreAccent,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(18)),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 class _AboutSheet extends ConsumerWidget {

@@ -12,7 +12,20 @@
           "package_name": "com.udowedding.udo_mobile"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "563593264357-0m58l9ku6qke99etccrifdffjnl2teok.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.udowedding.udo_mobile",
+            "certificate_hash": "3d62663e8fe82fbbfe36615c192d9b4814c79db6"
+          }
+        },
+        {
+          "client_id": "563593264357-sjodk68eg21bto6nm5idsduct3r6ud3p.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
           "current_key": "AIzaSyCoWQ_-XvY55zuXcqmd4OrXhlmkCFIBBvk"
@@ -20,7 +33,12 @@
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "563593264357-sjodk68eg21bto6nm5idsduct3r6ud3p.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
         }
       }
     }

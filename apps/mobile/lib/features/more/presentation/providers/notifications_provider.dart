@@ -1,4 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../../../core/network/api_client.dart';
 
 class NotificationsState {
@@ -38,7 +39,10 @@ class NotificationsState {
 /// the in-app notification list the bell icon opens.
 class NotificationsNotifier extends StateNotifier<NotificationsState> {
   final ApiClient _api;
-  NotificationsNotifier(this._api) : super(const NotificationsState(isLoading: true)) {
+  static const _seenKey = 'notifications_seen_alert_ids';
+
+  NotificationsNotifier(this._api)
+      : super(const NotificationsState(isLoading: true)) {
     _load();
   }
 
@@ -52,11 +56,15 @@ class NotificationsNotifier extends StateNotifier<NotificationsState> {
           .whereType<Map>()
           .map((a) => Map<String, dynamic>.from(a))
           .toList();
-      final summary = res['summary'] as Map<String, dynamic>? ?? {};
+      final seenIds = await _seenAlertIds();
       state = state.copyWith(
         isLoading: false,
         alerts: alerts,
-        totalActive: (summary['total_active'] as num?)?.toInt() ?? 0,
+        totalActive: alerts
+            .where((alert) =>
+                alert['status'] == 'active' &&
+                !seenIds.contains(_alertId(alert)))
+            .length,
       );
     } catch (e) {
       state = state.copyWith(isLoading: false, error: e.toString());
@@ -65,6 +73,20 @@ class NotificationsNotifier extends StateNotifier<NotificationsState> {
 
   Future<void> refresh() => _load();
 
+  Future<void> markVisibleAsSeen() async {
+    final activeIds = state.alerts
+        .where((alert) => alert['status'] == 'active')
+        .map(_alertId)
+        .where((id) => id.isNotEmpty)
+        .toSet();
+    if (activeIds.isEmpty) return;
+
+    final prefs = await SharedPreferences.getInstance();
+    final existing = prefs.getStringList(_seenKey)?.toSet() ?? <String>{};
+    await prefs.setStringList(_seenKey, {...existing, ...activeIds}.toList());
+    state = state.copyWith(totalActive: 0);
+  }
+
   Future<void> toggleShowResolved(bool value) async {
     state = state.copyWith(showResolved: value);
     await _load();
@@ -72,20 +94,35 @@ class NotificationsNotifier extends StateNotifier<NotificationsState> {
 
   Future<void> resolve(int id) async {
     final previous = state.alerts;
+    final previousTotalActive = state.totalActive;
+    final wasUnread = state.alerts.any((alert) =>
+        _alertId(alert) == id.toString() && alert['status'] == 'active');
     // Optimistic: either drop it (active-only view) or mark it resolved in
     // place (resolved-included view) so the tap feels instant.
     state = state.copyWith(
       alerts: state.showResolved
-          ? state.alerts.map((a) => a['id'] == id ? {...a, 'status': 'resolved'} : a).toList()
+          ? state.alerts
+              .map((a) => a['id'] == id ? {...a, 'status': 'resolved'} : a)
+              .toList()
           : state.alerts.where((a) => a['id'] != id).toList(),
-      totalActive: state.totalActive > 0 ? state.totalActive - 1 : 0,
+      totalActive: wasUnread && state.totalActive > 0
+          ? state.totalActive - 1
+          : state.totalActive,
     );
     try {
       await _api.post('/smart-alerts/$id/resolve');
     } catch (_) {
-      state = state.copyWith(alerts: previous);
+      state =
+          state.copyWith(alerts: previous, totalActive: previousTotalActive);
     }
   }
+
+  Future<Set<String>> _seenAlertIds() async {
+    final prefs = await SharedPreferences.getInstance();
+    return (prefs.getStringList(_seenKey) ?? const <String>[]).toSet();
+  }
+
+  String _alertId(Map<String, dynamic> alert) => (alert['id'] ?? '').toString();
 }
 
 final notificationsProvider =

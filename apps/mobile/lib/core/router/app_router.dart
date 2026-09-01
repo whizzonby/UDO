@@ -75,22 +75,15 @@ final routerProvider = Provider<GoRouter>((ref) {
         return '/login';
       }
 
-      // Authenticated. These two gates must be mutually exclusive — each
-      // returns early so a user who is both not-onboarded and not-lifetime
-      // can't ping-pong between /onboarding and /paywall forever (each gate
-      // used to only exclude its own target route, not the other's).
+      // Authenticated.
       if (!authState.user!.onboardingCompleted) {
         return loc == '/onboarding' ? null : '/onboarding';
       }
 
-      final isLifetime = authState.user!.subscription?['plan'] == 'lifetime';
-      if (!isLifetime) {
-        return loc == '/paywall' ? null : '/paywall';
-      }
-      if (loc == '/paywall') {
-        return '/home';
-      }
-
+      // Every plan (including Free) is real, in-app access with its own
+      // usage limits enforced server-side (402s surface an upgrade prompt
+      // where the limit was actually hit) — /paywall is a screen users
+      // reach voluntarily (e.g. an "Upgrade" button), never a forced gate.
       if (loc == '/splash' ||
           loc == '/login' ||
           loc == '/register' ||
@@ -116,19 +109,6 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
           path: '/onboarding', builder: (_, __) => const OnboardingScreen()),
       GoRoute(path: '/paywall', builder: (_, __) => const PaywallScreen()),
-      GoRoute(
-          path: '/wedding-party',
-          builder: (_, state) => WeddingPartyScreen(
-                initialTab: state.uri.queryParameters['tab'],
-              )),
-      GoRoute(
-          path: '/your-vision', builder: (_, __) => const YourVisionScreen()),
-      GoRoute(
-          path: '/vision-style', builder: (_, __) => const VisionStyleScreen()),
-      GoRoute(path: '/memories', builder: (_, __) => const MemoriesScreen()),
-      GoRoute(
-          path: '/wedding-story',
-          builder: (_, __) => const WeddingStoryScreen()),
       ShellRoute(
         navigatorKey: _shellKey,
         builder: (context, state, child) => MainScaffold(child: child),
@@ -150,9 +130,6 @@ final routerProvider = Provider<GoRouter>((ref) {
                     initialInfoFilter: state.uri.queryParameters['info'],
                   )),
           GoRoute(
-              path: '/guests/check-in/qr',
-              builder: (_, __) => const GuestQrScannerScreen()),
-          GoRoute(
               path: '/guests/:id',
               builder: (_, state) => GuestProfileScreen(
                   guestId: int.parse(state.pathParameters['id']!))),
@@ -165,6 +142,22 @@ final routerProvider = Provider<GoRouter>((ref) {
           GoRoute(
               path: '/registry', builder: (_, __) => const RegistryScreen()),
           GoRoute(path: '/more', builder: (_, __) => const MoreScreen()),
+          GoRoute(
+              path: '/wedding-party',
+              builder: (_, state) => WeddingPartyScreen(
+                    initialTab: state.uri.queryParameters['tab'],
+                  )),
+          GoRoute(
+              path: '/your-vision',
+              builder: (_, __) => const YourVisionScreen()),
+          GoRoute(
+              path: '/vision-style',
+              builder: (_, __) => const VisionStyleScreen()),
+          GoRoute(
+              path: '/memories', builder: (_, __) => const MemoriesScreen()),
+          GoRoute(
+              path: '/wedding-story',
+              builder: (_, __) => const WeddingStoryScreen()),
         ],
       ),
     ],

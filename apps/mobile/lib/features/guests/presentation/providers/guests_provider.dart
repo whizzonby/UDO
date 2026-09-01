@@ -100,6 +100,8 @@ class GuestsNotifier extends StateNotifier<GuestsState> {
     bool sendInviteAfter = false,
     bool? plusOneAllowed,
     int? plusOneCount,
+    String? plusOneName,
+    String? plusOneEmail,
     String? mealPreference,
     String? dietaryNote,
   }) async {
@@ -111,6 +113,8 @@ class GuestsNotifier extends StateNotifier<GuestsState> {
         if (phone != null && phone.isNotEmpty) 'phone': phone,
         if (plusOneAllowed != null) 'plus_one_allowed': plusOneAllowed,
         if (plusOneCount != null) 'plus_one_count': plusOneCount,
+        if (plusOneName != null) 'plus_one_name': plusOneName,
+        if (plusOneEmail != null) 'plus_one_email': plusOneEmail,
         if (mealPreference != null && mealPreference.isNotEmpty)
           'meal_preference': mealPreference,
         if (dietaryNote != null && dietaryNote.isNotEmpty)

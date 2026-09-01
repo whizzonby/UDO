@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../core/theme/app_theme.dart';
+import '../../../../shared/widgets/app_scaffold_messenger.dart';
 import '../../../../shared/widgets/udo_button.dart';
 import '../../../../shared/widgets/udo_text_field.dart';
 import '../providers/auth_provider.dart';
@@ -39,6 +40,10 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
           email: _emailCtrl.text.trim(),
           password: _passCtrl.text,
         );
+    if (!mounted) return;
+    if (ref.read(authProvider).status == AuthStatus.authenticated) {
+      showAuthToast('Account created — let\'s set up your wedding.');
+    }
   }
 
   @override

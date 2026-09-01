@@ -34,7 +34,6 @@ class OnboardingAnswers {
   String city = '';
   String venueStatus = 'Shortlisting';
   String guestTravel = 'Mixed';
-  List<String> travelSupport = [];
 
   // Guest portal
   List<String> guestExperience = [
@@ -129,7 +128,6 @@ class OnboardingAnswers {
         'city': city,
         'venue_status': venueStatus,
         'guest_travel': guestTravel,
-        'travel_support': travelSupport,
         'guest_experience': guestExperience,
         'guest_count': guestCount,
         'total_budget': totalBudget,

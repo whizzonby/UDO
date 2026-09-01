@@ -12,6 +12,7 @@ import '../../../../core/constants/app_constants.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../shared/utils/date_formatters.dart' as udo_dates;
 import '../../../../shared/widgets/udo_design_system.dart';
+import '../../../auth/presentation/providers/auth_provider.dart';
 import '../../../gallery/presentation/providers/gallery_provider.dart';
 import '../../../guests/presentation/providers/guests_provider.dart';
 import '../../../guests/presentation/providers/logistics_provider.dart';
@@ -67,8 +68,20 @@ String _dateOnly(dynamic value) {
 
 String? _formatTaskDueDate(dynamic value) {
   if (value == null) return null;
-  final formatted = udo_dates.formatApiDate(value);
-  return formatted.isEmpty ? null : formatted;
+  final raw = value.toString().trim();
+  if (raw.isEmpty) return null;
+  final parsed = udo_dates.parseApiDate(raw);
+  if (parsed != null) return DateFormat('MMM d, yyyy').format(parsed);
+  final datePrefix = RegExp(r'^(\d{4})-(\d{2})-(\d{2})').firstMatch(raw);
+  if (datePrefix != null) {
+    final year = int.tryParse(datePrefix.group(1)!);
+    final month = int.tryParse(datePrefix.group(2)!);
+    final day = int.tryParse(datePrefix.group(3)!);
+    if (year != null && month != null && day != null) {
+      return DateFormat('MMM d, yyyy').format(DateTime(year, month, day));
+    }
+  }
+  return raw;
 }
 
 class PlanScreen extends ConsumerStatefulWidget {
@@ -154,6 +167,7 @@ class _PlanScreenState extends ConsumerState<PlanScreen>
                   title: _planPages[_tabs.index].title,
                   isOverview: _tabs.index == 0,
                   onMenuTap: () => setState(() => _drawerOpen = true),
+                  onBackTap: _goBackPlanPage,
                   // Only shown where it actually edits something on the
                   // current page — every other tab already has its own
                   // in-body "+ Add"/edit affordance, so a header-level pencil
@@ -207,7 +221,7 @@ class _PlanScreenState extends ConsumerState<PlanScreen>
                       const _FoodTab(),
                       const _WeddingWeekendTab(),
                       const _WeddingPartyTab(),
-                      _HoneymoonTab(onViewBudget: () => _navigatePlanPage(3)),
+                      const _HoneymoonTab(),
                       const _InsuranceTab(),
                       _DocumentsTab(state: state, onTabJump: _navigatePlanPage),
                       const _DetailsTab(),
@@ -250,9 +264,7 @@ class _PlanScreenState extends ConsumerState<PlanScreen>
   }
 
   void _goBackPlanPage() {
-    final previous = _tabHistory.isNotEmpty
-        ? _tabHistory.removeLast()
-        : (_tabs.index > 0 ? _tabs.index - 1 : 0);
+    final previous = _tabHistory.isNotEmpty ? _tabHistory.removeLast() : 0;
     if (previous == _tabs.index) return;
     _tabs.animateTo(previous);
   }
@@ -337,7 +349,7 @@ const _planPages = [
       badge: 'Meals',
       badgeColor: UdoDesign.amber),
   _PlanPageMeta(
-      title: 'Wedding Weekend',
+      title: 'Wedding Celebrations',
       icon: Icons.event_outlined,
       badge: 'Events',
       badgeColor: UdoDesign.blue),
@@ -440,12 +452,14 @@ class _PlanHeader extends StatefulWidget {
   final String title;
   final bool isOverview;
   final VoidCallback onMenuTap;
+  final VoidCallback onBackTap;
   final VoidCallback? onEditTap;
 
   const _PlanHeader({
     required this.title,
     required this.isOverview,
     required this.onMenuTap,
+    required this.onBackTap,
     this.onEditTap,
   });
 
@@ -463,7 +477,10 @@ class _PlanHeaderState extends State<_PlanHeader> {
         child: Padding(
           padding: const EdgeInsets.fromLTRB(22, 18, 22, 18),
           child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            _RoundIconButton(icon: Icons.menu, onTap: widget.onMenuTap),
+            _RoundIconButton(
+              icon: widget.isOverview ? Icons.menu : Icons.arrow_back,
+              onTap: widget.isOverview ? widget.onMenuTap : widget.onBackTap,
+            ),
             const SizedBox(width: 16),
             Expanded(
                 child: Column(
@@ -1217,9 +1234,12 @@ class _PlanLandingTab extends ConsumerWidget {
         ? null
         : max(0, eventDate.difference(DateTime.now()).inDays);
     final greeting = _dayGreeting(DateTime.now());
-    final firstName = ((wedding?['owner'] as Map?)?['first_name'] as String?) ??
-        (wedding?['owner_first_name'] as String?) ??
-        'there';
+    final authFirstName = ref.watch(authProvider).user?.firstName.trim();
+    final firstName = (authFirstName != null && authFirstName.isNotEmpty)
+        ? authFirstName
+        : ((wedding?['owner'] as Map?)?['first_name'] as String?) ??
+            (wedding?['owner_first_name'] as String?) ??
+            'there';
     final completedTasks =
         state.tasks.where((t) => t['completed'] == true).length;
     final totalTasks = state.tasks.length;
@@ -1262,7 +1282,7 @@ class _PlanLandingTab extends ConsumerWidget {
         _GreetingCard(
             greeting: greeting,
             firstName: firstName,
-            onTap: () => onTabJump(15)),
+            onTap: () => onTabJump(2)),
         const SizedBox(height: 20),
         _WeddingDayCard(
           date: eventDate == null
@@ -1400,35 +1420,41 @@ class _GreetingCard extends StatelessWidget {
       {required this.greeting, required this.firstName, this.onTap});
 
   @override
-  Widget build(BuildContext context) => _SoftCard(
-        onTap: onTap,
-        padding: const EdgeInsets.all(22),
-        child: Row(children: [
-          Container(
-              width: 62,
-              height: 62,
-              decoration: const BoxDecoration(
-                  shape: BoxShape.circle, color: Color(0xFFF7F4F2)),
-              child: const Icon(Icons.calendar_month_outlined,
-                  size: 30, color: Color(0xFF111827))),
-          const SizedBox(width: 18),
-          Expanded(
-              child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                Text('$greeting, $firstName',
-                    style: const TextStyle(
-                        fontSize: 17,
-                        fontWeight: FontWeight.w700,
-                        color: Color(0xFF111827))),
-                const SizedBox(height: 8),
-                const Text(
-                    "Here's what's happening with\nyour wedding planning.",
-                    style: TextStyle(
-                        fontSize: 13, height: 1.55, color: Color(0xFF6D6A66))),
-              ])),
-          const Icon(Icons.chevron_right, color: Color(0xFF7B7771)),
-        ]),
+  Widget build(BuildContext context) => Semantics(
+        button: true,
+        label: 'Open wedding planning tasks',
+        child: _SoftCard(
+          onTap: onTap,
+          padding: const EdgeInsets.all(22),
+          child: Row(children: [
+            Container(
+                width: 62,
+                height: 62,
+                decoration: const BoxDecoration(
+                    shape: BoxShape.circle, color: Color(0xFFF7F4F2)),
+                child: const Icon(Icons.calendar_month_outlined,
+                    size: 30, color: Color(0xFF111827))),
+            const SizedBox(width: 18),
+            Expanded(
+                child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                  Text('$greeting, $firstName',
+                      style: const TextStyle(
+                          fontSize: 17,
+                          fontWeight: FontWeight.w700,
+                          color: Color(0xFF111827))),
+                  const SizedBox(height: 8),
+                  const Text(
+                      "Here's what's happening with\nyour wedding planning.",
+                      style: TextStyle(
+                          fontSize: 13,
+                          height: 1.55,
+                          color: Color(0xFF6D6A66))),
+                ])),
+            const Icon(Icons.chevron_right, color: Color(0xFF7B7771)),
+          ]),
+        ),
       );
 }
 
@@ -1553,11 +1579,14 @@ class _ProgressGlanceCard extends StatelessWidget {
                     backgroundColor: const Color(0xFFEDEBE7),
                     valueColor:
                         const AlwaysStoppedAnimation(Color(0xFF11745A))),
-                FittedBox(
-                  fit: BoxFit.scaleDown,
-                  child: Text('$progress%',
-                      style: const TextStyle(
-                          fontSize: 13, fontWeight: FontWeight.w700)),
+                SizedBox(
+                  width: 32,
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Text('$progress%',
+                        style: const TextStyle(
+                            fontSize: 11, fontWeight: FontWeight.w700)),
+                  ),
                 ),
               ])),
           const SizedBox(height: 8),
@@ -2051,7 +2080,7 @@ class _OverviewTab extends ConsumerWidget {
           return _ModuleCard(
             id: 'additional-events',
             icon: Icons.calendar_month_outlined,
-            title: 'Wedding Weekend',
+            title: 'Wedding Celebrations',
             status: events.isEmpty
                 ? 'Not started'
                 : (needsAttention == 0 ? 'Complete' : 'In progress'),
@@ -3119,14 +3148,22 @@ class _VisionMasonryGrid extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final tiles = inspiration.isEmpty
+    // Assets still processing (or missing a thumbnail) resolve to an empty
+    // path, which Image.asset('') fails on instantly — rendering as a grey
+    // "Inspiration" placeholder tile instead of being skipped. Drop those
+    // before deciding whether to show real tiles or the category fallbacks.
+    final usableInspiration = inspiration.where((asset) {
+      final url = (asset['thumbnail_url'] ?? asset['url'])?.toString() ?? '';
+      return url.isNotEmpty;
+    }).toList();
+
+    final tiles = usableInspiration.isEmpty
         ? _fallbacksFor(board)
             .map((item) =>
                 _VisionTileData(path: item.$1, label: item.$2, network: false))
             .toList()
-        : inspiration.take(8).map((asset) {
-            final url =
-                (asset['thumbnail_url'] ?? asset['url'])?.toString() ?? '';
+        : usableInspiration.take(8).map((asset) {
+            final url = (asset['thumbnail_url'] ?? asset['url']).toString();
             return _VisionTileData(
               path: url,
               label: asset['title']?.toString().isNotEmpty == true
@@ -3649,7 +3686,8 @@ class _TimelineTabState extends State<_TimelineTab> {
             const SizedBox(height: 18),
             UdoSectionHeader(
               title: 'Editable timeline',
-              subtitle: '${visible.length} events visible',
+              subtitle:
+                  'Tap any event to edit its time, location, or vendor · ${visible.length} visible',
             ),
             _TimelineEventList(
               items: visible,
@@ -3713,6 +3751,7 @@ class _AddTimelineEventSheetState extends State<_AddTimelineEventSheet> {
   DateTime? _eventDate;
   TimeOfDay? _startTime;
   TimeOfDay? _endTime;
+  bool _visibleToGuests = true;
   bool _saving = false;
   bool _deleting = false;
   String? _error;
@@ -3736,6 +3775,7 @@ class _AddTimelineEventSheetState extends State<_AddTimelineEventSheet> {
           date == null || date.isEmpty ? null : DateTime.tryParse(date);
       _startTime = _parseTime(existing['start_time']?.toString());
       _endTime = _parseTime(existing['end_time']?.toString());
+      _visibleToGuests = existing['visible_to_guests'] != false;
     }
   }
 
@@ -3779,6 +3819,7 @@ class _AddTimelineEventSheetState extends State<_AddTimelineEventSheet> {
             endTime: _endTime == null ? null : _fmtTime(_endTime!),
             location: _location.text.trim(),
             notes: _notes.text.trim(),
+            visibleToGuests: _visibleToGuests,
           )
         : await widget.notifier.createTimelineItem(
             title: _title.text.trim(),
@@ -3788,13 +3829,16 @@ class _AddTimelineEventSheetState extends State<_AddTimelineEventSheet> {
             endTime: _endTime == null ? null : _fmtTime(_endTime!),
             location: _location.text.trim(),
             notes: _notes.text.trim(),
+            visibleToGuests: _visibleToGuests,
           );
     if (!mounted) return;
     if (ok) {
       final messenger = ScaffoldMessenger.of(context);
       Navigator.pop(context);
       messenger.showSnackBar(
-        const SnackBar(content: Text('Weekend update queued for sending.')),
+        SnackBar(
+            content: Text(
+                _isEditing ? 'Event updated.' : 'Event added to timeline.')),
       );
     } else {
       setState(() {
@@ -3965,6 +4009,21 @@ class _AddTimelineEventSheetState extends State<_AddTimelineEventSheet> {
                     decoration: const InputDecoration(
                         labelText: 'Notes (optional)',
                         hintText: 'Anything the day-of team should know')),
+                const SizedBox(height: 8),
+                SwitchListTile.adaptive(
+                  value: _visibleToGuests,
+                  onChanged: (v) => setState(() => _visibleToGuests = v),
+                  activeThumbColor: AppTheme.udoGreen,
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('Visible to guests'),
+                  subtitle: Text(
+                    _visibleToGuests
+                        ? 'Shown in the Schedule section of your guest portal.'
+                        : 'Hidden from guests — only your wedding party and planning team can see this.',
+                    style: const TextStyle(
+                        fontSize: 12, color: AppTheme.udoTextSecondary),
+                  ),
+                ),
                 if (_error != null) ...[
                   const SizedBox(height: 12),
                   Text(_error!,
@@ -7447,6 +7506,174 @@ Future<void> showAddTaskSheet(BuildContext context, PlanNotifier notifier) {
   );
 }
 
+const _taskCategoryOptions = [
+  'General',
+  'Planning & Admin',
+  'Wedding Details',
+  'Budget',
+  'Payments',
+  'Expenses',
+  'Contracts',
+  'Legal & Documents',
+  'Marriage Licence',
+  'Permits',
+  'Insurance',
+  'Venue',
+  'Ceremony',
+  'Reception',
+  'Rehearsal',
+  'Rehearsal Dinner',
+  'Wedding Timeline',
+  'Day-of Schedule',
+  'Vendors',
+  'Vendor Follow-ups',
+  'Vendor Meetings',
+  'Vendor Payments',
+  'Guests',
+  'Guest List',
+  'Invitations',
+  'RSVPs',
+  'Guest Follow-ups',
+  'Seating Plan',
+  'Place Cards',
+  'Guest Transportation',
+  'Guest Accommodation',
+  'Guest Welcome Bags',
+  'Guest Experience',
+  'Accessibility',
+  'Childcare',
+  'Wedding Party',
+  'Bridesmaids',
+  'Groomsmen',
+  'Maid / Matron of Honour',
+  'Best Man',
+  'Flower Girl',
+  'Ring Bearer',
+  'Family',
+  'Bride',
+  'Groom',
+  'Attire',
+  'Wedding Dress',
+  'Suit / Tuxedo',
+  'Alterations & Fittings',
+  'Shoes',
+  'Accessories',
+  'Jewellery',
+  'Wedding Rings',
+  'Hair',
+  'Makeup',
+  'Nails',
+  'Beauty & Grooming',
+  'Self-Care',
+  'Florals',
+  'Décor',
+  'Ceremony Décor',
+  'Reception Décor',
+  'Centrepieces',
+  'Signage',
+  'Lighting',
+  'Furniture & Rentals',
+  'Linens',
+  'Tableware',
+  'Equipment Rentals',
+  'Setup',
+  'Breakdown',
+  'Cleaning',
+  'Food & Dining',
+  'Catering',
+  'Menu',
+  'Dietary Requirements',
+  'Drinks & Bar',
+  'Cake',
+  'Desserts',
+  'Photography',
+  'Videography',
+  'Wedding Content Creator',
+  'Photo Booth',
+  'Entertainment',
+  'DJ',
+  'Live Band',
+  'Musicians',
+  'MC / Host',
+  'Ceremony Music',
+  'Reception Music',
+  'Playlist',
+  'Speeches & Toasts',
+  'First Dance',
+  'Dance Practice',
+  'Transportation',
+  'Couple Transportation',
+  'Shuttle Service',
+  'Parking',
+  'Valet',
+  'Travel',
+  'Flights',
+  'Hotels',
+  'Accommodation',
+  'Destination Wedding',
+  'Passports & Visas',
+  'Packing',
+  'Honeymoon',
+  'Honeymoon Flights',
+  'Honeymoon Hotel',
+  'Honeymoon Activities',
+  'Registry',
+  'Gifts',
+  'Wedding Party Gifts',
+  'Parent Gifts',
+  'Guest Favours',
+  'Stationery',
+  'Save the Dates',
+  'Invitations & Printing',
+  'Programs',
+  'Menus',
+  'Thank You Cards',
+  'Wedding Website',
+  'QR Codes',
+  'Communications',
+  'Email & Messaging',
+  'Announcements',
+  'Social Media',
+  'Hashtag',
+  'Live Streaming',
+  'Technology',
+  'Files & Documents',
+  'Shopping',
+  'Online Orders',
+  'DIY Projects',
+  'Deliveries',
+  'Pickups',
+  'Returns & Refunds',
+  'Tips & Gratuities',
+  'Vendor Meals',
+  'Wedding Weekend',
+  'Welcome Party',
+  'Bridal Shower',
+  'Bachelor / Bachelorette',
+  'Engagement Party',
+  'After Party',
+  'Farewell Brunch',
+  'Cultural Traditions',
+  'Religious Requirements',
+  'Weather Planning',
+  'Emergency & Backup Plan',
+  'Security',
+  'Pets',
+  'Sustainability',
+  'Health & Wellness',
+  'Final Confirmations',
+  'Final Payments',
+  'Wedding Day',
+  'Post-Wedding',
+  'Thank You Notes',
+  'Photo Album',
+  'Gallery',
+  'Vendor Reviews',
+  'Name Change',
+  'Document Updates',
+  'Other',
+];
+
 class _AddTaskSheet extends StatefulWidget {
   final PlanNotifier notifier;
   const _AddTaskSheet({required this.notifier});
@@ -7456,7 +7683,8 @@ class _AddTaskSheet extends StatefulWidget {
 
 class _AddTaskSheetState extends State<_AddTaskSheet> {
   final _titleCtrl = TextEditingController();
-  final _categoryCtrl = TextEditingController();
+  final _customCategoryCtrl = TextEditingController();
+  String? _category;
   String _priority = 'medium';
   DateTime? _dueDate;
   bool _saving = false;
@@ -7465,7 +7693,7 @@ class _AddTaskSheetState extends State<_AddTaskSheet> {
   @override
   void dispose() {
     _titleCtrl.dispose();
-    _categoryCtrl.dispose();
+    _customCategoryCtrl.dispose();
     super.dispose();
   }
 
@@ -7478,10 +7706,14 @@ class _AddTaskSheetState extends State<_AddTaskSheet> {
       _saving = true;
       _error = null;
     });
+    final category = _category == 'Other'
+        ? (_customCategoryCtrl.text.trim().isEmpty
+            ? 'Other'
+            : _customCategoryCtrl.text.trim())
+        : _category;
     final ok = await widget.notifier.createTask(
       title: _titleCtrl.text.trim(),
-      category:
-          _categoryCtrl.text.trim().isEmpty ? null : _categoryCtrl.text.trim(),
+      category: category,
       dueDate: _dueDate,
       priority: _priority,
     );
@@ -7527,11 +7759,30 @@ class _AddTaskSheetState extends State<_AddTaskSheet> {
                 labelText: 'Title', hintText: 'e.g. Confirm florist order'),
           ),
           const SizedBox(height: 12),
-          TextField(
-            controller: _categoryCtrl,
+          DropdownButtonFormField<String>(
+            initialValue: _category,
+            isExpanded: true,
+            menuMaxHeight: 360,
             decoration: const InputDecoration(
-                labelText: 'Category (optional)', hintText: 'e.g. Vendors'),
+                labelText: 'Category (optional)',
+                hintText: 'Select a category'),
+            items: _taskCategoryOptions
+                .map((category) => DropdownMenuItem(
+                      value: category,
+                      child: Text(category, overflow: TextOverflow.ellipsis),
+                    ))
+                .toList(),
+            onChanged: (value) => setState(() => _category = value),
           ),
+          if (_category == 'Other') ...[
+            const SizedBox(height: 12),
+            TextField(
+              controller: _customCategoryCtrl,
+              autofocus: true,
+              decoration: const InputDecoration(
+                  labelText: 'Custom category', hintText: 'e.g. Pet care'),
+            ),
+          ],
           const SizedBox(height: 12),
           Row(children: [
             Expanded(
@@ -7795,6 +8046,8 @@ class _TasksTabState extends State<_TasksTab> {
               color: group.color,
               tasks: group.tasks,
               onToggle: (task) => widget.notifier.toggleTask(task['id'] as int),
+              onOpenDetails: (task) =>
+                  showTaskDetailsSheet(context, widget.notifier, task),
             ),
         const SizedBox(height: 18),
         Text('Need to add another task?',
@@ -7951,12 +8204,14 @@ class _TaskGroupSection extends StatelessWidget {
   final Color color;
   final List<Map<String, dynamic>> tasks;
   final void Function(Map<String, dynamic>) onToggle;
+  final void Function(Map<String, dynamic>) onOpenDetails;
 
   const _TaskGroupSection({
     required this.title,
     required this.color,
     required this.tasks,
     required this.onToggle,
+    required this.onOpenDetails,
   });
 
   @override
@@ -7987,6 +8242,7 @@ class _TaskGroupSection extends StatelessWidget {
                 accent: color,
                 last: i == tasks.length - 1,
                 onToggle: () => onToggle(tasks[i]),
+                onOpenDetails: () => onOpenDetails(tasks[i]),
               ),
           ]),
         ),
@@ -8000,12 +8256,14 @@ class _TaskCommandRow extends StatelessWidget {
   final Color accent;
   final bool last;
   final VoidCallback onToggle;
+  final VoidCallback onOpenDetails;
 
   const _TaskCommandRow({
     required this.task,
     required this.accent,
     required this.last,
     required this.onToggle,
+    required this.onOpenDetails,
   });
 
   @override
@@ -8017,67 +8275,74 @@ class _TaskCommandRow extends StatelessWidget {
     return AnimatedOpacity(
       opacity: done ? 0.62 : 1,
       duration: const Duration(milliseconds: 180),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 15),
-        decoration: BoxDecoration(
-            border: last
-                ? null
-                : const Border(bottom: BorderSide(color: UdoDesign.stone))),
-        child: Row(children: [
-          GestureDetector(
-            onTap: onToggle,
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 160),
-              width: 24,
-              height: 24,
-              decoration: BoxDecoration(
-                color: done ? UdoDesign.plan : Colors.transparent,
-                borderRadius: BorderRadius.circular(7),
-                border: Border.all(
-                    color: done ? UdoDesign.plan : UdoDesign.stone, width: 1.6),
+      child: InkWell(
+        onTap: onOpenDetails,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 15),
+          decoration: BoxDecoration(
+              border: last
+                  ? null
+                  : const Border(bottom: BorderSide(color: UdoDesign.stone))),
+          child: Row(children: [
+            GestureDetector(
+              onTap: onToggle,
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 160),
+                width: 24,
+                height: 24,
+                decoration: BoxDecoration(
+                  color: done ? UdoDesign.plan : Colors.transparent,
+                  borderRadius: BorderRadius.circular(7),
+                  border: Border.all(
+                      color: done ? UdoDesign.plan : UdoDesign.stone,
+                      width: 1.6),
+                ),
+                child: done
+                    ? const Icon(Icons.check, color: Colors.white, size: 15)
+                    : null,
               ),
-              child: done
-                  ? const Icon(Icons.check, color: Colors.white, size: 15)
-                  : null,
             ),
-          ),
-          const SizedBox(width: 13),
-          Expanded(
-            child:
-                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(
-                task['title'] as String? ?? 'Untitled task',
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: UdoDesign.sans(
-                  size: 14.5,
-                  weight: FontWeight.w700,
-                  color: done ? UdoDesign.muted : UdoDesign.text,
-                  height: 1.25,
-                ).copyWith(
-                    decoration: done ? TextDecoration.lineThrough : null),
-              ),
-              const SizedBox(height: 7),
-              Wrap(
-                  spacing: 8,
-                  runSpacing: 6,
-                  crossAxisAlignment: WrapCrossAlignment.center,
+            const SizedBox(width: 13),
+            Expanded(
+              child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    UdoBadge(
-                        label: category,
-                        color: UdoDesign.muted,
-                        background: UdoDesign.stone.withValues(alpha: 0.55)),
-                    UdoBadge(label: priority, color: _priorityColor(priority)),
-                    Text(due == null ? 'No due date' : 'Due $due',
-                        style:
-                            UdoDesign.sans(size: 12, color: UdoDesign.muted)),
+                    Text(
+                      task['title'] as String? ?? 'Untitled task',
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: UdoDesign.sans(
+                        size: 14.5,
+                        weight: FontWeight.w700,
+                        color: done ? UdoDesign.muted : UdoDesign.text,
+                        height: 1.25,
+                      ).copyWith(
+                          decoration: done ? TextDecoration.lineThrough : null),
+                    ),
+                    const SizedBox(height: 7),
+                    Wrap(
+                        spacing: 8,
+                        runSpacing: 6,
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        children: [
+                          UdoBadge(
+                              label: category,
+                              color: UdoDesign.muted,
+                              background:
+                                  UdoDesign.stone.withValues(alpha: 0.55)),
+                          UdoBadge(
+                              label: priority, color: _priorityColor(priority)),
+                          Text(due == null ? 'No due date' : 'Due $due',
+                              style: UdoDesign.sans(
+                                  size: 12, color: UdoDesign.muted)),
+                        ]),
                   ]),
-            ]),
-          ),
-          const SizedBox(width: 10),
-          Icon(Icons.chevron_right,
-              color: accent.withValues(alpha: 0.72), size: 18),
-        ]),
+            ),
+            const SizedBox(width: 10),
+            Icon(Icons.chevron_right,
+                color: accent.withValues(alpha: 0.72), size: 18),
+          ]),
+        ),
       ),
     );
   }
@@ -8091,6 +8356,345 @@ class _TaskCommandRow extends StatelessWidget {
       default:
         return UdoDesign.sage;
     }
+  }
+}
+
+Future<void> showTaskDetailsSheet(
+    BuildContext context, PlanNotifier notifier, Map<String, dynamic> task) {
+  return showModalBottomSheet(
+    context: context,
+    isScrollControlled: true,
+    backgroundColor: Colors.white,
+    shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+    builder: (ctx) => _TaskDetailsSheet(notifier: notifier, task: task),
+  );
+}
+
+class _TaskDetailsSheet extends StatefulWidget {
+  final PlanNotifier notifier;
+  final Map<String, dynamic> task;
+  const _TaskDetailsSheet({required this.notifier, required this.task});
+
+  @override
+  State<_TaskDetailsSheet> createState() => _TaskDetailsSheetState();
+}
+
+class _TaskDetailsSheetState extends State<_TaskDetailsSheet> {
+  late bool _editing;
+  late final TextEditingController _titleCtrl;
+  late final TextEditingController _customCategoryCtrl;
+  late String? _category;
+  late String _priority;
+  late DateTime? _dueDate;
+  bool _saving = false;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _editing = false;
+    _titleCtrl =
+        TextEditingController(text: widget.task['title'] as String? ?? '');
+    final rawCategory = widget.task['category'] as String?;
+    final knownCategory =
+        rawCategory != null && _taskCategoryOptions.contains(rawCategory)
+            ? rawCategory
+            : (rawCategory != null && rawCategory.isNotEmpty ? 'Other' : null);
+    _category = knownCategory;
+    _customCategoryCtrl = TextEditingController(
+        text: knownCategory == 'Other' ? rawCategory : '');
+    _priority = widget.task['priority'] as String? ?? 'medium';
+    _dueDate = udo_dates.parseApiDate(widget.task['due_date']);
+  }
+
+  @override
+  void dispose() {
+    _titleCtrl.dispose();
+    _customCategoryCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _save() async {
+    if (_titleCtrl.text.trim().isEmpty) {
+      setState(() => _error = 'Give the task a title.');
+      return;
+    }
+    setState(() {
+      _saving = true;
+      _error = null;
+    });
+    final category = _category == 'Other'
+        ? (_customCategoryCtrl.text.trim().isEmpty
+            ? 'Other'
+            : _customCategoryCtrl.text.trim())
+        : _category;
+    final ok = await widget.notifier.updateTask(
+      widget.task['id'] as int,
+      title: _titleCtrl.text.trim(),
+      category: category,
+      dueDate: _dueDate,
+      clearDueDate: _dueDate == null,
+      priority: _priority,
+    );
+    if (!mounted) return;
+    if (ok) {
+      setState(() {
+        _saving = false;
+        _editing = false;
+      });
+    } else {
+      setState(() {
+        _saving = false;
+        _error = "Couldn't save changes. Try again.";
+      });
+    }
+  }
+
+  Future<void> _delete() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Delete task?'),
+        content: Text(
+            'This removes "${widget.task['title'] ?? 'this task'}" for good.'),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: const Text('Cancel')),
+          TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+              child: const Text('Delete',
+                  style: TextStyle(color: AppTheme.udoCrimson))),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    setState(() => _saving = true);
+    final ok = await widget.notifier.deleteTask(widget.task['id'] as int);
+    if (!mounted) return;
+    if (ok) {
+      Navigator.of(context).pop();
+    } else {
+      setState(() {
+        _saving = false;
+        _error = "Couldn't delete this task. Try again.";
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.fromLTRB(
+          20, 16, 20, MediaQuery.of(context).viewInsets.bottom + 24),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Center(
+              child: Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                      color: AppTheme.udoBorder,
+                      borderRadius: BorderRadius.circular(2)))),
+          const SizedBox(height: 16),
+          Row(children: [
+            Expanded(
+              child: Text(_editing ? 'Edit task' : 'Task details',
+                  style: const TextStyle(
+                      fontFamily: 'Playfair',
+                      fontSize: 20,
+                      fontWeight: FontWeight.w600,
+                      color: AppTheme.udoGreen)),
+            ),
+            if (!_editing)
+              IconButton(
+                onPressed: () => setState(() => _editing = true),
+                icon: const Icon(Icons.edit_outlined, color: AppTheme.udoGreen),
+                tooltip: 'Edit task',
+              ),
+          ]),
+          const SizedBox(height: 12),
+          if (_editing) ..._buildEditForm() else ..._buildDetails(),
+          if (_error != null) ...[
+            const SizedBox(height: 12),
+            Text(_error!,
+                style:
+                    const TextStyle(color: AppTheme.udoCrimson, fontSize: 13)),
+          ],
+        ],
+      ),
+    );
+  }
+
+  List<Widget> _buildDetails() {
+    final task = widget.task;
+    final done = task['completed'] == true;
+    final due = _formatTaskDueDate(task['due_date']);
+    return [
+      Text(task['title'] as String? ?? 'Untitled task',
+          style: UdoDesign.sans(
+            size: 17,
+            weight: FontWeight.w700,
+            height: 1.3,
+          ).copyWith(decoration: done ? TextDecoration.lineThrough : null)),
+      const SizedBox(height: 12),
+      Wrap(spacing: 8, runSpacing: 8, children: [
+        UdoBadge(
+            label: task['category'] as String? ?? 'Planning',
+            color: UdoDesign.muted,
+            background: UdoDesign.stone.withValues(alpha: 0.55)),
+        UdoBadge(
+            label: task['priority'] as String? ?? 'medium',
+            color: AppTheme.udoGreen),
+      ]),
+      const SizedBox(height: 12),
+      Row(children: [
+        const Icon(Icons.calendar_today_outlined,
+            size: 15, color: UdoDesign.muted),
+        const SizedBox(width: 8),
+        Text(due == null ? 'No due date' : 'Due $due',
+            style: UdoDesign.sans(size: 13.5, color: UdoDesign.sub)),
+      ]),
+      const SizedBox(height: 20),
+      SizedBox(
+        width: double.infinity,
+        child: OutlinedButton.icon(
+          onPressed: _saving
+              ? null
+              : () => widget.notifier.toggleTask(task['id'] as int),
+          icon:
+              Icon(done ? Icons.replay : Icons.check_circle_outline, size: 18),
+          label: Text(done ? 'Mark as not done' : 'Mark as done'),
+          style: OutlinedButton.styleFrom(
+              foregroundColor: AppTheme.udoGreen,
+              side: const BorderSide(color: AppTheme.udoGreen),
+              minimumSize: const Size(double.infinity, 48)),
+        ),
+      ),
+      const SizedBox(height: 10),
+      SizedBox(
+        width: double.infinity,
+        child: OutlinedButton.icon(
+          onPressed: _saving ? null : _delete,
+          icon: const Icon(Icons.delete_outline, size: 18),
+          label: const Text('Delete task'),
+          style: OutlinedButton.styleFrom(
+              foregroundColor: AppTheme.udoCrimson,
+              side: const BorderSide(color: AppTheme.udoCrimson),
+              minimumSize: const Size(double.infinity, 48)),
+        ),
+      ),
+    ];
+  }
+
+  List<Widget> _buildEditForm() {
+    return [
+      TextField(
+        controller: _titleCtrl,
+        autofocus: true,
+        decoration: const InputDecoration(
+            labelText: 'Title', hintText: 'e.g. Confirm florist order'),
+      ),
+      const SizedBox(height: 12),
+      DropdownButtonFormField<String>(
+        initialValue: _category,
+        isExpanded: true,
+        menuMaxHeight: 360,
+        decoration: const InputDecoration(
+            labelText: 'Category (optional)', hintText: 'Select a category'),
+        items: _taskCategoryOptions
+            .map((category) => DropdownMenuItem(
+                  value: category,
+                  child: Text(category, overflow: TextOverflow.ellipsis),
+                ))
+            .toList(),
+        onChanged: (value) => setState(() => _category = value),
+      ),
+      if (_category == 'Other') ...[
+        const SizedBox(height: 12),
+        TextField(
+          controller: _customCategoryCtrl,
+          decoration: const InputDecoration(
+              labelText: 'Custom category', hintText: 'e.g. Pet care'),
+        ),
+      ],
+      const SizedBox(height: 12),
+      Row(children: [
+        Expanded(
+          child: OutlinedButton.icon(
+            onPressed: () async {
+              final picked = await showDatePicker(
+                context: context,
+                initialDate: _dueDate ?? DateTime.now(),
+                firstDate: DateTime.now().subtract(const Duration(days: 1)),
+                lastDate: DateTime.now().add(const Duration(days: 1460)),
+              );
+              if (picked != null) setState(() => _dueDate = picked);
+            },
+            icon: const Icon(Icons.calendar_today_outlined, size: 16),
+            label: Text(_dueDate == null
+                ? 'Due date'
+                : '${_dueDate!.day}/${_dueDate!.month}/${_dueDate!.year}'),
+          ),
+        ),
+        if (_dueDate != null) ...[
+          const SizedBox(width: 8),
+          IconButton(
+            onPressed: () => setState(() => _dueDate = null),
+            icon: const Icon(Icons.close, size: 18),
+            tooltip: 'Clear due date',
+          ),
+        ],
+      ]),
+      const SizedBox(height: 12),
+      Wrap(
+        spacing: 8,
+        children: ['low', 'medium', 'high']
+            .map((p) => ChoiceChip(
+                  label: Text(p[0].toUpperCase() + p.substring(1)),
+                  selected: _priority == p,
+                  onSelected: (_) => setState(() => _priority = p),
+                  selectedColor: AppTheme.udoGreen,
+                  labelStyle: TextStyle(
+                      color: _priority == p
+                          ? Colors.white
+                          : AppTheme.udoTextPrimary,
+                      fontSize: 13),
+                ))
+            .toList(),
+      ),
+      const SizedBox(height: 20),
+      Row(children: [
+        Expanded(
+          child: OutlinedButton(
+            onPressed: _saving ? null : () => setState(() => _editing = false),
+            style: OutlinedButton.styleFrom(
+                minimumSize: const Size(double.infinity, 50)),
+            child: const Text('Cancel'),
+          ),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: ElevatedButton(
+            onPressed: _saving ? null : _save,
+            style: ElevatedButton.styleFrom(
+                backgroundColor: AppTheme.udoGreen,
+                foregroundColor: Colors.white,
+                minimumSize: const Size(double.infinity, 50)),
+            child: _saving
+                ? const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(
+                        strokeWidth: 2, color: Colors.white))
+                : const Text('Save changes'),
+          ),
+        ),
+      ]),
+    ];
   }
 }
 
@@ -8131,7 +8735,8 @@ class _BudgetTabState extends State<_BudgetTab> {
       Map<String, ({double estimated, double actual, double paid})>
           byCategory) {
     final buffer = StringBuffer('Item,Category,Estimated,Actual,Paid,Status\n');
-    for (final item in widget.state.budgetItems) {
+    for (final item in widget.state.budgetItems
+        .where((item) => item['category'] != 'Honeymoon')) {
       buffer.writeln([
         item['name'] ?? '',
         item['category'] ?? 'Uncategorized',
@@ -8185,10 +8790,12 @@ class _BudgetTabState extends State<_BudgetTab> {
         .cast<Map<String, dynamic>>();
     final largestExpense = summary['largest_expense'] as Map<String, dynamic>?;
 
-    // Group real budget items by category.
+    // Group real budget items by category. Honeymoon spend is tracked in
+    // its own budget on the Honeymoon tab, not the core wedding budget.
     final byCategory =
         <String, ({double estimated, double actual, double paid})>{};
-    for (final item in state.budgetItems) {
+    for (final item
+        in state.budgetItems.where((item) => item['category'] != 'Honeymoon')) {
       final category = (item['category'] as String?)?.trim();
       final key =
           (category == null || category.isEmpty) ? 'Uncategorized' : category;
@@ -8545,6 +9152,14 @@ class _BudgetRedesignPage extends StatelessWidget {
         ListView(
           controller: scrollController,
           padding: const EdgeInsets.fromLTRB(18, 6, 18, 124),
+          // "Category Breakdown" sits near the top while the "Categories"
+          // quick-action button that scrolls to it lives much further down,
+          // past "Budget items" — past ListView's default ~250px cache
+          // extent, that section unmounts and its GlobalKey.currentContext
+          // goes null, so Scrollable.ensureVisible silently does nothing.
+          // A generous cacheExtent keeps every section mounted so the jump
+          // always works.
+          cacheExtent: 4000,
           children: [
             if (budgetError != null)
               UdoCard(
@@ -8567,7 +9182,9 @@ class _BudgetRedesignPage extends StatelessWidget {
             ),
             const SizedBox(height: 22),
             UdoSectionHeader(
-                title: 'Category Breakdown', onAction: onCategories),
+                title: 'Category Breakdown',
+                action: 'Categories',
+                onAction: onCategories),
             KeyedSubtree(
               key: categoriesKey,
               child: _BudgetCategoryBreakdown(entries: categoryEntries),
@@ -9693,6 +10310,101 @@ class _VendorsTab extends StatefulWidget {
 class _VendorsTabState extends State<_VendorsTab> {
   String _statusFilter = 'all';
   String _query = '';
+  bool _showAllActive = false;
+  bool _missingContractsOnly = false;
+  bool _paymentsDueOnly = false;
+  final _dayOfContactsKey = GlobalKey();
+
+  void _scrollToDayOfContacts() {
+    final ctx = _dayOfContactsKey.currentContext;
+    if (ctx != null) {
+      Scrollable.ensureVisible(ctx,
+          alignment: 0.05, duration: const Duration(milliseconds: 300));
+    }
+  }
+
+  void _filterQuotesToReview() {
+    setState(() {
+      _missingContractsOnly = false;
+      _paymentsDueOnly = false;
+      _statusFilter = 'researching';
+    });
+  }
+
+  void _filterMissingContracts() {
+    setState(() {
+      _statusFilter = 'all';
+      _paymentsDueOnly = false;
+      _missingContractsOnly = true;
+    });
+  }
+
+  void _filterPaymentsDue() {
+    setState(() {
+      _statusFilter = 'all';
+      _missingContractsOnly = false;
+      _paymentsDueOnly = true;
+    });
+  }
+
+  Future<void> _showTrackContractSheet() async {
+    final candidates =
+        widget.state.vendors.where((v) => !_hasContract(v)).toList();
+    final vendorId = await showModalBottomSheet<int>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(26)),
+      ),
+      builder: (_) => _TrackContractSheet(
+          vendors: candidates,
+          vendorName: _vendorName,
+          vendorCategory: _vendorCategory),
+    );
+    if (vendorId == null || !mounted) return;
+    final result =
+        await widget.notifier.updateVendor(vendorId, {'contract_signed': true});
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(result.ok
+            ? 'Contract marked as signed.'
+            : "Couldn't update contract status.")));
+  }
+
+  Future<void> _showRecordPaymentSheet() async {
+    final candidates = widget.state.vendors
+        .where((v) => _amount(v, const ['balance_due', 'unpaid_amount']) > 0)
+        .toList();
+    final result = await showModalBottomSheet<(int, double)>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(26)),
+      ),
+      builder: (_) => _RecordVendorPaymentSheet(
+        vendors: candidates,
+        vendorName: _vendorName,
+        balanceDue: (v) => _amount(v, const ['balance_due', 'unpaid_amount']),
+      ),
+    );
+    if (result == null || !mounted) return;
+    final (vendorId, amount) = result;
+    final vendor = candidates.firstWhere((v) => _asIntId(v['id']) == vendorId);
+    final currentBalance =
+        _amount(vendor, const ['balance_due', 'unpaid_amount']);
+    final currentDeposit = _amount(vendor, const ['deposit_paid']);
+    final updateResult = await widget.notifier.updateVendor(vendorId, {
+      'balance_due': (currentBalance - amount).clamp(0, double.infinity),
+      'deposit_paid': currentDeposit + amount,
+    });
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(updateResult.ok
+            ? 'Payment recorded.'
+            : "Couldn't record this payment.")));
+  }
 
   Future<void> _showAddVendorSheet() async {
     final result = await showModalBottomSheet<Map<String, dynamic>>(
@@ -9830,7 +10542,13 @@ class _VendorsTabState extends State<_VendorsTab> {
           _vendorName(vendor).toLowerCase().contains(q) ||
           _vendorCategory(vendor).toLowerCase().contains(q) ||
           _vendorContact(vendor).toLowerCase().contains(q);
-      return matchesStatus && matchesSearch;
+      final matchesContract = !_missingContractsOnly || !_hasContract(vendor);
+      final matchesPaymentDue = !_paymentsDueOnly ||
+          _amount(vendor, const ['balance_due', 'unpaid_amount']) > 0;
+      return matchesStatus &&
+          matchesSearch &&
+          matchesContract &&
+          matchesPaymentDue;
     }).toList();
   }
 
@@ -9931,20 +10649,14 @@ class _VendorsTabState extends State<_VendorsTab> {
       unpaidBalance: unpaidBalance.clamp(0, double.infinity).toDouble(),
       attentionVendors: attentionVendors,
       statusFilter: _statusFilter,
-      onSearch: (value) {
-        setState(() => _query = value);
-        widget.notifier.loadVendorsFiltered(
-          search: value.trim().isEmpty ? null : value.trim(),
-          status: _statusFilter == 'all' ? null : _statusFilter,
-        );
-      },
-      onFilter: (value) {
-        setState(() => _statusFilter = value);
-        widget.notifier.loadVendorsFiltered(
-          search: _query.trim().isEmpty ? null : _query.trim(),
-          status: value == 'all' ? null : value,
-        );
-      },
+      // Filtering happens entirely client-side against the full vendor list
+      // (see _visibleVendors) rather than re-fetching from the server —
+      // re-fetching with a status/search filter overwrote state.vendors
+      // with the narrowed result, and since the "No vendors yet" empty
+      // state keys off that same list, a filter with zero matches made the
+      // whole dashboard look like the wedding had no vendors at all.
+      onSearch: (value) => setState(() => _query = value),
+      onFilter: (value) => setState(() => _statusFilter = value),
       statusColorFor: _statusColor,
       vendorName: _vendorName,
       vendorCategory: _vendorCategory,
@@ -9960,7 +10672,11 @@ class _VendorsTabState extends State<_VendorsTab> {
             .map((v) => _asIntId(v['id']))
             .whereType<int>()
             .toList();
-        if (ids.isEmpty) return;
+        if (ids.isEmpty) {
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+              content: Text('All visible vendors are already confirmed.')));
+          return;
+        }
         final (count, pendingApproval) = await widget.notifier
             .bulkUpdateVendors(ids, {'booking_status': 'confirmed'});
         if (context.mounted) {
@@ -9984,6 +10700,18 @@ class _VendorsTabState extends State<_VendorsTab> {
               .showSnackBar(SnackBar(content: Text(message)));
         }
       },
+      showAllActive: _showAllActive,
+      onToggleShowAllActive: () =>
+          setState(() => _showAllActive = !_showAllActive),
+      onOpenVendorDetails: (vendor) =>
+          showVendorDetailsSheet(context, widget.notifier, vendor),
+      onTrackContract: _showTrackContractSheet,
+      onRecordPayment: _showRecordPaymentSheet,
+      onFilterQuotes: _filterQuotesToReview,
+      onFilterMissingContracts: _filterMissingContracts,
+      onFilterPaymentsDue: _filterPaymentsDue,
+      onViewDayOfContacts: _scrollToDayOfContacts,
+      dayOfContactsKey: _dayOfContactsKey,
     );
     if (MediaQuery.sizeOf(context).width >= 0) {
       return rebuiltVendors;
@@ -10224,6 +10952,16 @@ class _VendorsRedesignPage extends StatelessWidget {
   final Future<void> Function() onAddVendor;
   final Future<void> Function() onConfirmVisible;
   final Future<void> Function(int vendorId) onConfirmVendor;
+  final Future<void> Function() onTrackContract;
+  final Future<void> Function() onRecordPayment;
+  final bool showAllActive;
+  final VoidCallback onToggleShowAllActive;
+  final void Function(Map<String, dynamic> vendor) onOpenVendorDetails;
+  final VoidCallback onFilterQuotes;
+  final VoidCallback onFilterMissingContracts;
+  final VoidCallback onFilterPaymentsDue;
+  final VoidCallback onViewDayOfContacts;
+  final GlobalKey dayOfContactsKey;
 
   const _VendorsRedesignPage({
     required this.vendors,
@@ -10247,13 +10985,20 @@ class _VendorsRedesignPage extends StatelessWidget {
     required this.onAddVendor,
     required this.onConfirmVisible,
     required this.onConfirmVendor,
+    required this.onTrackContract,
+    required this.onRecordPayment,
+    required this.showAllActive,
+    required this.onToggleShowAllActive,
+    required this.onOpenVendorDetails,
+    required this.onFilterQuotes,
+    required this.onFilterMissingContracts,
+    required this.onFilterPaymentsDue,
+    required this.onViewDayOfContacts,
+    required this.dayOfContactsKey,
   });
 
   @override
   Widget build(BuildContext context) {
-    final canConfirm = visibleVendors.any((vendor) =>
-        vendor['booking_status'] == 'researching' ||
-        vendor['booking_status'] == 'negotiating');
     final paymentsDue = vendors
         .where((vendor) =>
             amountFor(vendor, const ['balance_due', 'unpaid_amount']) > 0 ||
@@ -10261,10 +11006,15 @@ class _VendorsRedesignPage extends StatelessWidget {
         .length;
     final priorityVendor =
         attentionVendors.isNotEmpty ? attentionVendors.first : vendors.first;
-    final activeVendors = visibleVendors.take(5).toList();
+    final activeVendors =
+        showAllActive ? visibleVendors : visibleVendors.take(5).toList();
 
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 128),
+      // Mirrors the Budget tab's "scroll to a section that may have
+      // scrolled out of the default ~250px cache extent" fix — the
+      // day-of-contacts jump needs sections to stay mounted.
+      cacheExtent: 4000,
       children: [
         _VendorOverviewDashboard(
           progress: progress,
@@ -10276,6 +11026,10 @@ class _VendorsRedesignPage extends StatelessWidget {
           paymentsDue: paymentsDue,
           dayOfContacts: dayOfSheet.length,
           onViewDetails: () => onFilter('all'),
+          onTapQuotes: onFilterQuotes,
+          onTapMissingContracts: onFilterMissingContracts,
+          onTapPaymentsDue: onFilterPaymentsDue,
+          onTapDayOfContacts: onViewDayOfContacts,
         ),
         const SizedBox(height: 12),
         _PriorityVendorCard(
@@ -10303,9 +11057,13 @@ class _VendorsRedesignPage extends StatelessWidget {
         ),
         const SizedBox(height: 14),
         UdoSectionHeader(
-          title: 'Active vendors',
-          action: 'See all (${visibleVendors.length})',
-          onAction: () => onFilter('all'),
+          title: showAllActive ? 'All active vendors' : 'Active vendors',
+          action: showAllActive
+              ? 'Show less'
+              : (visibleVendors.length > activeVendors.length
+                  ? 'See all (${visibleVendors.length})'
+                  : null),
+          onAction: onToggleShowAllActive,
         ),
         if (activeVendors.isEmpty)
           UdoCard(
@@ -10343,26 +11101,41 @@ class _VendorsRedesignPage extends StatelessWidget {
               balanceDue:
                   amountFor(vendor, const ['balance_due', 'unpaid_amount']),
               openTasks: (vendor['tasks_count'] as num?)?.toInt() ?? 0,
+              onTap: () => onOpenVendorDetails(vendor),
             ),
         const SizedBox(height: 12),
         _VendorSmartInsightCard(
           progress: progress,
           missingContracts: missingContracts,
           outstandingQuotes: outstandingQuotes,
-          onViewDetails: () => onFilter('researching'),
+          // Match the action to whichever issue the card's own message is
+          // actually calling out, instead of always jumping to
+          // "researching" (which showed an empty list once operations
+          // were already ready).
+          onViewDetails: progress >= 80
+              ? () => onFilter('all')
+              : missingContracts > 0
+                  ? onFilterMissingContracts
+                  : outstandingQuotes > 0
+                      ? onFilterQuotes
+                      : () => onFilter('all'),
         ),
         const SizedBox(height: 12),
         _VendorActionGrid(
           onAddVendor: onAddVendor,
           onConfirmVisible: onConfirmVisible,
-          canConfirm: canConfirm,
+          onTrackContract: onTrackContract,
+          onRecordPayment: onRecordPayment,
         ),
         if (dayOfSheet.isNotEmpty) ...[
           const SizedBox(height: 18),
-          UdoSectionHeader(
-            title: 'Day-of contact sheet',
-            subtitle:
-                '${dayOfSheet.length} vendor contacts ready for execution',
+          KeyedSubtree(
+            key: dayOfContactsKey,
+            child: UdoSectionHeader(
+              title: 'Day-of contact sheet',
+              subtitle:
+                  '${dayOfSheet.length} vendor contacts ready for execution',
+            ),
           ),
           _VendorContactSheet(rows: dayOfSheet),
         ],
@@ -10420,21 +11193,36 @@ class _VendorsRedesignPage extends StatelessWidget {
             const SizedBox(height: 8),
           ],
         ),
-        for (final vendor in visibleVendors.skip(5))
-          _VendorRecordCard(
-            vendor: vendor,
-            statusColor: statusColorFor(
-              (vendor['booking_status'] ?? vendor['status'] ?? 'researching')
-                  .toString(),
+        const SizedBox(height: 8),
+        // Search & filters is meant to be a self-contained results view, so
+        // it shows every match on its own rather than only vendors #6+ —
+        // with the usual account size (well under 5 vendors), skipping the
+        // first 5 meant this always rendered nothing, no matter what was
+        // searched or filtered.
+        if (visibleVendors.isEmpty)
+          UdoCard(
+            padding: const EdgeInsets.all(18),
+            child: Text('No vendors match this search or filter.',
+                style: UdoDesign.sans(size: 13, color: UdoDesign.muted)),
+          )
+        else
+          for (final vendor in visibleVendors)
+            _VendorRecordCard(
+              vendor: vendor,
+              statusColor: statusColorFor(
+                (vendor['booking_status'] ?? vendor['status'] ?? 'researching')
+                    .toString(),
+              ),
+              name: vendorName(vendor),
+              category: vendorCategory(vendor),
+              contact: vendorContact(vendor),
+              contractSigned: contractSigned(vendor),
+              paidAmount:
+                  amountFor(vendor, const ['paid_amount', 'amount_paid']),
+              totalAmount: amountFor(
+                  vendor, const ['quoted_amount', 'total_amount', 'budget']),
+              onTap: () => onOpenVendorDetails(vendor),
             ),
-            name: vendorName(vendor),
-            category: vendorCategory(vendor),
-            contact: vendorContact(vendor),
-            contractSigned: contractSigned(vendor),
-            paidAmount: amountFor(vendor, const ['paid_amount', 'amount_paid']),
-            totalAmount: amountFor(
-                vendor, const ['quoted_amount', 'total_amount', 'budget']),
-          ),
       ],
     );
   }
@@ -10450,6 +11238,10 @@ class _VendorOverviewDashboard extends StatelessWidget {
   final int dayOfContacts;
   final double unpaidBalance;
   final VoidCallback onViewDetails;
+  final VoidCallback onTapQuotes;
+  final VoidCallback onTapMissingContracts;
+  final VoidCallback onTapPaymentsDue;
+  final VoidCallback onTapDayOfContacts;
 
   const _VendorOverviewDashboard({
     required this.progress,
@@ -10461,6 +11253,10 @@ class _VendorOverviewDashboard extends StatelessWidget {
     required this.dayOfContacts,
     required this.unpaidBalance,
     required this.onViewDetails,
+    required this.onTapQuotes,
+    required this.onTapMissingContracts,
+    required this.onTapPaymentsDue,
+    required this.onTapDayOfContacts,
   });
 
   @override
@@ -10539,25 +11335,29 @@ class _VendorOverviewDashboard extends StatelessWidget {
               value: '$outstandingQuotes',
               label: 'Quotes',
               detail: 'to review',
-              color: const Color(0xFFD7AA62)),
+              color: const Color(0xFFD7AA62),
+              onTap: onTapQuotes),
           _VendorMiniMetric(
               icon: Icons.description_outlined,
               value: '$missingContracts',
               label: 'Contracts',
               detail: 'missing',
-              color: UdoDesign.rose),
+              color: UdoDesign.rose,
+              onTap: onTapMissingContracts),
           _VendorMiniMetric(
               icon: Icons.contacts_outlined,
               value: '$dayOfContacts',
               label: 'Day-of',
               detail: 'contacts',
-              color: UdoDesign.blue),
+              color: UdoDesign.blue,
+              onTap: onTapDayOfContacts),
           _VendorMiniMetric(
               icon: Icons.payments_outlined,
               value: '$paymentsDue',
               label: 'Payments',
               detail: _money(unpaidBalance),
-              color: UdoDesign.sage),
+              color: UdoDesign.sage,
+              onTap: onTapPaymentsDue),
         ]),
       ]),
     );
@@ -10605,6 +11405,7 @@ class _VendorMiniMetric extends StatelessWidget {
   final String label;
   final String detail;
   final Color color;
+  final VoidCallback onTap;
 
   const _VendorMiniMetric({
     required this.icon,
@@ -10612,26 +11413,32 @@ class _VendorMiniMetric extends StatelessWidget {
     required this.label,
     required this.detail,
     required this.color,
+    required this.onTap,
   });
 
   @override
   Widget build(BuildContext context) => Expanded(
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Icon(icon, size: 17, color: color),
-          const SizedBox(height: 6),
-          Text(value,
-              style: UdoDesign.sans(
-                  size: 15, weight: FontWeight.w900, color: Colors.white)),
-          Text(label,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: UdoDesign.sans(
-                  size: 9.5, color: Colors.white.withValues(alpha: 0.68))),
-          Text(detail,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: UdoDesign.sans(size: 9.5, color: color)),
-        ]),
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(10),
+          child:
+              Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Icon(icon, size: 17, color: color),
+            const SizedBox(height: 6),
+            Text(value,
+                style: UdoDesign.sans(
+                    size: 15, weight: FontWeight.w900, color: Colors.white)),
+            Text(label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: UdoDesign.sans(
+                    size: 9.5, color: Colors.white.withValues(alpha: 0.68))),
+            Text(detail,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: UdoDesign.sans(size: 9.5, color: color)),
+          ]),
+        ),
       );
 }
 
@@ -10729,6 +11536,7 @@ class _VendorScheduleCard extends StatelessWidget {
   final bool contractSigned;
   final double balanceDue;
   final int openTasks;
+  final VoidCallback onTap;
 
   const _VendorScheduleCard({
     required this.name,
@@ -10739,10 +11547,12 @@ class _VendorScheduleCard extends StatelessWidget {
     required this.contractSigned,
     required this.balanceDue,
     required this.openTasks,
+    required this.onTap,
   });
 
   @override
   Widget build(BuildContext context) => UdoCard(
+        onTap: onTap,
         margin: const EdgeInsets.only(bottom: 10),
         padding: const EdgeInsets.all(14),
         child: Row(children: [
@@ -10807,6 +11617,362 @@ class _VendorTinyInfo extends StatelessWidget {
             style: UdoDesign.sans(size: 10.5, color: UdoDesign.sub),
             overflow: TextOverflow.ellipsis),
       ]);
+}
+
+Future<void> showVendorDetailsSheet(
+    BuildContext context, PlanNotifier notifier, Map<String, dynamic> vendor) {
+  return showModalBottomSheet(
+    context: context,
+    isScrollControlled: true,
+    backgroundColor: Colors.white,
+    shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+    builder: (ctx) => _VendorDetailsSheet(notifier: notifier, vendor: vendor),
+  );
+}
+
+class _VendorDetailsSheet extends StatefulWidget {
+  final PlanNotifier notifier;
+  final Map<String, dynamic> vendor;
+  const _VendorDetailsSheet({required this.notifier, required this.vendor});
+
+  @override
+  State<_VendorDetailsSheet> createState() => _VendorDetailsSheetState();
+}
+
+class _VendorDetailsSheetState extends State<_VendorDetailsSheet> {
+  late bool _editing;
+  late final TextEditingController _name;
+  late final TextEditingController _contact;
+  late final TextEditingController _email;
+  late final TextEditingController _phone;
+  late final TextEditingController _notes;
+  late String? _category;
+  late String _status;
+  late String _priority;
+  late bool _contractSigned;
+  bool _saving = false;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _editing = false;
+    final vendor = widget.vendor;
+    _name = TextEditingController(text: vendor['name'] as String? ?? '');
+    _contact =
+        TextEditingController(text: vendor['contact_person'] as String? ?? '');
+    _email = TextEditingController(text: vendor['email'] as String? ?? '');
+    _phone = TextEditingController(text: vendor['phone'] as String? ?? '');
+    _notes = TextEditingController(text: vendor['notes'] as String? ?? '');
+    _category = vendor['category'] as String?;
+    _status = (vendor['booking_status'] ?? vendor['status'] ?? 'researching')
+        .toString();
+    _priority = vendor['priority'] as String? ?? 'medium';
+    _contractSigned = vendor['contract_signed'] == true;
+  }
+
+  @override
+  void dispose() {
+    _name.dispose();
+    _contact.dispose();
+    _email.dispose();
+    _phone.dispose();
+    _notes.dispose();
+    super.dispose();
+  }
+
+  int? get _vendorId => _asIntId(widget.vendor['id']);
+
+  double _balanceDue() {
+    for (final key in const ['balance_due', 'unpaid_amount']) {
+      final raw = widget.vendor[key];
+      if (raw is num) return raw.toDouble();
+      if (raw is String) {
+        final parsed = double.tryParse(raw.replaceAll(RegExp(r'[^0-9.]'), ''));
+        if (parsed != null) return parsed;
+      }
+    }
+    return 0;
+  }
+
+  Future<void> _save() async {
+    final id = _vendorId;
+    if (id == null) return;
+    if (_name.text.trim().isEmpty) {
+      setState(() => _error = 'Give the vendor a name.');
+      return;
+    }
+    setState(() {
+      _saving = true;
+      _error = null;
+    });
+    final result = await widget.notifier.updateVendor(id, {
+      'name': _name.text.trim(),
+      'category': _category,
+      'contact_person': _contact.text.trim(),
+      'email': _email.text.trim(),
+      'phone': _phone.text.trim(),
+      'booking_status': _status,
+      'contract_signed': _contractSigned,
+      'priority': _priority,
+      'notes': _notes.text.trim(),
+    });
+    if (!mounted) return;
+    if (!result.ok) {
+      setState(() {
+        _saving = false;
+        _error = "Couldn't save changes. Try again.";
+      });
+      return;
+    }
+    setState(() {
+      _saving = false;
+      _editing = false;
+    });
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(result.gated
+            ? 'Awaiting Decision-maker approval.'
+            : 'Vendor updated.')));
+  }
+
+  Future<void> _delete() async {
+    final id = _vendorId;
+    if (id == null) return;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Delete vendor?'),
+        content: Text(
+            'This removes "${widget.vendor['name'] ?? 'this vendor'}" for good.'),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: const Text('Cancel')),
+          TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+              child: const Text('Delete',
+                  style: TextStyle(color: AppTheme.udoCrimson))),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    setState(() => _saving = true);
+    final ok = await widget.notifier.deleteVendor(id);
+    if (!mounted) return;
+    if (ok) {
+      Navigator.of(context).pop();
+    } else {
+      setState(() {
+        _saving = false;
+        _error = "Couldn't delete this vendor. Try again.";
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      child: Padding(
+        padding: EdgeInsets.fromLTRB(
+            20, 16, 20, MediaQuery.of(context).viewInsets.bottom + 20),
+        child: SingleChildScrollView(
+          child:
+              Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Center(
+              child: Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: UdoDesign.stone,
+                  borderRadius: BorderRadius.circular(99),
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            Row(children: [
+              Expanded(
+                child: Text(_editing ? 'Edit vendor' : 'Vendor details',
+                    style: UdoDesign.serif(size: 22, color: UdoDesign.text)),
+              ),
+              if (!_editing)
+                IconButton(
+                  onPressed: () => setState(() => _editing = true),
+                  icon: const Icon(Icons.edit_outlined, color: UdoDesign.plan),
+                  tooltip: 'Edit vendor',
+                ),
+            ]),
+            const SizedBox(height: 12),
+            if (_editing) ..._buildEditForm() else ..._buildDetails(),
+            if (_error != null) ...[
+              const SizedBox(height: 12),
+              Text(_error!,
+                  style: UdoDesign.sans(size: 12, color: UdoDesign.rose)),
+            ],
+          ]),
+        ),
+      ),
+    );
+  }
+
+  List<Widget> _buildDetails() {
+    final vendor = widget.vendor;
+    final balanceDue = _balanceDue();
+    return [
+      Text(vendor['name'] as String? ?? 'Untitled vendor',
+          style: UdoDesign.sans(size: 17, weight: FontWeight.w700)),
+      const SizedBox(height: 12),
+      Wrap(spacing: 8, runSpacing: 8, children: [
+        UdoBadge(
+            label: vendor['category'] as String? ?? 'Uncategorised',
+            color: UdoDesign.muted,
+            background: UdoDesign.stone.withValues(alpha: 0.55)),
+        UdoBadge(
+            label: _humanizeStatus(_status) ?? 'Researching',
+            color: UdoDesign.plan),
+        UdoBadge(
+            label: _contractSigned ? 'Contract signed' : 'Contract needed',
+            color: _contractSigned ? UdoDesign.sage : UdoDesign.rose),
+      ]),
+      const SizedBox(height: 12),
+      if (_contact.text.isNotEmpty)
+        _VendorTinyInfo(icon: Icons.person_outline, text: _contact.text),
+      if (_email.text.isNotEmpty) ...[
+        const SizedBox(height: 6),
+        _VendorTinyInfo(icon: Icons.email_outlined, text: _email.text),
+      ],
+      if (_phone.text.isNotEmpty) ...[
+        const SizedBox(height: 6),
+        _VendorTinyInfo(icon: Icons.phone_outlined, text: _phone.text),
+      ],
+      const SizedBox(height: 6),
+      _VendorTinyInfo(
+          icon: Icons.payments_outlined,
+          text: balanceDue > 0
+              ? '${_money(balanceDue)} balance due'
+              : 'No balance due'),
+      if (_notes.text.isNotEmpty) ...[
+        const SizedBox(height: 12),
+        Text(_notes.text,
+            style: UdoDesign.sans(size: 13, color: UdoDesign.sub, height: 1.4)),
+      ],
+      const SizedBox(height: 20),
+      SizedBox(
+        width: double.infinity,
+        child: OutlinedButton.icon(
+          onPressed: _saving ? null : _delete,
+          icon: const Icon(Icons.delete_outline, size: 18),
+          label: const Text('Delete vendor'),
+          style: OutlinedButton.styleFrom(
+              foregroundColor: AppTheme.udoCrimson,
+              side: const BorderSide(color: AppTheme.udoCrimson),
+              minimumSize: const Size(double.infinity, 48)),
+        ),
+      ),
+    ];
+  }
+
+  List<Widget> _buildEditForm() {
+    return [
+      _VendorTextField(_name, 'Vendor name', 'e.g. Marigold Florals'),
+      const SizedBox(height: 12),
+      DropdownButtonFormField<String>(
+        initialValue: _category,
+        isExpanded: true,
+        menuMaxHeight: 360,
+        decoration: _vendorInputDecoration('Category'),
+        hint: const Text('Select vendor category'),
+        items: _vendorCategoryOptions
+            .map((category) => DropdownMenuItem(
+                  value: category,
+                  child: Text(category, overflow: TextOverflow.ellipsis),
+                ))
+            .toList(),
+        onChanged: (value) => setState(() => _category = value),
+      ),
+      const SizedBox(height: 12),
+      _VendorTextField(_contact, 'Contact person', 'e.g. Nadia Mensah'),
+      const SizedBox(height: 12),
+      Row(children: [
+        Expanded(
+            child: _VendorTextField(_email, 'Email', 'name@example.com',
+                keyboardType: TextInputType.emailAddress)),
+        const SizedBox(width: 10),
+        Expanded(
+            child: _VendorTextField(_phone, 'Phone', '+233...',
+                keyboardType: TextInputType.phone)),
+      ]),
+      const SizedBox(height: 12),
+      Row(children: [
+        Expanded(
+          child: DropdownButtonFormField<String>(
+            initialValue: _status,
+            decoration: _vendorInputDecoration('Status'),
+            items: const [
+              DropdownMenuItem(
+                  value: 'researching', child: Text('Researching')),
+              DropdownMenuItem(
+                  value: 'negotiating', child: Text('Negotiating')),
+              DropdownMenuItem(value: 'booked', child: Text('Booked')),
+              DropdownMenuItem(value: 'confirmed', child: Text('Confirmed')),
+            ],
+            onChanged: (value) => setState(() => _status = value ?? _status),
+          ),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: DropdownButtonFormField<String>(
+            initialValue: _priority,
+            decoration: _vendorInputDecoration('Priority'),
+            items: const [
+              DropdownMenuItem(value: 'low', child: Text('Low')),
+              DropdownMenuItem(value: 'medium', child: Text('Medium')),
+              DropdownMenuItem(value: 'high', child: Text('High')),
+            ],
+            onChanged: (value) =>
+                setState(() => _priority = value ?? _priority),
+          ),
+        ),
+      ]),
+      const SizedBox(height: 8),
+      SwitchListTile.adaptive(
+        value: _contractSigned,
+        onChanged: (value) => setState(() => _contractSigned = value),
+        title: const Text('Contract signed'),
+        contentPadding: EdgeInsets.zero,
+      ),
+      _VendorTextField(_notes, 'Notes', 'Contract notes, preferences...',
+          maxLines: 3),
+      const SizedBox(height: 20),
+      Row(children: [
+        Expanded(
+          child: OutlinedButton(
+            onPressed: _saving ? null : () => setState(() => _editing = false),
+            style: OutlinedButton.styleFrom(
+                minimumSize: const Size(double.infinity, 50)),
+            child: const Text('Cancel'),
+          ),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: ElevatedButton(
+            onPressed: _saving ? null : _save,
+            style: ElevatedButton.styleFrom(
+                backgroundColor: UdoDesign.plan,
+                foregroundColor: Colors.white,
+                minimumSize: const Size(double.infinity, 50)),
+            child: _saving
+                ? const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(
+                        strokeWidth: 2, color: Colors.white))
+                : const Text('Save changes'),
+          ),
+        ),
+      ]),
+    ];
+  }
 }
 
 class _VendorSmartInsightCard extends StatelessWidget {
@@ -10880,26 +12046,23 @@ class _VendorSmartInsightCard extends StatelessWidget {
 class _VendorActionGrid extends StatelessWidget {
   final Future<void> Function() onAddVendor;
   final Future<void> Function() onConfirmVisible;
-  final bool canConfirm;
+  final Future<void> Function() onTrackContract;
+  final Future<void> Function() onRecordPayment;
 
   const _VendorActionGrid({
     required this.onAddVendor,
     required this.onConfirmVisible,
-    required this.canConfirm,
+    required this.onTrackContract,
+    required this.onRecordPayment,
   });
 
   @override
   Widget build(BuildContext context) {
-    final actions = [
+    final actions = <(IconData, String, Future<void> Function()?)>[
       (Icons.add_business_outlined, 'Add\nvendor', onAddVendor),
-      (
-        Icons.verified_outlined,
-        'Confirm\nvisible',
-        canConfirm ? onConfirmVisible : onAddVendor
-      ),
-      (Icons.description_outlined, 'Track\ncontract', onAddVendor),
-      (Icons.payments_outlined, 'Record\npayment', onAddVendor),
-      (Icons.more_horiz, 'More', onAddVendor),
+      (Icons.verified_outlined, 'Confirm\nvendors', onConfirmVisible),
+      (Icons.description_outlined, 'Track\ncontract', onTrackContract),
+      (Icons.payments_outlined, 'Record\npayment', onRecordPayment),
     ];
     return UdoCard(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
@@ -11036,6 +12199,199 @@ const _vendorCategoryOptions = [
   'Live Streaming',
   'Other',
 ];
+
+class _TrackContractSheet extends StatelessWidget {
+  final List<Map<String, dynamic>> vendors;
+  final String Function(Map<String, dynamic> vendor) vendorName;
+  final String Function(Map<String, dynamic> vendor) vendorCategory;
+
+  const _TrackContractSheet({
+    required this.vendors,
+    required this.vendorName,
+    required this.vendorCategory,
+  });
+
+  @override
+  Widget build(BuildContext context) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            Center(
+              child: Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: UdoDesign.stone,
+                  borderRadius: BorderRadius.circular(99),
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: Text('Track contract',
+                  style: UdoDesign.serif(size: 22, color: UdoDesign.text)),
+            ),
+            const SizedBox(height: 4),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: Text('Pick the vendor whose contract just came in.',
+                  style: UdoDesign.sans(size: 12.5, color: UdoDesign.muted)),
+            ),
+            const SizedBox(height: 16),
+            if (vendors.isEmpty)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 20),
+                child: Text('Every vendor already has a signed contract.',
+                    style: UdoDesign.sans(size: 13, color: UdoDesign.muted)),
+              )
+            else
+              Flexible(
+                child: ListView.separated(
+                  shrinkWrap: true,
+                  itemCount: vendors.length,
+                  separatorBuilder: (_, __) => const SizedBox(height: 4),
+                  itemBuilder: (_, index) {
+                    final vendor = vendors[index];
+                    return ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: const CircleAvatar(
+                          backgroundColor: UdoDesign.stone,
+                          child: Icon(Icons.storefront_outlined,
+                              color: UdoDesign.sub, size: 18)),
+                      title: Text(vendorName(vendor),
+                          style: UdoDesign.sans(
+                              size: 14.5, weight: FontWeight.w700)),
+                      subtitle: Text(vendorCategory(vendor),
+                          style:
+                              UdoDesign.sans(size: 12, color: UdoDesign.muted)),
+                      trailing: const Icon(Icons.chevron_right,
+                          color: UdoDesign.muted),
+                      onTap: () =>
+                          Navigator.of(context).pop(_asIntId(vendor['id'])),
+                    );
+                  },
+                ),
+              ),
+          ]),
+        ),
+      );
+}
+
+class _RecordVendorPaymentSheet extends StatefulWidget {
+  final List<Map<String, dynamic>> vendors;
+  final String Function(Map<String, dynamic> vendor) vendorName;
+  final double Function(Map<String, dynamic> vendor) balanceDue;
+
+  const _RecordVendorPaymentSheet({
+    required this.vendors,
+    required this.vendorName,
+    required this.balanceDue,
+  });
+
+  @override
+  State<_RecordVendorPaymentSheet> createState() =>
+      _RecordVendorPaymentSheetState();
+}
+
+class _RecordVendorPaymentSheetState extends State<_RecordVendorPaymentSheet> {
+  final _amountCtrl = TextEditingController();
+  int? _vendorId;
+  String? _error;
+
+  @override
+  void dispose() {
+    _amountCtrl.dispose();
+    super.dispose();
+  }
+
+  void _submit() {
+    if (_vendorId == null) {
+      setState(() => _error = 'Choose a vendor.');
+      return;
+    }
+    final amount = double.tryParse(_amountCtrl.text.trim());
+    if (amount == null || amount <= 0) {
+      setState(() => _error = 'Enter a valid payment amount.');
+      return;
+    }
+    Navigator.of(context).pop((_vendorId!, amount));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.fromLTRB(
+          20, 16, 20, MediaQuery.of(context).viewInsets.bottom + 20),
+      child: Column(mainAxisSize: MainAxisSize.min, children: [
+        Center(
+          child: Container(
+            width: 40,
+            height: 4,
+            decoration: BoxDecoration(
+              color: UdoDesign.stone,
+              borderRadius: BorderRadius.circular(99),
+            ),
+          ),
+        ),
+        const SizedBox(height: 16),
+        Align(
+          alignment: Alignment.centerLeft,
+          child: Text('Record payment',
+              style: UdoDesign.serif(size: 22, color: UdoDesign.text)),
+        ),
+        const SizedBox(height: 16),
+        if (widget.vendors.isEmpty)
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 20),
+            child: Text('No vendors have an outstanding balance right now.',
+                style: UdoDesign.sans(size: 13, color: UdoDesign.muted)),
+          )
+        else ...[
+          DropdownButtonFormField<int>(
+            initialValue: _vendorId,
+            isExpanded: true,
+            menuMaxHeight: 360,
+            decoration: _vendorInputDecoration('Vendor'),
+            items: widget.vendors.map((vendor) {
+              final id = _asIntId(vendor['id']);
+              return DropdownMenuItem(
+                value: id,
+                child: Text(
+                    '${widget.vendorName(vendor)} · ${_money(widget.balanceDue(vendor))} due',
+                    overflow: TextOverflow.ellipsis),
+              );
+            }).toList(),
+            onChanged: (value) => setState(() => _vendorId = value),
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: _amountCtrl,
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            decoration: _vendorInputDecoration('Amount paid')
+                .copyWith(hintText: 'e.g. 500'),
+          ),
+          if (_error != null) ...[
+            const SizedBox(height: 10),
+            Text(_error!,
+                style: UdoDesign.sans(size: 12, color: UdoDesign.rose)),
+          ],
+          const SizedBox(height: 18),
+          ElevatedButton.icon(
+            onPressed: _submit,
+            icon: const Icon(Icons.payments_outlined),
+            label: const Text('Save payment'),
+            style: ElevatedButton.styleFrom(
+              minimumSize: const Size(double.infinity, 52),
+              backgroundColor: UdoDesign.plan,
+              foregroundColor: Colors.white,
+            ),
+          ),
+        ],
+      ]),
+    );
+  }
+}
 
 class _AddVendorSheet extends StatefulWidget {
   final PlanNotifier notifier;
@@ -11584,6 +12940,7 @@ class _VendorRecordCard extends StatelessWidget {
   final bool contractSigned;
   final double paidAmount;
   final double totalAmount;
+  final VoidCallback onTap;
 
   const _VendorRecordCard({
     required this.vendor,
@@ -11594,6 +12951,7 @@ class _VendorRecordCard extends StatelessWidget {
     required this.contractSigned,
     required this.paidAmount,
     required this.totalAmount,
+    required this.onTap,
   });
 
   @override
@@ -11605,6 +12963,7 @@ class _VendorRecordCard extends StatelessWidget {
         totalAmount <= 0 ? 0.0 : (paidAmount / totalAmount).clamp(0.0, 1.0);
 
     return UdoCard(
+      onTap: onTap,
       margin: const EdgeInsets.only(bottom: 10),
       padding: const EdgeInsets.all(14),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -17477,7 +18836,7 @@ class _WeekendRedesignPage extends StatelessWidget {
         ),
         const SizedBox(height: 18),
         UdoSectionHeader(
-          title: 'Weekend operations',
+          title: 'Celebration operations',
           subtitle: 'Events, guest updates, itinerary export',
         ),
         _WeekendActionGrid(
@@ -17572,7 +18931,7 @@ class _WeekendHeroCard extends StatelessWidget {
       color: UdoDesign.blue,
       padding: const EdgeInsets.all(20),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text('Your Wedding Weekend',
+        Text('Your Wedding Celebration',
             style: UdoDesign.sans(
                 size: 11, weight: FontWeight.w800, color: Colors.white)),
         const SizedBox(height: 8),
@@ -18424,8 +19783,7 @@ double _honeymoonProgress(HoneymoonState state) {
 }
 
 class _HoneymoonTab extends ConsumerWidget {
-  final VoidCallback onViewBudget;
-  const _HoneymoonTab({required this.onViewBudget});
+  const _HoneymoonTab();
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -18453,11 +19811,15 @@ class _HoneymoonTab extends ConsumerWidget {
           ),
         _HoneymoonHeroCard(state: state),
         const SizedBox(height: 14),
+        _HoneymoonAdditionalDetailsCard(state: state),
+        const SizedBox(height: 14),
         _HoneymoonStatRow(state: state),
         const SizedBox(height: 14),
         _HoneymoonUpcomingPlansCard(state: state),
         const SizedBox(height: 14),
-        _HoneymoonBudgetCard(state: state, onViewBudget: onViewBudget),
+        _HoneymoonBudgetCard(
+            state: state,
+            onViewBudget: () => showHoneymoonBudgetSheet(context)),
         const SizedBox(height: 14),
         _HoneymoonTravelersCard(state: state),
         const SizedBox(height: 14),
@@ -18603,6 +19965,53 @@ class _HoneymoonHeroCard extends ConsumerWidget {
       shape: const RoundedRectangleBorder(
           borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
       builder: (_) => _HoneymoonItinerarySheet(state: state),
+    );
+  }
+}
+
+class _HoneymoonAdditionalDetailsCard extends StatelessWidget {
+  final HoneymoonState state;
+  const _HoneymoonAdditionalDetailsCard({required this.state});
+
+  @override
+  Widget build(BuildContext context) {
+    final dressCode = state.trip?['dress_code'] as String?;
+    final packingNotes = state.trip?['packing_notes'] as String?;
+    final hasDressCode = dressCode?.isNotEmpty == true;
+    final hasPackingNotes = packingNotes?.isNotEmpty == true;
+    if (!hasDressCode && !hasPackingNotes) return const SizedBox.shrink();
+
+    return UdoCard(
+      padding: const EdgeInsets.all(16),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text('ADDITIONAL DETAILS',
+            style: UdoDesign.sans(
+                size: 11, weight: FontWeight.w700, color: UdoDesign.muted)),
+        const SizedBox(height: 12),
+        Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Expanded(
+            child:
+                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text('Attire',
+                  style: UdoDesign.sans(size: 12, color: UdoDesign.muted)),
+              const SizedBox(height: 3),
+              Text(hasDressCode ? dressCode! : 'Not set',
+                  style: UdoDesign.sans(size: 13.5, weight: FontWeight.w600)),
+            ]),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child:
+                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text('What to bring',
+                  style: UdoDesign.sans(size: 12, color: UdoDesign.muted)),
+              const SizedBox(height: 3),
+              Text(hasPackingNotes ? packingNotes! : 'Not set',
+                  style: UdoDesign.sans(size: 13.5, weight: FontWeight.w600)),
+            ]),
+          ),
+        ]),
+      ]),
     );
   }
 }
@@ -19448,23 +20857,22 @@ class _HoneymoonBudgetCard extends StatelessWidget {
       ]),
     );
   }
-
-  Widget _budgetLegendRow(String label, double amount, Color? dotColor) =>
-      Row(children: [
-        if (dotColor != null) ...[
-          Container(
-              width: 8,
-              height: 8,
-              decoration:
-                  BoxDecoration(color: dotColor, shape: BoxShape.circle)),
-          const SizedBox(width: 6),
-        ],
-        Text(label, style: UdoDesign.sans(size: 12, color: UdoDesign.muted)),
-        const Spacer(),
-        Text(_money(amount),
-            style: UdoDesign.sans(size: 12, weight: FontWeight.w700)),
-      ]);
 }
+
+Widget _budgetLegendRow(String label, double amount, Color? dotColor) =>
+    Row(children: [
+      if (dotColor != null) ...[
+        Container(
+            width: 8,
+            height: 8,
+            decoration: BoxDecoration(color: dotColor, shape: BoxShape.circle)),
+        const SizedBox(width: 6),
+      ],
+      Text(label, style: UdoDesign.sans(size: 12, color: UdoDesign.muted)),
+      const Spacer(),
+      Text(_money(amount),
+          style: UdoDesign.sans(size: 12, weight: FontWeight.w700)),
+    ]);
 
 class _HoneymoonBudgetDonutPainter extends CustomPainter {
   final double spent;
@@ -19505,6 +20913,162 @@ class _HoneymoonBudgetDonutPainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant _HoneymoonBudgetDonutPainter oldDelegate) =>
       oldDelegate.spent != spent || oldDelegate.remaining != remaining;
+}
+
+void showHoneymoonBudgetSheet(BuildContext context) {
+  showModalBottomSheet(
+    context: context,
+    isScrollControlled: true,
+    backgroundColor: Colors.white,
+    shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+    builder: (_) => const _HoneymoonBudgetSheet(),
+  );
+}
+
+class _HoneymoonBudgetSheet extends ConsumerWidget {
+  const _HoneymoonBudgetSheet();
+
+  Future<void> _addExpense(BuildContext context, WidgetRef ref) async {
+    final planNotifier = ref.read(planProvider.notifier);
+    final vendors = ref.read(planProvider).vendors;
+    final result = await showModalBottomSheet<Map<String, dynamic>>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+      builder: (_) => _AddBudgetItemSheet(
+        notifier: planNotifier,
+        vendors: vendors,
+        initialCategory: 'Honeymoon',
+      ),
+    );
+    if (result != null) {
+      await ref.read(honeymoonProvider.notifier).refresh();
+    }
+  }
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final state = ref.watch(honeymoonProvider);
+    final items = state.budgetItems;
+    final spent =
+        items.fold<double>(0, (sum, b) => sum + _asDouble(b['paid_amount']));
+    final estimated = items.fold<double>(
+        0, (sum, b) => sum + _asDouble(b['estimated_amount']));
+    final tripTotal = _asDouble(state.trip?['total_budget']);
+    final total = tripTotal > 0 ? tripTotal : estimated;
+    final remaining = (total - spent).clamp(0, double.infinity).toDouble();
+
+    return DraggableScrollableSheet(
+      expand: false,
+      initialChildSize: 0.85,
+      maxChildSize: 0.95,
+      builder: (_, ctrl) => Column(children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(20, 10, 20, 12),
+          child: Column(children: [
+            Center(
+              child: Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                    color: AppTheme.udoBorder,
+                    borderRadius: BorderRadius.circular(2)),
+              ),
+            ),
+            const SizedBox(height: 14),
+            Row(children: [
+              Expanded(
+                  child: Text('Honeymoon budget',
+                      style: UdoDesign.serif(size: 20, color: UdoDesign.text))),
+              IconButton(
+                  onPressed: () => Navigator.pop(context),
+                  icon: const Icon(Icons.close),
+                  padding: EdgeInsets.zero),
+            ]),
+          ]),
+        ),
+        const Divider(height: 1),
+        Expanded(
+          child: ListView(
+            controller: ctrl,
+            padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
+            children: [
+              Row(children: [
+                SizedBox(
+                    width: 84,
+                    height: 84,
+                    child: CustomPaint(
+                        painter: _HoneymoonBudgetDonutPainter(
+                            spent: spent, remaining: remaining))),
+                const SizedBox(width: 16),
+                Expanded(
+                    child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                      _budgetLegendRow('Spent', spent, const Color(0xFFC9867A)),
+                      const SizedBox(height: 6),
+                      _budgetLegendRow(
+                          'Remaining', remaining, AppTheme.udoBorder),
+                      const SizedBox(height: 6),
+                      _budgetLegendRow('Total', total, null),
+                    ])),
+              ]),
+              const SizedBox(height: 20),
+              Row(children: [
+                Expanded(
+                    child: Text('Expenses',
+                        style:
+                            UdoDesign.sans(size: 15, weight: FontWeight.w700))),
+                TextButton.icon(
+                    onPressed: () => _addExpense(context, ref),
+                    icon: const Icon(Icons.add, size: 16),
+                    label: const Text('Add expense')),
+              ]),
+              const SizedBox(height: 8),
+              if (items.isEmpty)
+                UdoCard(
+                  padding: const EdgeInsets.all(20),
+                  child: Text('No honeymoon expenses tracked yet.',
+                      style: UdoDesign.sans(size: 13, color: UdoDesign.muted)),
+                )
+              else
+                for (final item in items)
+                  UdoCard(
+                    margin: const EdgeInsets.only(bottom: 10),
+                    padding: const EdgeInsets.all(14),
+                    child: Row(children: [
+                      Expanded(
+                          child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                            Text(item['name'] as String? ?? 'Expense',
+                                style: UdoDesign.sans(
+                                    size: 14, weight: FontWeight.w700)),
+                            const SizedBox(height: 2),
+                            Text(
+                                _asDouble(item['paid_amount']) > 0
+                                    ? 'Paid'
+                                    : 'Pending',
+                                style: UdoDesign.sans(
+                                    size: 11.5, color: UdoDesign.muted)),
+                          ])),
+                      Text(
+                          _money(_asDouble(item['actual_amount']) > 0
+                              ? _asDouble(item['actual_amount'])
+                              : _asDouble(item['estimated_amount'])),
+                          style: UdoDesign.sans(
+                              size: 14, weight: FontWeight.w700)),
+                    ]),
+                  ),
+            ],
+          ),
+        ),
+      ]),
+    );
+  }
 }
 
 class _HoneymoonTravelersCard extends ConsumerWidget {
@@ -19979,8 +21543,11 @@ class _EditTripSheetState extends State<_EditTripSheet> {
       text: widget.trip?['total_budget'] != null
           ? _asDouble(widget.trip!['total_budget']).toStringAsFixed(2)
           : '');
+  late final _packingNotes = TextEditingController(
+      text: widget.trip?['packing_notes'] as String? ?? '');
   DateTime? _departure;
   DateTime? _return;
+  String? _dressCode;
   bool _saving = false;
   String? _error;
 
@@ -19991,6 +21558,7 @@ class _EditTripSheetState extends State<_EditTripSheet> {
     final ret = widget.trip?['return_date'] as String?;
     _departure = dep != null ? DateTime.tryParse(dep) : null;
     _return = ret != null ? DateTime.tryParse(ret) : null;
+    _dressCode = widget.trip?['dress_code'] as String?;
   }
 
   @override
@@ -20080,6 +21648,35 @@ class _EditTripSheetState extends State<_EditTripSheet> {
                           const TextInputType.numberWithOptions(decimal: true)),
                   const SizedBox(height: 10),
                   _GField('Status (optional)', _status),
+                  const SizedBox(height: 18),
+                  Text('ADDITIONAL DETAILS',
+                      style: UdoDesign.sans(
+                          size: 11,
+                          weight: FontWeight.w700,
+                          color: UdoDesign.muted)),
+                  const SizedBox(height: 10),
+                  Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Expanded(
+                      child: DropdownButtonFormField<String>(
+                        initialValue: _dressCode,
+                        isExpanded: true,
+                        menuMaxHeight: 360,
+                        decoration: const InputDecoration(labelText: 'Attire'),
+                        hint: const Text('Select'),
+                        items: _dressCodeOptionsList
+                            .map((d) => DropdownMenuItem(
+                                value: d,
+                                child:
+                                    Text(d, overflow: TextOverflow.ellipsis)))
+                            .toList(),
+                        onChanged: (v) => setState(() => _dressCode = v),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                        child: _GField(
+                            'What to bring? (optional)', _packingNotes)),
+                  ]),
                   if (_error != null) ...[
                     const SizedBox(height: 10),
                     Text(_error!,
@@ -20122,6 +21719,9 @@ class _EditTripSheetState extends State<_EditTripSheet> {
       if (_totalBudget.text.trim().isNotEmpty)
         'total_budget': double.tryParse(_totalBudget.text.trim()),
       if (_status.text.trim().isNotEmpty) 'status': _status.text.trim(),
+      'dress_code': _dressCode,
+      'packing_notes':
+          _packingNotes.text.trim().isEmpty ? null : _packingNotes.text.trim(),
     });
     if (!mounted) return;
     if (ok) {
@@ -20139,6 +21739,7 @@ class _EditTripSheetState extends State<_EditTripSheet> {
     _destination.dispose();
     _status.dispose();
     _totalBudget.dispose();
+    _packingNotes.dispose();
     super.dispose();
   }
 }
@@ -20734,146 +22335,228 @@ class _EditWeddingDetailsSheetState extends State<_EditWeddingDetailsSheet> {
     }
   }
 
+  Widget _sectionHeader(String number, String title) => Padding(
+        padding: const EdgeInsets.only(bottom: 10),
+        child: Text('$number. $title',
+            style: UdoDesign.sans(size: 14, weight: FontWeight.w700)),
+      );
+
   @override
   Widget build(BuildContext context) {
-    return SafeArea(
-      child: SingleChildScrollView(
-        padding: EdgeInsets.fromLTRB(
-            20, 20, 20, MediaQuery.of(context).viewInsets.bottom + 22),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Row(children: [
-            Expanded(
-              child: Text('Wedding details',
-                  style: UdoDesign.sans(size: 18, weight: FontWeight.w800)),
+    return DraggableScrollableSheet(
+      expand: false,
+      initialChildSize: 0.92,
+      maxChildSize: 0.96,
+      builder: (_, ctrl) => Column(children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(20, 10, 20, 12),
+          child: Column(children: [
+            Center(
+              child: Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                    color: AppTheme.udoBorder,
+                    borderRadius: BorderRadius.circular(2)),
+              ),
             ),
-            IconButton(
-                onPressed: () => Navigator.pop(context),
-                icon: const Icon(Icons.close)),
+            const SizedBox(height: 14),
+            Row(children: [
+              Expanded(
+                child: Text('Wedding details',
+                    style: UdoDesign.sans(size: 18, weight: FontWeight.w800)),
+              ),
+              IconButton(
+                  onPressed: () => Navigator.pop(context),
+                  icon: const Icon(Icons.close),
+                  padding: EdgeInsets.zero),
+            ]),
+            const SizedBox(height: 6),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                  'This profile powers Plan, Guests, Live, Home, and wedding story.',
+                  style: UdoDesign.sans(size: 12.5, color: UdoDesign.muted)),
+            ),
           ]),
-          const SizedBox(height: 6),
-          Text(
-              'This profile powers Plan, Guests, Live, Home, and wedding story.',
-              style: UdoDesign.sans(size: 12.5, color: UdoDesign.muted)),
-          const SizedBox(height: 16),
-          _GField('Workspace title', _title),
-          const SizedBox(height: 10),
-          Row(children: [
-            Expanded(child: _GField('Primary name', _primaryName)),
-            const SizedBox(width: 10),
-            Expanded(child: _GField('Partner name', _secondaryName)),
-          ]),
-          const SizedBox(height: 10),
-          Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Expanded(
-                child: _taxonomyField(
-                    label: 'Wedding type',
-                    options: _weddingTypeOptions,
-                    selection: _weddingTypeSelection,
-                    controller: _weddingType,
-                    customSentinel: 'Custom',
-                    onSelectionChanged: (v) => _weddingTypeSelection = v)),
-            const SizedBox(width: 10),
-            Expanded(
-                child: _GField('Guest count', _guestCount,
-                    type: TextInputType.number)),
-          ]),
-          const SizedBox(height: 10),
-          Row(children: [
-            Expanded(
-                child: _WeddingDateInput(
-                    label: 'Wedding date',
-                    controller: _eventDate,
-                    onPick: () => _pickDate(_eventDate))),
-            const SizedBox(width: 10),
-            Expanded(
-                child: _WeddingDateInput(
-                    label: 'RSVP deadline',
-                    controller: _rsvpDeadline,
-                    onPick: () => _pickDate(_rsvpDeadline))),
-          ]),
-          const SizedBox(height: 10),
-          Row(children: [
-            Expanded(child: _GField('City', _city)),
-            const SizedBox(width: 10),
-            Expanded(child: _GField('Country', _country)),
-          ]),
-          const SizedBox(height: 10),
-          Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Expanded(child: _GField('Venue status', _venueStatus)),
-            const SizedBox(width: 10),
-            Expanded(
-                child: _taxonomyField(
-                    label: 'Planning approach',
-                    options: _planningApproachOptions,
-                    selection: _planningApproachSelection,
-                    controller: _planningApproach,
-                    customSentinel: 'Custom',
-                    onSelectionChanged: (v) => _planningApproachSelection = v)),
-          ]),
-          const SizedBox(height: 10),
-          _GField('Ceremony venue', _ceremonyVenue),
-          const SizedBox(height: 10),
-          Row(children: [
-            Expanded(
-                child: _GField('Ceremony time', _ceremonyTime,
-                    type: TextInputType.datetime)),
-            const SizedBox(width: 10),
-            Expanded(
-                child: _GField('Reception time', _receptionTime,
-                    type: TextInputType.datetime)),
-          ]),
-          const SizedBox(height: 10),
-          _GField('Reception venue', _receptionVenue),
-          const SizedBox(height: 10),
-          _GField('Venue address', _venueAddress, maxLines: 2),
-          const SizedBox(height: 10),
-          _GField('Wedding website', _website, type: TextInputType.url),
-          const SizedBox(height: 10),
-          Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Expanded(child: _GField('Wedding hashtag', _hashtag)),
-            const SizedBox(width: 10),
-            Expanded(
-                child: _taxonomyField(
-                    label: 'Dress code',
-                    options: _dressCodeOptionsList,
-                    selection: _dressCodeSelection,
-                    controller: _dressCode,
-                    customSentinel: 'Custom Dress Code',
-                    onSelectionChanged: (v) => _dressCodeSelection = v)),
-          ]),
-          const SizedBox(height: 10),
-          _GField('Celebrant / officiant', _celebrant),
-          const SizedBox(height: 10),
-          _GField('Parking information', _parking, maxLines: 2),
-          const SizedBox(height: 10),
-          _GField('Google Maps link', _mapsLink, type: TextInputType.url),
-          const SizedBox(height: 10),
-          _GField('Transportation notes', _transport, maxLines: 2),
-          if (_error != null) ...[
-            const SizedBox(height: 10),
-            Text(_error!,
-                style: UdoDesign.sans(size: 12, color: UdoDesign.rose)),
-          ],
-          const SizedBox(height: 16),
-          ElevatedButton.icon(
-            onPressed: _saving ? null : _save,
-            icon: _saving
-                ? const SizedBox(
-                    width: 16,
-                    height: 16,
-                    child: CircularProgressIndicator(
-                        strokeWidth: 2, color: Colors.white),
-                  )
-                : const Icon(Icons.save_outlined, size: 16),
-            label: Text(_saving ? 'Saving...' : 'Save wedding profile'),
-            style: ElevatedButton.styleFrom(
-              minimumSize: const Size(double.infinity, 52),
-              backgroundColor: UdoDesign.rose,
-              foregroundColor: Colors.white,
+        ),
+        const Divider(height: 1),
+        Expanded(
+          child: SingleChildScrollView(
+            controller: ctrl,
+            padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
+            child:
+                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              _sectionHeader('1', 'Workspace'),
+              _GField('Workspace title', _title),
+              const SizedBox(height: 20),
+              _sectionHeader('2', 'Couple'),
+              Row(children: [
+                Expanded(child: _GField('Primary name', _primaryName)),
+                const SizedBox(width: 10),
+                Expanded(child: _GField('Partner name', _secondaryName)),
+              ]),
+              const SizedBox(height: 20),
+              _sectionHeader('3', 'Wedding overview'),
+              Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Expanded(
+                    child: _taxonomyField(
+                        label: 'Wedding type',
+                        options: _weddingTypeOptions,
+                        selection: _weddingTypeSelection,
+                        controller: _weddingType,
+                        customSentinel: 'Custom',
+                        onSelectionChanged: (v) => _weddingTypeSelection = v)),
+                const SizedBox(width: 10),
+                Expanded(
+                    child: _GField('Guest count', _guestCount,
+                        type: TextInputType.number)),
+              ]),
+              const SizedBox(height: 20),
+              _sectionHeader('4', 'Dates'),
+              Row(children: [
+                Expanded(
+                    child: _WeddingDateInput(
+                        label: 'Wedding date',
+                        controller: _eventDate,
+                        onPick: () => _pickDate(_eventDate))),
+                const SizedBox(width: 10),
+                Expanded(
+                    child: _WeddingDateInput(
+                        label: 'RSVP deadline',
+                        controller: _rsvpDeadline,
+                        onPick: () => _pickDate(_rsvpDeadline))),
+              ]),
+              const SizedBox(height: 20),
+              _sectionHeader('5', 'Location'),
+              Row(children: [
+                Expanded(child: _GField('City', _city)),
+                const SizedBox(width: 10),
+                Expanded(child: _GField('Country', _country)),
+              ]),
+              const SizedBox(height: 10),
+              _GField('Ceremony venue', _ceremonyVenue),
+              const SizedBox(height: 20),
+              _sectionHeader('6', 'Planning'),
+              Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Expanded(child: _GField('Venue status', _venueStatus)),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: DropdownButtonFormField<String>(
+                    initialValue: _planningApproachSelection,
+                    isExpanded: true,
+                    decoration: InputDecoration(
+                      labelText: 'Planning approach',
+                      floatingLabelBehavior: FloatingLabelBehavior.always,
+                      hintText: 'Planning approach',
+                      hintStyle: const TextStyle(
+                          color: AppTheme.udoTextSecondary, fontSize: 13),
+                      labelStyle: const TextStyle(
+                          color: AppTheme.udoTextSecondary, fontSize: 12),
+                      filled: true,
+                      fillColor: AppTheme.udoCardFill,
+                      border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(14),
+                          borderSide: BorderSide.none),
+                      contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 14, vertical: 4),
+                    ),
+                    items: [
+                      for (final o in _planningApproachOptions)
+                        DropdownMenuItem(
+                            value: o,
+                            child: Text(o,
+                                style: const TextStyle(fontSize: 13),
+                                overflow: TextOverflow.ellipsis))
+                    ],
+                    onChanged: (v) => setState(() {
+                      _planningApproachSelection = v;
+                      if (v != null && v != 'Custom')
+                        _planningApproach.text = v;
+                      if (v == 'Custom') _planningApproach.clear();
+                    }),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                    child: _planningApproachSelection == 'Custom'
+                        ? _GField(
+                            'Enter custom planning approach', _planningApproach)
+                        : const SizedBox.shrink()),
+              ]),
+              const SizedBox(height: 20),
+              _sectionHeader('7', 'Event details'),
+              Row(children: [
+                Expanded(
+                    child: _GField('Ceremony time', _ceremonyTime,
+                        type: TextInputType.datetime)),
+                const SizedBox(width: 10),
+                Expanded(
+                    child: _GField('Reception time', _receptionTime,
+                        type: TextInputType.datetime)),
+              ]),
+              const SizedBox(height: 10),
+              _GField('Reception venue', _receptionVenue),
+              const SizedBox(height: 10),
+              _GField('Celebrant / officiant', _celebrant),
+              const SizedBox(height: 10),
+              _GField('Venue address', _venueAddress, maxLines: 2),
+              const SizedBox(height: 10),
+              _GField('Wedding website', _website, type: TextInputType.url),
+              const SizedBox(height: 10),
+              Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Expanded(child: _GField('Wedding hashtag', _hashtag)),
+                const SizedBox(width: 10),
+                Expanded(
+                    child: _taxonomyField(
+                        label: 'Dress code',
+                        options: _dressCodeOptionsList,
+                        selection: _dressCodeSelection,
+                        controller: _dressCode,
+                        customSentinel: 'Custom Dress Code',
+                        onSelectionChanged: (v) => _dressCodeSelection = v)),
+              ]),
+              const SizedBox(height: 10),
+              _GField('Parking information', _parking, maxLines: 2),
+              const SizedBox(height: 10),
+              _GField('Google Maps link', _mapsLink, type: TextInputType.url),
+              const SizedBox(height: 10),
+              _GField('Transportation notes', _transport, maxLines: 2),
+              if (_error != null) ...[
+                const SizedBox(height: 10),
+                Text(_error!,
+                    style: UdoDesign.sans(size: 12, color: UdoDesign.rose)),
+              ],
+            ]),
+          ),
+        ),
+        const Divider(height: 1),
+        Container(
+          color: Colors.white,
+          padding: EdgeInsets.fromLTRB(
+              20, 12, 20, MediaQuery.of(context).viewInsets.bottom + 16),
+          child: SafeArea(
+            top: false,
+            child: ElevatedButton.icon(
+              onPressed: _saving ? null : _save,
+              icon: _saving
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(
+                          strokeWidth: 2, color: Colors.white),
+                    )
+                  : const Icon(Icons.save_outlined, size: 16),
+              label: Text(_saving ? 'Saving...' : 'Save wedding profile'),
+              style: ElevatedButton.styleFrom(
+                minimumSize: const Size(double.infinity, 52),
+                backgroundColor: UdoDesign.rose,
+                foregroundColor: Colors.white,
+              ),
             ),
           ),
-        ]),
-      ),
+        ),
+      ]),
     );
   }
 }

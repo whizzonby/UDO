@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../../core/errors/app_exception.dart';
 import '../../../../core/theme/app_theme.dart';
+import '../../../../shared/widgets/app_scaffold_messenger.dart';
 import '../../../../shared/widgets/udo_button.dart';
 import '../../../../shared/widgets/udo_text_field.dart';
 import '../providers/auth_provider.dart';
@@ -94,6 +95,8 @@ class _TwoFactorVerifyScreenState extends ConsumerState<TwoFactorVerifyScreen> {
     setState(() => _verifying = false);
     if (error != null) {
       setState(() => _error = error);
+    } else {
+      showAuthToast('Signed in successfully.');
     }
     // On success, AuthState flips to authenticated and the router redirect
     // takes it from here — nothing else to do.

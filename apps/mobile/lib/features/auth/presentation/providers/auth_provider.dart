@@ -38,21 +38,51 @@ class AuthNotifier extends StateNotifier<AuthState> {
     // take longer than this floor.
     final minSplash = Future.delayed(const Duration(milliseconds: 1800));
     try {
-      final token =
-          await _authService.getToken().timeout(const Duration(seconds: 3));
-      if (token == null) {
+      final user =
+          await _bootstrapSavedSession().timeout(const Duration(seconds: 14));
+      await minSplash;
+      state = user == null
+          ? AuthState.unauthenticated
+          : AuthState(status: AuthStatus.authenticated, user: user);
+    } catch (e) {
+      // A slow/unreachable API (timeout, DNS hiccup, server cold start) is
+      // not proof the session is invalid — only a real 401 is. Wiping the
+      // token here on every transient network failure was forcing a fresh
+      // sign-in on almost every cold start against a slow backend. Fall
+      // back to the last-known user instead, and let a real 401 from a
+      // later request take the user through the normal forceLogout path.
+      if (e is UnauthorizedException ||
+          (e is ServerException && e.statusCode == 401)) {
+        try {
+          await _authService
+              .clearSession()
+              .timeout(const Duration(seconds: 2));
+        } catch (_) {}
         await minSplash;
         state = AuthState.unauthenticated;
         return;
       }
-      final user = await _authService.me().timeout(const Duration(seconds: 8));
-      await _authService.saveSession(token, user);
+      AuthUser? cachedUser;
+      try {
+        cachedUser = await _authService.getCachedUser();
+      } catch (_) {}
       await minSplash;
-      state = AuthState(status: AuthStatus.authenticated, user: user);
-    } catch (_) {
-      await minSplash;
-      state = AuthState.unauthenticated;
+      state = cachedUser == null
+          ? AuthState.unauthenticated
+          : AuthState(status: AuthStatus.authenticated, user: cachedUser);
     }
+  }
+
+  Future<AuthUser?> _bootstrapSavedSession() async {
+    final token =
+        await _authService.getToken().timeout(const Duration(seconds: 3));
+    if (token == null) return null;
+
+    final user = await _authService.me().timeout(const Duration(seconds: 8));
+    await _authService
+        .saveSession(token, user)
+        .timeout(const Duration(seconds: 2));
+    return user;
   }
 
   /// Returns the [LoginResult] so the screen can navigate to the 2FA
@@ -111,10 +141,12 @@ class AuthNotifier extends StateNotifier<AuthState> {
     required String email,
     required String twoFactorToken,
   }) {
-    return _authService.resendTwoFactor(email: email, twoFactorToken: twoFactorToken);
+    return _authService.resendTwoFactor(
+        email: email, twoFactorToken: twoFactorToken);
   }
 
-  Future<String?> setTwoFactorEnabled(bool enabled, {required String currentPassword}) async {
+  Future<String?> setTwoFactorEnabled(bool enabled,
+      {required String currentPassword}) async {
     try {
       final token = await _authService.getToken();
       if (token == null) return 'You need to be signed in.';
@@ -147,8 +179,8 @@ class AuthNotifier extends StateNotifier<AuthState> {
       await _authService.saveSession(res.token, res.user);
       state = AuthState(status: AuthStatus.authenticated, user: res.user);
     } catch (e) {
-      state =
-          AuthState(status: AuthStatus.unauthenticated, error: humanizeError(e));
+      state = AuthState(
+          status: AuthStatus.unauthenticated, error: humanizeError(e));
     }
   }
 
@@ -180,8 +212,8 @@ class AuthNotifier extends StateNotifier<AuthState> {
       await _authService.saveSession(res.token, res.user);
       state = AuthState(status: AuthStatus.authenticated, user: res.user);
     } catch (e) {
-      state =
-          AuthState(status: AuthStatus.unauthenticated, error: humanizeError(e));
+      state = AuthState(
+          status: AuthStatus.unauthenticated, error: humanizeError(e));
     }
   }
 
@@ -204,8 +236,8 @@ class AuthNotifier extends StateNotifier<AuthState> {
       await _authService.saveSession(res.token, res.user);
       state = AuthState(status: AuthStatus.authenticated, user: res.user);
     } catch (e) {
-      state =
-          AuthState(status: AuthStatus.unauthenticated, error: humanizeError(e));
+      state = AuthState(
+          status: AuthStatus.unauthenticated, error: humanizeError(e));
     }
   }
 

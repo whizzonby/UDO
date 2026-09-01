@@ -96,13 +96,10 @@ class _SeatingScreenState extends ConsumerState<SeatingScreen> {
 
   void _openSeatSheet(
       Map<String, dynamic> table, List<Map<String, dynamic>> guests) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
-      builder: (_) => _SeatAssignmentSheet(table: table, guests: guests),
-    );
+    Navigator.of(context).push(MaterialPageRoute(
+      builder: (_) =>
+          _TableSeatAssignmentScreen(table: table, guests: guests),
+    ));
   }
 
   void _openGuestFlagsSheet(Map<String, dynamic> guest) {
@@ -1268,17 +1265,6 @@ class _GuestDropdown extends StatelessWidget {
       );
 }
 
-String _initials(Map<String, dynamic> guest) {
-  final first =
-      guest['first_name']?.toString() ?? guest['name']?.toString() ?? '';
-  final last = guest['last_name']?.toString() ?? '';
-  final letters = [
-    if (first.trim().isNotEmpty) first.trim()[0],
-    if (last.trim().isNotEmpty) last.trim()[0],
-  ].join();
-  return letters.isEmpty ? '?' : letters.toUpperCase();
-}
-
 class _AddTableManualSheet extends ConsumerStatefulWidget {
   final int nextTableNumber;
   final List<Map<String, dynamic>> guests;
@@ -1855,142 +1841,473 @@ class _SeatLayoutPreview extends StatelessWidget {
   }
 }
 
-class _SeatAssignmentSheet extends ConsumerWidget {
+class _TableSeatAssignmentScreen extends ConsumerStatefulWidget {
   final Map<String, dynamic> table;
   final List<Map<String, dynamic>> guests;
-  const _SeatAssignmentSheet({required this.table, required this.guests});
+  const _TableSeatAssignmentScreen(
+      {required this.table, required this.guests});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final seats = (table['seats'] as List?)?.cast<Map<String, dynamic>>() ?? [];
-    final notifier = ref.read(seatingPlannerProvider.notifier);
-    final tableId = table['id'] as int;
-    final capacity = (table['capacity'] as num?)?.toInt() ?? seats.length;
-    final seated = seats.where((seat) => seat['guest'] != null).toList();
-    final assignedCount =
-        (table['assigned_count'] as num?)?.toInt() ?? seated.length;
-    final openSeats = seats.where((seat) => seat['guest'] == null).toList();
+  ConsumerState<_TableSeatAssignmentScreen> createState() =>
+      _TableSeatAssignmentScreenState();
+}
 
-    return SafeArea(
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(20, 20, 20, 20),
-        child: SingleChildScrollView(
-          child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(children: [
-                  Expanded(
-                    child: Text('${table['name'] ?? 'Table'}',
-                        style: const TextStyle(
-                            fontSize: 18, fontWeight: FontWeight.w600)),
-                  ),
-                  IconButton(
-                      onPressed: () => Navigator.pop(context),
-                      icon: const Icon(Icons.close)),
-                ]),
-                const SizedBox(height: 12),
-                _ModalInfoRow('Capacity', '$assignedCount / $capacity'),
-                LinearProgressIndicator(
-                  value: capacity == 0
-                      ? 0
-                      : (assignedCount / capacity).clamp(0, 1).toDouble(),
-                  minHeight: 5,
-                  borderRadius: BorderRadius.circular(999),
-                  backgroundColor: AppTheme.udoBorder,
-                  color: Colors.orange,
-                ),
-                const SizedBox(height: 16),
-                const Text('Seated guests',
-                    style: TextStyle(
-                        fontSize: 11, color: AppTheme.udoTextSecondary)),
-                const SizedBox(height: 8),
-                if (seated.isEmpty)
-                  const Padding(
-                    padding: EdgeInsets.symmetric(vertical: 12),
-                    child: Text('No guests seated at this table yet.',
-                        style: TextStyle(
-                            fontSize: 13, color: AppTheme.udoTextSecondary)),
-                  )
-                else
-                  for (final seat in seated)
-                    _SeatedGuestRow(
-                      seat: seat,
-                      onRemove: () async {
-                        await notifier.clearSeat(
-                            tableId: tableId, seatId: seat['id'] as int);
-                      },
-                    ),
-                if (openSeats.isNotEmpty) ...[
-                  const SizedBox(height: 8),
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: AppTheme.udoBorder),
-                    ),
-                    child: Text(
-                      '+ Add ${openSeats.length} more guest${openSeats.length == 1 ? '' : 's'}',
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(
-                          fontSize: 12, color: AppTheme.udoTextSecondary),
-                    ),
-                  ),
-                ],
-                const SizedBox(height: 16),
-                ElevatedButton(
-                  onPressed: openSeats.isEmpty
-                      ? null
-                      : () => _openAssignGuestToTableSheet(
-                            context: context,
-                            tableId: tableId,
-                            nextSeatNumber:
-                                openSeats.first['seat_number'] as int,
-                            guests: guests,
-                            notifier: notifier,
-                          ),
-                  style: ElevatedButton.styleFrom(
-                    minimumSize: const Size(double.infinity, 50),
-                    backgroundColor: const Color(0xFF5A4B58),
-                    foregroundColor: Colors.white,
-                  ),
-                  child: const Text('Add Guest to Table'),
-                ),
-                const SizedBox(height: 10),
-                ElevatedButton(
-                  onPressed: () => _openEditTableSheet(
-                    context: context,
-                    table: table,
-                    notifier: notifier,
-                  ),
-                  style: ElevatedButton.styleFrom(
-                    minimumSize: const Size(double.infinity, 50),
-                    backgroundColor: const Color(0xFF7EA2CF),
-                    foregroundColor: Colors.white,
-                  ),
-                  child: const Text('Edit Table Name'),
-                ),
-                const SizedBox(height: 10),
-                OutlinedButton(
-                  onPressed: seated.isEmpty
-                      ? null
-                      : () async {
-                          final ok = await notifier.clearTable(table);
-                          if (!context.mounted) return;
-                          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                              content: Text(ok
-                                  ? 'Table cleared.'
-                                  : "Couldn't clear this table.")));
-                        },
-                  style: OutlinedButton.styleFrom(
-                    minimumSize: const Size(double.infinity, 50),
-                    foregroundColor: AppTheme.udoTextPrimary,
-                  ),
-                  child: const Text('Clear Table'),
-                ),
-              ]),
+class _TableSeatAssignmentScreenState
+    extends ConsumerState<_TableSeatAssignmentScreen> {
+  String _search = '';
+  bool _busy = false;
+
+  Future<void> _assignToFirstOpenSeat(
+      SeatingPlannerNotifier notifier, int tableId,
+      List<Map<String, dynamic>> openSeats, int guestId) async {
+    if (openSeats.isEmpty) return;
+    setState(() => _busy = true);
+    final ok = await notifier.assignSeat(
+        tableId: tableId,
+        seatNumber: openSeats.first['seat_number'] as int,
+        guestId: guestId);
+    if (!mounted) return;
+    setState(() => _busy = false);
+    if (!ok) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text("Couldn't assign that guest. Try again.")));
+    }
+  }
+
+  Future<void> _tapSeat(
+      BuildContext context,
+      SeatingPlannerNotifier notifier,
+      int tableId,
+      Map<String, dynamic> seat) async {
+    final guest = seat['guest'] as Map<String, dynamic>?;
+    if (guest == null) {
+      showModalBottomSheet(
+        context: context,
+        isScrollControlled: true,
+        shape: const RoundedRectangleBorder(
+            borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+        builder: (_) => _GuestPickerSheet(
+          guests: widget.guests,
+          onPicked: (guestId) async {
+            setState(() => _busy = true);
+            final ok = await notifier.assignSeat(
+                tableId: tableId,
+                seatNumber: seat['seat_number'] as int,
+                guestId: guestId);
+            if (!mounted) return;
+            setState(() => _busy = false);
+            if (!ok) {
+              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                  content: Text("Couldn't assign that guest. Try again.")));
+            }
+          },
         ),
+      );
+      return;
+    }
+
+    final name = '${guest['first_name'] ?? ''} ${guest['last_name'] ?? ''}'
+        .trim();
+    await showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+      builder: (sheetContext) => SafeArea(
+        child: Wrap(children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 16, 20, 4),
+            child: Text(name.isEmpty ? 'Guest' : name,
+                style: const TextStyle(
+                    fontSize: 15, fontWeight: FontWeight.w600)),
+          ),
+          ListTile(
+            leading: const Icon(Icons.swap_horiz, color: AppTheme.udoGreen),
+            title: const Text('Reassign seat'),
+            onTap: () {
+              Navigator.pop(sheetContext);
+              showModalBottomSheet(
+                context: context,
+                isScrollControlled: true,
+                shape: const RoundedRectangleBorder(
+                    borderRadius:
+                        BorderRadius.vertical(top: Radius.circular(24))),
+                builder: (_) => _GuestPickerSheet(
+                  guests: widget.guests,
+                  onPicked: (guestId) async {
+                    setState(() => _busy = true);
+                    final ok = await notifier.assignSeat(
+                        tableId: tableId,
+                        seatNumber: seat['seat_number'] as int,
+                        guestId: guestId);
+                    if (!mounted) return;
+                    setState(() => _busy = false);
+                    if (!ok) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                              content: Text(
+                                  "Couldn't assign that guest. Try again.")));
+                    }
+                  },
+                ),
+              );
+            },
+          ),
+          ListTile(
+            leading: const Icon(Icons.person_remove_outlined,
+                color: AppTheme.udoCrimson),
+            title: const Text('Remove from table'),
+            onTap: () async {
+              Navigator.pop(sheetContext);
+              setState(() => _busy = true);
+              await notifier.clearSeat(
+                  tableId: tableId, seatId: seat['id'] as int);
+              if (!mounted) return;
+              setState(() => _busy = false);
+            },
+          ),
+        ]),
+      ),
+    );
+  }
+
+  Future<void> _autoFill(SeatingPlannerNotifier notifier, int tableId,
+      List<Map<String, dynamic>> openSeats,
+      List<Map<String, dynamic>> available) async {
+    if (openSeats.isEmpty || available.isEmpty) return;
+    setState(() => _busy = true);
+    final pairCount = math.min(openSeats.length, available.length);
+    for (var i = 0; i < pairCount; i++) {
+      final guestId = _valueId(available[i]['id']);
+      if (guestId == null) continue;
+      await notifier.assignSeat(
+          tableId: tableId,
+          seatNumber: openSeats[i]['seat_number'] as int,
+          guestId: guestId);
+    }
+    if (!mounted) return;
+    setState(() => _busy = false);
+  }
+
+  Future<void> _clearTable(
+      SeatingPlannerNotifier notifier, Map<String, dynamic> table) async {
+    setState(() => _busy = true);
+    final ok = await notifier.clearTable(table);
+    if (!mounted) return;
+    setState(() => _busy = false);
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content:
+            Text(ok ? 'Table cleared.' : "Couldn't clear this table.")));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final state = ref.watch(seatingPlannerProvider);
+    final notifier = ref.read(seatingPlannerProvider.notifier);
+    final table = state.tables.firstWhere(
+        (t) => _valueId(t['id']) == _valueId(widget.table['id']),
+        orElse: () => widget.table);
+    final seats = (table['seats'] as List?)?.cast<Map<String, dynamic>>() ??
+        const [];
+    final tableId = table['id'] as int;
+    final openSeats = seats.where((seat) => seat['guest'] == null).toList()
+      ..sort((a, b) =>
+          (a['seat_number'] as int).compareTo(b['seat_number'] as int));
+
+    final unassigned = (state.summary['unassigned_guests'] is List)
+        ? (state.summary['unassigned_guests'] as List)
+            .cast<Map<String, dynamic>>()
+        : <Map<String, dynamic>>[];
+    final availableGuests = unassigned.where((g) {
+      if (_search.trim().isEmpty) return true;
+      final name = '${g['first_name'] ?? ''} ${g['last_name'] ?? ''}'
+          .toLowerCase();
+      return name.contains(_search.trim().toLowerCase());
+    }).toList();
+
+    return Scaffold(
+      backgroundColor: Colors.white,
+      appBar: AppBar(
+        elevation: 0,
+        backgroundColor: Colors.white,
+        foregroundColor: AppTheme.udoTextPrimary,
+        titleSpacing: 0,
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text('${table['name'] ?? 'Table'}',
+                style: const TextStyle(
+                    fontSize: 17, fontWeight: FontWeight.w700)),
+            const Text('Tap a seat to assign a guest',
+                style: TextStyle(
+                    fontSize: 11.5, color: AppTheme.udoTextSecondary)),
+          ],
+        ),
+        actions: [
+          PopupMenuButton<String>(
+            onSelected: (value) {
+              if (value == 'edit') {
+                _openEditTableSheet(
+                    context: context, table: table, notifier: notifier);
+              } else if (value == 'clear') {
+                _clearTable(notifier, table);
+              }
+            },
+            itemBuilder: (_) => const [
+              PopupMenuItem(value: 'edit', child: Text('Edit table')),
+              PopupMenuItem(value: 'clear', child: Text('Clear table')),
+            ],
+          ),
+        ],
+      ),
+      body: Column(children: [
+        Expanded(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(20, 20, 20, 12),
+            child: Column(children: [
+              _SeatWheel(
+                seats: seats,
+                tableName: '${table['name'] ?? 'Table'}',
+                onTapSeat: (seat) =>
+                    _tapSeat(context, notifier, tableId, seat),
+              ),
+              const SizedBox(height: 28),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: Text('Available guests',
+                    style: const TextStyle(
+                        fontSize: 15, fontWeight: FontWeight.w700)),
+              ),
+              const SizedBox(height: 2),
+              const Align(
+                alignment: Alignment.centerLeft,
+                child: Text('Tap a guest to seat them in the next open spot',
+                    style: TextStyle(
+                        fontSize: 12, color: AppTheme.udoTextSecondary)),
+              ),
+              const SizedBox(height: 10),
+              TextField(
+                onChanged: (v) => setState(() => _search = v),
+                decoration: InputDecoration(
+                  hintText: 'Search guests',
+                  prefixIcon: const Icon(Icons.search, size: 18),
+                  isDense: true,
+                  filled: true,
+                  fillColor: AppTheme.udoCardFill,
+                  border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide.none),
+                ),
+              ),
+              const SizedBox(height: 12),
+              if (availableGuests.isEmpty)
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  child: Text(
+                      unassigned.isEmpty
+                          ? 'Every confirmed guest already has a seat.'
+                          : 'No guests match this search.',
+                      style: const TextStyle(
+                          fontSize: 13, color: AppTheme.udoTextSecondary)),
+                )
+              else
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    for (final guest in availableGuests)
+                      ActionChip(
+                        avatar: const Icon(Icons.drag_indicator, size: 14),
+                        label: Text(
+                            '${guest['first_name'] ?? ''} ${guest['last_name'] ?? ''}'
+                                .trim()),
+                        onPressed: _busy || openSeats.isEmpty
+                            ? null
+                            : () {
+                                final guestId = _valueId(guest['id']);
+                                if (guestId == null) return;
+                                _assignToFirstOpenSeat(
+                                    notifier, tableId, openSeats, guestId);
+                              },
+                      ),
+                  ],
+                ),
+            ]),
+          ),
+        ),
+        Container(
+          padding: EdgeInsets.fromLTRB(
+              20, 12, 20, MediaQuery.of(context).viewInsets.bottom + 16),
+          decoration: const BoxDecoration(
+              border: Border(top: BorderSide(color: AppTheme.udoBorder))),
+          child: SafeArea(
+            top: false,
+            child: Row(children: [
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: _busy || openSeats.isEmpty || unassigned.isEmpty
+                      ? null
+                      : () => _autoFill(
+                          notifier, tableId, openSeats, unassigned),
+                  icon: const Icon(Icons.auto_awesome, size: 16),
+                  label: const Text('Auto-fill'),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: _busy || seats.every((s) => s['guest'] == null)
+                      ? null
+                      : () => _clearTable(notifier, table),
+                  icon: const Icon(Icons.delete_outline, size: 16),
+                  label: const Text('Clear'),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: ElevatedButton.icon(
+                  onPressed: () => Navigator.pop(context),
+                  icon: const Icon(Icons.arrow_forward, size: 16),
+                  label: const Text('Save Seating'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppTheme.udoGreen,
+                    foregroundColor: Colors.white,
+                  ),
+                ),
+              ),
+            ]),
+          ),
+        ),
+      ]),
+    );
+  }
+}
+
+class _SeatWheel extends StatelessWidget {
+  final List<Map<String, dynamic>> seats;
+  final String tableName;
+  final void Function(Map<String, dynamic> seat) onTapSeat;
+  const _SeatWheel(
+      {required this.seats, required this.tableName, required this.onTapSeat});
+
+  @override
+  Widget build(BuildContext context) {
+    const size = 300.0;
+    const seatSize = 68.0;
+    const center = size / 2;
+    const radius = size / 2 - seatSize / 2 - 6;
+    final sorted = [...seats]
+      ..sort((a, b) =>
+          (a['seat_number'] as int).compareTo(b['seat_number'] as int));
+    final count = sorted.length.clamp(1, 20);
+
+    return SizedBox(
+      width: size,
+      height: size,
+      child: Stack(alignment: Alignment.center, children: [
+        Container(
+          width: 140,
+          height: 140,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: AppTheme.udoCrimson.withValues(alpha: 0.16),
+            shape: BoxShape.circle,
+          ),
+          child: Text(tableName.toUpperCase(),
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w800,
+                  color: AppTheme.udoTextPrimary)),
+        ),
+        for (var i = 0; i < count; i++)
+          Positioned(
+            left: center +
+                math.cos(-math.pi / 2 + (2 * math.pi / count) * i) * radius -
+                seatSize / 2,
+            top: center +
+                math.sin(-math.pi / 2 + (2 * math.pi / count) * i) * radius -
+                seatSize / 2,
+            child: _SeatBubble(
+              seat: sorted[i],
+              onTap: () => onTapSeat(sorted[i]),
+            ),
+          ),
+      ]),
+    );
+  }
+}
+
+class _SeatBubble extends StatelessWidget {
+  final Map<String, dynamic> seat;
+  final VoidCallback onTap;
+  const _SeatBubble({required this.seat, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final guest = seat['guest'] as Map<String, dynamic>?;
+    final name = guest == null
+        ? null
+        : '${guest['first_name'] ?? ''} ${guest['last_name'] ?? ''}'.trim();
+    final seatNumber = seat['seat_number'];
+    return GestureDetector(
+      onTap: onTap,
+      child: SizedBox(
+        width: 68,
+        height: 68,
+        child: Stack(clipBehavior: Clip.none, children: [
+          Container(
+            width: 68,
+            height: 68,
+            alignment: Alignment.center,
+            padding: const EdgeInsets.symmetric(horizontal: 4),
+            decoration: BoxDecoration(
+              color: guest != null
+                  ? AppTheme.udoCrimson.withValues(alpha: 0.18)
+                  : Colors.white,
+              shape: BoxShape.circle,
+              border: Border.all(
+                  color:
+                      guest != null ? Colors.transparent : AppTheme.udoBorder),
+            ),
+            child: guest != null
+                ? Text(name!.isEmpty ? 'Guest' : name,
+                    textAlign: TextAlign.center,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                        color: AppTheme.udoTextPrimary))
+                : const Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.add, size: 14, color: AppTheme.udoTextSecondary),
+                      Text('Assign',
+                          style: TextStyle(
+                              fontSize: 9.5,
+                              color: AppTheme.udoTextSecondary)),
+                    ],
+                  ),
+          ),
+          Positioned(
+            top: -6,
+            left: 24,
+            child: Container(
+              width: 18,
+              height: 18,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: Colors.white,
+                shape: BoxShape.circle,
+                border: Border.all(color: AppTheme.udoBorder),
+              ),
+              child: Text('$seatNumber',
+                  style: const TextStyle(
+                      fontSize: 9, color: AppTheme.udoTextSecondary)),
+            ),
+          ),
+        ]),
       ),
     );
   }
@@ -2066,76 +2383,6 @@ class _GuestPickerSheetState extends State<_GuestPickerSheet> {
       ),
     );
   }
-}
-
-class _SeatedGuestRow extends StatelessWidget {
-  final Map<String, dynamic> seat;
-  final Future<void> Function() onRemove;
-  const _SeatedGuestRow({required this.seat, required this.onRemove});
-
-  @override
-  Widget build(BuildContext context) {
-    final guest = seat['guest'] as Map<String, dynamic>? ?? {};
-    final name =
-        '${guest['first_name'] ?? ''} ${guest['last_name'] ?? ''}'.trim();
-    final meal = (guest['meal_preference'] ?? guest['dietary_note'] ?? '')
-        .toString()
-        .trim();
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 10),
-      child: Row(children: [
-        CircleAvatar(
-          radius: 16,
-          backgroundColor: AppTheme.udoGreen.withValues(alpha: 0.10),
-          child: Text(_initials(guest),
-              style: const TextStyle(
-                  fontSize: 10,
-                  fontWeight: FontWeight.w700,
-                  color: AppTheme.udoGreen)),
-        ),
-        const SizedBox(width: 10),
-        Expanded(
-            child:
-                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(name.isEmpty ? 'Guest' : name,
-              style:
-                  const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
-          if (meal.isNotEmpty)
-            Text(meal,
-                style: const TextStyle(
-                    fontSize: 11, color: AppTheme.udoTextSecondary)),
-        ])),
-        TextButton(onPressed: onRemove, child: const Text('Remove')),
-      ]),
-    );
-  }
-}
-
-void _openAssignGuestToTableSheet({
-  required BuildContext context,
-  required int tableId,
-  required int nextSeatNumber,
-  required List<Map<String, dynamic>> guests,
-  required SeatingPlannerNotifier notifier,
-}) {
-  showModalBottomSheet(
-    context: context,
-    isScrollControlled: true,
-    shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
-    builder: (_) => _GuestPickerSheet(
-      guests: guests,
-      onPicked: (guestId) async {
-        final ok = await notifier.assignSeat(
-            tableId: tableId, seatNumber: nextSeatNumber, guestId: guestId);
-        if (!context.mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-            content: Text(ok
-                ? 'Guest added to table.'
-                : "Couldn't add this guest to the table.")));
-      },
-    ),
-  );
 }
 
 void _openEditTableSheet({

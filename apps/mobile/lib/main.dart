@@ -5,6 +5,7 @@ import 'core/network/api_client.dart';
 import 'core/router/app_router.dart';
 import 'core/theme/app_theme.dart';
 import 'features/auth/presentation/providers/auth_provider.dart';
+import 'shared/widgets/app_scaffold_messenger.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -19,10 +20,13 @@ class UdoApp extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final router = ref.watch(routerProvider);
     ref.read(apiClientProvider).onUnauthorized = () => ref.read(authProvider.notifier).forceLogout();
+    ref.read(apiClientProvider).onLimitReached =
+        (message) => router.push('/paywall', extra: message);
     return MaterialApp.router(
       title: 'Udo',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.light,
+      scaffoldMessengerKey: appScaffoldMessengerKey,
       routerConfig: router,
     );
   }
