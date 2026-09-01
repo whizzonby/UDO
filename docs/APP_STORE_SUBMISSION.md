@@ -338,12 +338,17 @@ brew install --cask flutter
 brew install cocoapods git
 
 # 5. Verify — every line except "cmdline tools" style warnings should be a check
-flutter --version                        # expect 3.24.x (matches CI)
+flutter --version                        # latest stable is fine (dev built on 3.38.x)
 flutter doctor
 ```
 
 `flutter doctor` must show **Xcode** and **CocoaPods** with green checks. Ignore
 the Android / Chrome lines — not needed for an iOS build.
+
+> `apps/mobile/pubspec.lock` is committed, so `flutter pub get` uses exactly the
+> dependency versions the build was verified with (notably `retrofit` 4.5.0 —
+> newer breaks codegen; see `pubspec.yaml`). Don't run `flutter pub upgrade`.
+> The root CI still says Flutter 3.24 — that's stale; ignore it for this build.
 
 ### 5c. Get the project building
 
