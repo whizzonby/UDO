@@ -4,7 +4,13 @@ publish_to: 'none'
 version: 1.0.0+7
 
 environment:
-  sdk: ^3.0.0
+  # Upper bound is deliberate: Dart >= 3.13 introduces dot-shorthand syntax that
+  # the pinned analyzer/riverpod_generator/custom_lint can't parse, which crashes
+  # `dart run build_runner build` ("Missing implementation of
+  # visitDotShorthandPropertyAccess"). Build with Flutter 3.38.x (Dart 3.10.x) —
+  # see .fvmrc and docs/APP_STORE_SUBMISSION.md. Lift the cap only when the whole
+  # codegen stack is bumped together.
+  sdk: ">=3.0.0 <3.13.0"
   flutter: ">=3.10.0"
 
 dependencies:

@@ -333,22 +333,34 @@ sudo softwareupdate --install-rosetta --agree-to-license
 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
 # then follow the "Next steps" it prints to add brew to your PATH
 
-# 4. Tooling
-brew install --cask flutter
+# 4. Tooling — CocoaPods from brew; Flutter PINNED to 3.38.7 (NOT brew's latest)
 brew install cocoapods git
 
-# 5. Verify — every line except "cmdline tools" style warnings should be a check
-flutter --version                        # latest stable is fine (dev built on 3.38.x)
+# brew installs whatever Flutter is newest, and Dart >= 3.13 crashes this
+# project's code generation. Install the exact version instead:
+git clone https://github.com/flutter/flutter.git -b 3.38.7 --depth 1 ~/flutter-udo
+echo 'export PATH="$HOME/flutter-udo/bin:$PATH"' >> ~/.zshrc
+source ~/.zshrc
+
+# 5. Verify — MUST say 3.38.7 / Dart 3.10.x
+flutter --version
 flutter doctor
 ```
 
 `flutter doctor` must show **Xcode** and **CocoaPods** with green checks. Ignore
 the Android / Chrome lines — not needed for an iOS build.
 
-> `apps/mobile/pubspec.lock` is committed, so `flutter pub get` uses exactly the
-> dependency versions the build was verified with (notably `retrofit` 4.5.0 —
-> newer breaks codegen; see `pubspec.yaml`). Don't run `flutter pub upgrade`.
-> The root CI still says Flutter 3.24 — that's stale; ignore it for this build.
+> **Flutter version is pinned to 3.38.7 (Dart 3.10.7).** `apps/mobile/.fvmrc`
+> records it, and `pubspec.yaml` caps `sdk: <3.13.0` so a wrong Dart fails
+> `flutter pub get` with a clear message instead of a cryptic
+> `visitDotShorthandPropertyAccess` crash mid-codegen. If `brew install --cask
+> flutter` was already run, remove it (`brew uninstall --cask flutter`) or make
+> sure `~/flutter-udo/bin` comes first on `PATH`. FVM alternative:
+> `brew tap leoafarias/fvm && brew install fvm && fvm use` from `apps/mobile`.
+>
+> `apps/mobile/pubspec.lock` is committed — `flutter pub get` uses exactly the
+> verified versions (`retrofit` 4.5.0; newer breaks codegen). Don't
+> `flutter pub upgrade`. The root CI's "Flutter 3.24" line is stale — ignore it.
 
 ### 5c. Get the project building
 
