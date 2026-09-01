@@ -47,6 +47,10 @@ other designs/
 **/.pub-cache/
 **/.pub/
 **/pubspec.lock
+# but DO track the mobile app's lock — pins a build-runner-compatible dependency
+# set (retrofit <4.6 etc.) so a fresh clone builds without re-resolving to
+# broken versions. See apps/mobile/pubspec.yaml.
+!apps/mobile/pubspec.lock
 
 # IDEs
 .idea/
