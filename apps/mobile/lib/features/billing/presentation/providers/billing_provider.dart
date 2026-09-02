@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:in_app_purchase/in_app_purchase.dart';
 
+import '../../../../core/analytics/meta_events.dart';
 import '../../../../core/constants/app_constants.dart';
 import '../../../../core/network/api_client.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
@@ -141,8 +142,9 @@ class BillingNotifier extends StateNotifier<BillingState> {
         case PurchaseStatus.pending:
           state = state.copyWith(isPurchasing: true);
         case PurchaseStatus.purchased:
+          await _verifyWithBackend(purchase, isRestore: false);
         case PurchaseStatus.restored:
-          await _verifyWithBackend(purchase);
+          await _verifyWithBackend(purchase, isRestore: true);
         case PurchaseStatus.error:
           state = state.copyWith(isPurchasing: false, error: purchase.error?.message ?? 'Purchase failed.');
         case PurchaseStatus.canceled:
@@ -155,7 +157,10 @@ class BillingNotifier extends StateNotifier<BillingState> {
     }
   }
 
-  Future<void> _verifyWithBackend(PurchaseDetails purchase) async {
+  Future<void> _verifyWithBackend(
+    PurchaseDetails purchase, {
+    required bool isRestore,
+  }) async {
     try {
       final platform = Platform.isIOS ? 'ios' : 'android';
       final result = await _api.post('/billing/verify-purchase', data: {
@@ -177,6 +182,14 @@ class BillingNotifier extends StateNotifier<BillingState> {
 
       await _ref.read(authProvider.notifier).refreshUser();
       state = state.copyWith(isPurchasing: false, error: null);
+
+      if (!isRestore) {
+        MetaEvents.instance.purchaseCompleted(
+          amount: state.product?.rawPrice ?? AppConstants.lifetimePriceUsd,
+          currency: state.product?.currencyCode ?? 'USD',
+          transactionId: purchase.purchaseID,
+        );
+      }
     } catch (e) {
       state = state.copyWith(isPurchasing: false, error: e.toString());
     }

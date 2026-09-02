@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../../core/analytics/meta_events.dart';
 import '../../../../core/network/api_client.dart';
 import '../../../../core/network/auth_service.dart';
 import '../providers/auth_provider.dart';
@@ -48,6 +49,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
     try {
       final api = ref.read(apiClientProvider);
       await api.post('/onboarding', data: _answers.toJson());
+      MetaEvents.instance.onboardingCompleted();
       final authSvc = ref.read(authServiceProvider);
       final user = await authSvc.me();
       final token = await authSvc.getToken();

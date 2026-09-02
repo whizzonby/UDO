@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 import '../../data/auth_models.dart';
+import '../../../../core/analytics/meta_events.dart';
 import '../../../../core/errors/app_exception.dart';
 import '../../../../core/network/auth_service.dart';
 
@@ -103,6 +104,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
       final res = result.auth!;
       await _authService.saveSession(res.token, res.user);
       state = AuthState(status: AuthStatus.authenticated, user: res.user);
+      MetaEvents.instance.identify(res.user.id);
       return result;
     } catch (e) {
       final message = e.toString().contains('Null check operator')
@@ -129,6 +131,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
       );
       await _authService.saveSession(res.token, res.user);
       state = AuthState(status: AuthStatus.authenticated, user: res.user);
+      MetaEvents.instance.identify(res.user.id);
       return null;
     } catch (e) {
       return humanizeError(e);
@@ -178,6 +181,9 @@ class AuthNotifier extends StateNotifier<AuthState> {
       );
       await _authService.saveSession(res.token, res.user);
       state = AuthState(status: AuthStatus.authenticated, user: res.user);
+      MetaEvents.instance.identify(res.user.id);
+      MetaEvents.instance
+          .registrationCompleted(userId: res.user.id, method: 'email');
     } catch (e) {
       state = AuthState(
           status: AuthStatus.unauthenticated, error: humanizeError(e));
@@ -211,6 +217,9 @@ class AuthNotifier extends StateNotifier<AuthState> {
       );
       await _authService.saveSession(res.token, res.user);
       state = AuthState(status: AuthStatus.authenticated, user: res.user);
+      MetaEvents.instance.identify(res.user.id);
+      MetaEvents.instance
+          .registrationCompleted(userId: res.user.id, method: 'google');
     } catch (e) {
       state = AuthState(
           status: AuthStatus.unauthenticated, error: humanizeError(e));
@@ -235,6 +244,9 @@ class AuthNotifier extends StateNotifier<AuthState> {
       );
       await _authService.saveSession(res.token, res.user);
       state = AuthState(status: AuthStatus.authenticated, user: res.user);
+      MetaEvents.instance.identify(res.user.id);
+      MetaEvents.instance
+          .registrationCompleted(userId: res.user.id, method: 'apple');
     } catch (e) {
       state = AuthState(
           status: AuthStatus.unauthenticated, error: humanizeError(e));
@@ -243,6 +255,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
 
   Future<void> logout() async {
     await _authService.logout();
+    MetaEvents.instance.reset();
     state = AuthState.unauthenticated;
   }
 
@@ -335,6 +348,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
     try {
       await _authService.deleteAccount(currentPassword: currentPassword);
       await _authService.clearSession();
+      MetaEvents.instance.reset();
       state = AuthState.unauthenticated;
       return null;
     } catch (e) {

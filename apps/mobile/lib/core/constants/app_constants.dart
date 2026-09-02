@@ -6,6 +6,11 @@ class AppConstants {
   /// ANDROID_LIFETIME_PRODUCT_ID in the API's .env.
   static const String lifetimeProductId = 'udo_lifetime_access';
 
+  /// List price of the lifetime unlock in USD. Only a fallback for analytics
+  /// when the store's localized `ProductDetails` price isn't available — the
+  /// actual charge always comes from the store.
+  static const double lifetimePriceUsd = 45.0;
+
   static String get apiBaseUrl {
     const env = String.fromEnvironment('API_BASE_URL');
     if (env.isNotEmpty) return env;
