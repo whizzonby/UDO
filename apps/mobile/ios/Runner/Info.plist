@@ -66,6 +66,51 @@
 					<string>com.googleusercontent.apps.766006747222-iqa0ji0fgdj8snujti0jqr4565t7vgmi</string>
 				</array>
 			</dict>
+			<dict>
+				<key>CFBundleTypeRole</key>
+				<string>Editor</string>
+				<key>CFBundleURLSchemes</key>
+				<array>
+					<string>fb1095852546349092</string>
+				</array>
+			</dict>
+		</array>
+		<!--
+		  Meta / Facebook App Events (facebook_app_events plugin). Values mirror
+		  android/app/src/main/res/values/strings.xml. FB app id 1095852546349092.
+		  AdvertiserIDCollection is on but the OS still gates IDFA behind ATT — to
+		  actually pass device-level signal to Meta you must also add
+		  NSUserTrackingUsageDescription, show the ATT prompt, and call
+		  FacebookAppEvents().setAdvertiserTracking(). Without that, Meta gets
+		  SKAdNetwork (aggregate) attribution only, which is fine to launch with.
+		-->
+		<key>FacebookAppID</key>
+		<string>1095852546349092</string>
+		<key>FacebookClientToken</key>
+		<string>2200feafdf3388ba02b51f29c565a4ef</string>
+		<key>FacebookDisplayName</key>
+		<string>Udo</string>
+		<key>FacebookAutoLogAppEventsEnabled</key>
+		<true/>
+		<key>FacebookAdvertiserIDCollectionEnabled</key>
+		<true/>
+		<key>LSApplicationQueriesSchemes</key>
+		<array>
+			<string>fbapi</string>
+			<string>fb-messenger-share-api</string>
+			<string>fbauth2</string>
+			<string>fbshareextension</string>
+		</array>
+		<key>SKAdNetworkItems</key>
+		<array>
+			<dict>
+				<key>SKAdNetworkIdentifier</key>
+				<string>v9wttpbfk9.skadnetwork</string>
+			</dict>
+			<dict>
+				<key>SKAdNetworkIdentifier</key>
+				<string>n38lu8286q.skadnetwork</string>
+			</dict>
 		</array>
 		<key>UIStatusBarHidden</key>
 		<false/>

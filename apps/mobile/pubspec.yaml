@@ -73,6 +73,7 @@ dependencies:
   latlong2: ^0.10.1
   qr_flutter: ^4.1.0
   flutter_colorpicker: ^1.1.0
+  facebook_app_events: ^0.30.5
 
 dev_dependencies:
   flutter_test:
