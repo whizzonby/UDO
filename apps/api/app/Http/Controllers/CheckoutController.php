@@ -2,8 +2,11 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Coupon;
+use App\Models\Subscription;
 use App\Models\User;
 use App\Models\Wedding;
+use App\Services\CouponService;
 use App\Services\SubscriptionEntitlementService;
 use App\Services\WeddingAccessService;
 use Illuminate\Http\JsonResponse;
@@ -44,12 +47,35 @@ class CheckoutController extends Controller
         return new StripeClient(config('services.stripe.secret_key'));
     }
 
-    public function store(Request $request): JsonResponse
+    public function store(Request $request, CouponService $couponService): JsonResponse
     {
         $this->wedding($request);
 
         if (! $this->isConfigured()) {
             return response()->json(['data' => ['configured' => false]]);
+        }
+
+        $data = $request->validate([
+            'coupon_code' => 'nullable|string|max:40',
+        ]);
+
+        $unitAmount = self::LIFETIME_PRICE_CENTS;
+        $couponCode = null;
+
+        if (filled($data['coupon_code'] ?? null)) {
+            $coupon = $couponService->findRedeemable($data['coupon_code']);
+
+            if (! $coupon) {
+                return response()->json(['message' => 'This coupon code is invalid or expired.'], 422);
+            }
+
+            if ($couponService->alreadyRedeemedBy($coupon, $request->user())) {
+                return response()->json(['message' => 'This coupon has already been used on your account.'], 422);
+            }
+
+            // Stripe's payment-mode minimum charge is $0.50.
+            $unitAmount = max($unitAmount - $coupon->discountCents($unitAmount), 50);
+            $couponCode = $coupon->code;
         }
 
         $frontendUrl = rtrim((string) config('app.frontend_url'), '/');
@@ -58,11 +84,12 @@ class CheckoutController extends Controller
             'mode' => 'payment',
             'client_reference_id' => (string) $request->user()->id,
             'customer_email' => $request->user()->email,
+            'metadata' => array_filter(['coupon_code' => $couponCode]),
             'line_items' => [[
                 'quantity' => 1,
                 'price_data' => [
                     'currency' => 'usd',
-                    'unit_amount' => self::LIFETIME_PRICE_CENTS,
+                    'unit_amount' => $unitAmount,
                     'product_data' => [
                         'name' => 'Udo Lifetime Access',
                         'description' => 'One-time payment — full access, no subscriptions.',
@@ -135,5 +162,29 @@ class CheckoutController extends Controller
 
         $subscription = app(SubscriptionEntitlementService::class)->grantLifetime($user, 'stripe', $session->id);
         $subscription->forceFill(['stripe_checkout_session_id' => $session->id])->save();
+
+        $couponCode = $session->metadata['coupon_code'] ?? null;
+        if ($couponCode) {
+            $this->recordCouponRedemption($couponCode, $user, $session, $subscription);
+        }
+    }
+
+    private function recordCouponRedemption(string $couponCode, User $user, Session $session, Subscription $subscription): void
+    {
+        $coupon = Coupon::where('code', strtoupper($couponCode))->first();
+
+        if (! $coupon) {
+            Log::warning('Coupon referenced in a completed Stripe session no longer exists.', [
+                'code' => $couponCode,
+                'session_id' => $session->id,
+            ]);
+            return;
+        }
+
+        try {
+            app(CouponService::class)->redeem($coupon, $user, self::LIFETIME_PRICE_CENTS, $session->id, $subscription);
+        } catch (\Throwable $e) {
+            report($e);
+        }
     }
 }
