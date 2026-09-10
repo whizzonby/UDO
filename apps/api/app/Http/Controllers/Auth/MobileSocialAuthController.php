@@ -201,10 +201,19 @@ class MobileSocialAuthController extends Controller
         ]);
 
         if ($email) {
-            Mail::to($user)->send(new TemplatedMail('welcome', [
-                'first_name' => $user->first_name,
-                'last_name'  => $user->last_name,
-            ]));
+            // Mail delivery (SMTP handshake, DNS, a misconfigured host) is the
+            // one part of registration that can genuinely hang or fail for
+            // reasons that have nothing to do with the account being created
+            // successfully. Never let it turn a successful sign-up into a
+            // timeout or 500 for the user.
+            try {
+                Mail::to($user)->send(new TemplatedMail('welcome', [
+                    'first_name' => $user->first_name,
+                    'last_name'  => $user->last_name,
+                ]));
+            } catch (\Throwable $e) {
+                report($e);
+            }
         }
 
         return $user;

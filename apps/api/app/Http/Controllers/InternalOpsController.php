@@ -6,6 +6,7 @@ use App\Models\GuestMessageDelivery;
 use App\Models\Subscription;
 use App\Models\User;
 use App\Models\Wedding;
+use App\Services\AdminSubscriptionOpsService;
 use App\Services\OperationalHealthService;
 use App\Services\SubscriptionEntitlementService;
 use Illuminate\Http\JsonResponse;
@@ -94,7 +95,7 @@ class InternalOpsController extends Controller
         ]);
     }
 
-    public function overrideEntitlement(Request $request, User $user): JsonResponse
+    public function overrideEntitlement(Request $request, User $user, AdminSubscriptionOpsService $subscriptionOps): JsonResponse
     {
         $this->authorizeOps($request);
 
@@ -106,25 +107,8 @@ class InternalOpsController extends Controller
             'confirm' => 'accepted',
         ]);
 
-        $subscription = $user->subscriptions()->latest()->first();
-        if (! $subscription) {
-            $subscription = new Subscription(['user_id' => $user->id]);
-        }
-
-        $subscription->fill([
-            'plan' => $data['plan'],
-            'status' => $data['status'],
-            'billing_cycle' => $data['billing_cycle'] ?? $subscription->billing_cycle ?? 'monthly',
-            'metadata' => [
-                ...($subscription->metadata ?? []),
-                'last_ops_override' => [
-                    'by_user_id' => $request->user()->id,
-                    'note' => $data['note'],
-                    'at' => now()->toISOString(),
-                ],
-            ],
-        ]);
-        $subscription->save();
+        $subscription = $user->subscriptions()->latest()->first() ?? new Subscription(['user_id' => $user->id]);
+        $subscription = $subscriptionOps->override($subscription, $request->user(), $data);
 
         return response()->json([
             'data' => [
