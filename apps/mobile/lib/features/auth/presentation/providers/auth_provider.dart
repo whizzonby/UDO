@@ -171,6 +171,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
     required String password,
   }) async {
     state = state.copyWith(status: AuthStatus.loading, error: null);
+    MetaEvents.instance.registrationAttempted(method: 'email');
     try {
       final res = await _authService.register(
         firstName: firstName,
@@ -185,6 +186,8 @@ class AuthNotifier extends StateNotifier<AuthState> {
       MetaEvents.instance
           .registrationCompleted(userId: res.user.id, method: 'email');
     } catch (e) {
+      MetaEvents.instance
+          .registrationFailed(method: 'email', reason: e.runtimeType.toString());
       state = AuthState(
           status: AuthStatus.unauthenticated, error: humanizeError(e));
     }
@@ -200,6 +203,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
       );
       return;
     }
+    MetaEvents.instance.registrationAttempted(method: 'google');
     try {
       final googleUser = await GoogleSignIn().signIn();
       if (googleUser == null) {
@@ -221,6 +225,8 @@ class AuthNotifier extends StateNotifier<AuthState> {
       MetaEvents.instance
           .registrationCompleted(userId: res.user.id, method: 'google');
     } catch (e) {
+      MetaEvents.instance.registrationFailed(
+          method: 'google', reason: e.runtimeType.toString());
       state = AuthState(
           status: AuthStatus.unauthenticated, error: humanizeError(e));
     }
@@ -228,6 +234,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
 
   Future<void> loginWithApple() async {
     state = state.copyWith(status: AuthStatus.loading, error: null);
+    MetaEvents.instance.registrationAttempted(method: 'apple');
     try {
       final credential = await SignInWithApple.getAppleIDCredential(
         scopes: [
@@ -248,6 +255,8 @@ class AuthNotifier extends StateNotifier<AuthState> {
       MetaEvents.instance
           .registrationCompleted(userId: res.user.id, method: 'apple');
     } catch (e) {
+      MetaEvents.instance.registrationFailed(
+          method: 'apple', reason: e.runtimeType.toString());
       state = AuthState(
           status: AuthStatus.unauthenticated, error: humanizeError(e));
     }

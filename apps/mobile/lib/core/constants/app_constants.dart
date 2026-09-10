@@ -23,6 +23,11 @@ class AppConstants {
     return '';
   }
 
+  /// Crash/error reporting DSN. Empty = Sentry is never initialized and the
+  /// app behaves exactly as before — pass `--dart-define=SENTRY_DSN=...` at
+  /// build time once a Sentry project exists for this app.
+  static String get sentryDsn => const String.fromEnvironment('SENTRY_DSN');
+
   /// Server origin without the `/api` suffix — for resolving relative
   /// `/storage/...` URLs returned by upload endpoints into absolute links.
   static String get apiOrigin {

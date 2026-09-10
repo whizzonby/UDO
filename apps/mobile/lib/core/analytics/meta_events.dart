@@ -89,4 +89,64 @@ class MetaEvents {
         'onboardingCompleted',
         () => _fb.logEvent(name: 'onboarding_completed'),
       );
+
+  /// Fired right before a sign-up/sign-in network call is made, so the
+  /// funnel has a denominator to compare `registrationCompleted` against —
+  /// without this there is no way to tell "never tried" from "tried and
+  /// failed" from download-to-signup drop-off reports.
+  Future<void> registrationAttempted({required String method}) => _safe(
+        'registrationAttempted',
+        () => _fb.logEvent(
+          name: 'registration_attempted',
+          parameters: {'method': method},
+        ),
+      );
+
+  /// The sign-up/sign-in call failed. [reason] is truncated to keep it a
+  /// short classifier tag (e.g. exception type), never raw error text that
+  /// could contain user input.
+  Future<void> registrationFailed({
+    required String method,
+    required String reason,
+  }) =>
+      _safe(
+        'registrationFailed',
+        () => _fb.logEvent(
+          name: 'registration_failed',
+          parameters: {
+            'method': method,
+            'reason': reason.length > 100 ? reason.substring(0, 100) : reason,
+          },
+        ),
+      );
+
+  /// Custom funnel event: the user reached onboarding step [index] (0-based)
+  /// of [totalSteps]. Lets the funnel be broken down step-by-step instead of
+  /// only knowing "started" vs "completed".
+  Future<void> onboardingStepViewed({
+    required int index,
+    required int totalSteps,
+  }) =>
+      _safe(
+        'onboardingStepViewed',
+        () => _fb.logEvent(
+          name: 'onboarding_step_viewed',
+          parameters: {'step_index': index, 'total_steps': totalSteps},
+        ),
+      );
+
+  /// The onboarding screen was left (navigated away / app backgrounded and
+  /// never returned) before [onboardingCompleted] fired. [lastIndex] is the
+  /// last step the user was on.
+  Future<void> onboardingAbandoned({
+    required int lastIndex,
+    required int totalSteps,
+  }) =>
+      _safe(
+        'onboardingAbandoned',
+        () => _fb.logEvent(
+          name: 'onboarding_abandoned',
+          parameters: {'last_index': lastIndex, 'total_steps': totalSteps},
+        ),
+      );
 }

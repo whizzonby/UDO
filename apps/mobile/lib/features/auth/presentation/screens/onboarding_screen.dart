@@ -24,7 +24,15 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
   final _pageCtrl = PageController();
   int _page = 0;
   bool _submitting = false;
+  bool _completed = false;
   final _answers = OnboardingAnswers();
+
+  @override
+  void initState() {
+    super.initState();
+    MetaEvents.instance
+        .onboardingStepViewed(index: 0, totalSteps: kOnboardingPageCount);
+  }
 
   void _goTo(int index) {
     _pageCtrl.animateToPage(index, duration: const Duration(milliseconds: 300), curve: Curves.easeInOut);
@@ -49,6 +57,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
     try {
       final api = ref.read(apiClientProvider);
       await api.post('/onboarding', data: _answers.toJson());
+      _completed = true;
       MetaEvents.instance.onboardingCompleted();
       final authSvc = ref.read(authServiceProvider);
       final user = await authSvc.me();
@@ -66,6 +75,10 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
 
   @override
   void dispose() {
+    if (!_completed) {
+      MetaEvents.instance.onboardingAbandoned(
+          lastIndex: _page, totalSteps: kOnboardingPageCount);
+    }
     _pageCtrl.dispose();
     super.dispose();
   }
@@ -106,7 +119,11 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
     return PageView(
       controller: _pageCtrl,
       physics: const NeverScrollableScrollPhysics(),
-      onPageChanged: (p) => setState(() => _page = p),
+      onPageChanged: (p) {
+        setState(() => _page = p);
+        MetaEvents.instance
+            .onboardingStepViewed(index: p, totalSteps: kOnboardingPageCount);
+      },
       children: pages,
     );
   }
