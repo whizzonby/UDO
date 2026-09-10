@@ -25,7 +25,7 @@ class GuestTokenResource extends Resource
 
     protected static ?string $model = GuestToken::class;
     protected static string|BackedEnum|null $navigationIcon = 'heroicon-o-link';
-    protected static string|UnitEnum|null $navigationGroup = 'Operations';
+    protected static string|UnitEnum|null $navigationGroup = 'Reliability & Ops';
     protected static ?int $navigationSort = 6;
     protected static ?string $recordTitleAttribute = 'token';
 

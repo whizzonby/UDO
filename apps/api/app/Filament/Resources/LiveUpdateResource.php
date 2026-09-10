@@ -25,7 +25,7 @@ class LiveUpdateResource extends Resource
 
     protected static ?string $model = LiveUpdate::class;
     protected static string|\BackedEnum|null $navigationIcon = 'heroicon-o-signal';
-    protected static string|\UnitEnum|null $navigationGroup = 'Operations';
+    protected static string|\UnitEnum|null $navigationGroup = 'Wedding Data';
     protected static ?int $navigationSort = 10;
     protected static ?string $recordTitleAttribute = 'title';
 

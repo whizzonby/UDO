@@ -24,9 +24,24 @@ class IdempotencyKeyResource extends Resource
 
     protected static ?string $model = IdempotencyKey::class;
     protected static string|BackedEnum|null $navigationIcon = 'heroicon-o-finger-print';
-    protected static string|UnitEnum|null $navigationGroup = 'Operations';
+    protected static string|UnitEnum|null $navigationGroup = 'Reliability & Ops';
     protected static ?int $navigationSort = 19;
     protected static ?string $recordTitleAttribute = 'key';
+
+    // Removed from the admin panel — pure API request-dedup debugging, no
+    // actionable support/business value; an engineer would use the DB or
+    // logs directly. File kept only because this sandbox can't delete
+    // tracked files; run `git rm -r app/Filament/Resources/IdempotencyKeyResource*`
+    // to finish it.
+    public static function shouldRegisterNavigation(): bool
+    {
+        return false;
+    }
+
+    public static function canViewAny(): bool
+    {
+        return false;
+    }
 
     public static function canCreate(): bool
     {

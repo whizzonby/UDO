@@ -25,7 +25,7 @@ class GalleryAssetResource extends Resource
 
     protected static ?string $model = GalleryAsset::class;
     protected static string|\BackedEnum|null $navigationIcon = 'heroicon-o-photo';
-    protected static string|\UnitEnum|null $navigationGroup = 'Operations';
+    protected static string|\UnitEnum|null $navigationGroup = 'Wedding Data';
     protected static ?int $navigationSort = 9;
     protected static ?string $recordTitleAttribute = 'original_filename';
 

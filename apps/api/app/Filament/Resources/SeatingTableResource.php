@@ -21,7 +21,7 @@ class SeatingTableResource extends Resource
 
     protected static ?string $model = SeatingTable::class;
     protected static string|\BackedEnum|null $navigationIcon = 'heroicon-o-squares-2x2';
-    protected static string|\UnitEnum|null $navigationGroup = 'Logistics';
+    protected static string|\UnitEnum|null $navigationGroup = 'Wedding Data';
     protected static ?int $navigationSort = 1;
     protected static ?string $recordTitleAttribute = 'name';
 

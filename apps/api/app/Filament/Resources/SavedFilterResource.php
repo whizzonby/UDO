@@ -23,9 +23,23 @@ class SavedFilterResource extends Resource
 
     protected static ?string $model = SavedFilter::class;
     protected static string|BackedEnum|null $navigationIcon = 'heroicon-o-funnel';
-    protected static string|UnitEnum|null $navigationGroup = 'Operations';
+    protected static string|UnitEnum|null $navigationGroup = 'Reliability & Ops';
     protected static ?int $navigationSort = 16;
     protected static ?string $recordTitleAttribute = 'name';
+
+    // Removed from the admin panel — read-only debug view of a customer's
+    // own private filter preference, no actionable support/business value.
+    // File kept only because this sandbox can't delete tracked files; run
+    // `git rm -r app/Filament/Resources/SavedFilterResource*` to finish it.
+    public static function shouldRegisterNavigation(): bool
+    {
+        return false;
+    }
+
+    public static function canViewAny(): bool
+    {
+        return false;
+    }
 
     public static function canCreate(): bool
     {

@@ -13,7 +13,7 @@ use UnitEnum;
 class ReliabilityConsole extends Page
 {
     protected static string|\BackedEnum|null $navigationIcon = 'heroicon-o-shield-check';
-    protected static string|UnitEnum|null $navigationGroup = 'Operations';
+    protected static string|UnitEnum|null $navigationGroup = 'Reliability & Ops';
     protected static ?string $navigationLabel = 'Reliability Console';
     protected static ?int $navigationSort = 17;
     protected static ?string $title = 'Reliability Console';

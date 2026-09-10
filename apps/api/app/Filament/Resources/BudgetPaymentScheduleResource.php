@@ -28,7 +28,7 @@ class BudgetPaymentScheduleResource extends Resource
 
     protected static ?string $model = BudgetPaymentSchedule::class;
     protected static string|BackedEnum|null $navigationIcon = 'heroicon-o-calendar-days';
-    protected static string|UnitEnum|null $navigationGroup = 'Operations';
+    protected static string|UnitEnum|null $navigationGroup = 'Wedding Data';
     protected static ?int $navigationSort = 13;
     protected static ?string $recordTitleAttribute = 'label';
 

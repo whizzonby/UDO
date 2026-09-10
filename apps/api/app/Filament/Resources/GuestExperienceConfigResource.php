@@ -25,7 +25,7 @@ class GuestExperienceConfigResource extends Resource
 
     protected static ?string $model = GuestExperienceConfig::class;
     protected static string|BackedEnum|null $navigationIcon = 'heroicon-o-device-phone-mobile';
-    protected static string|UnitEnum|null $navigationGroup = 'Operations';
+    protected static string|UnitEnum|null $navigationGroup = 'Wedding Data';
     protected static ?int $navigationSort = 5;
     protected static ?string $navigationLabel = 'Guest Portal';
     protected static ?string $recordTitleAttribute = 'welcome_message';

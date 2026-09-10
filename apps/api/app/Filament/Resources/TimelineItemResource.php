@@ -21,7 +21,7 @@ class TimelineItemResource extends Resource
 
     protected static ?string $model = TimelineItem::class;
     protected static string|\BackedEnum|null $navigationIcon = 'heroicon-o-clock';
-    protected static string|\UnitEnum|null $navigationGroup = 'Operations';
+    protected static string|\UnitEnum|null $navigationGroup = 'Wedding Data';
     protected static ?int $navigationSort = 14;
     protected static ?string $recordTitleAttribute = 'title';
 

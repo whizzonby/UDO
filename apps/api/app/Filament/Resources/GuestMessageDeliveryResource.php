@@ -25,7 +25,7 @@ class GuestMessageDeliveryResource extends Resource
 
     protected static ?string $model = GuestMessageDelivery::class;
     protected static string|BackedEnum|null $navigationIcon = 'heroicon-o-paper-airplane';
-    protected static string|UnitEnum|null $navigationGroup = 'Operations';
+    protected static string|UnitEnum|null $navigationGroup = 'Wedding Data';
     protected static ?int $navigationSort = 4;
     protected static ?string $navigationLabel = 'Message Deliveries';
     protected static ?string $recordTitleAttribute = 'external_id';

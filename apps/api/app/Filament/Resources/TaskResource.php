@@ -24,7 +24,7 @@ class TaskResource extends Resource
 
     protected static ?string $model = Task::class;
     protected static string|\BackedEnum|null $navigationIcon = 'heroicon-o-clipboard-document-check';
-    protected static string|\UnitEnum|null $navigationGroup = 'Operations';
+    protected static string|\UnitEnum|null $navigationGroup = 'Wedding Data';
     protected static ?int $navigationSort = 8;
     protected static ?string $recordTitleAttribute = 'title';
 

@@ -26,7 +26,7 @@ class FailedJobResource extends Resource
 
     protected static ?string $model = FailedJob::class;
     protected static string|BackedEnum|null $navigationIcon = 'heroicon-o-exclamation-triangle';
-    protected static string|UnitEnum|null $navigationGroup = 'Operations';
+    protected static string|UnitEnum|null $navigationGroup = 'Reliability & Ops';
     protected static ?int $navigationSort = 18;
     protected static ?string $recordTitleAttribute = 'uuid';
 

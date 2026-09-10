@@ -26,7 +26,7 @@ class SmartAlertResource extends Resource
 
     protected static ?string $model = SmartAlert::class;
     protected static string|BackedEnum|null $navigationIcon = 'heroicon-o-exclamation-triangle';
-    protected static string|UnitEnum|null $navigationGroup = 'Operations';
+    protected static string|UnitEnum|null $navigationGroup = 'Reliability & Ops';
     protected static ?int $navigationSort = 11;
     protected static ?string $recordTitleAttribute = 'title';
 

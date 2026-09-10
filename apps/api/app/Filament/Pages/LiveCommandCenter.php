@@ -13,7 +13,7 @@ use UnitEnum;
 class LiveCommandCenter extends Page
 {
     protected static string|\BackedEnum|null $navigationIcon = 'heroicon-o-bolt';
-    protected static string|UnitEnum|null $navigationGroup = 'Operations';
+    protected static string|UnitEnum|null $navigationGroup = 'Reliability & Ops';
     protected static ?string $navigationLabel = 'Live Command Center';
     protected static ?int $navigationSort = 1;
     protected static ?string $title = 'Live Command Center';

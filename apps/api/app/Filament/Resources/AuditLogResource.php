@@ -23,7 +23,7 @@ class AuditLogResource extends Resource
 
     protected static ?string $model = AuditLog::class;
     protected static string|BackedEnum|null $navigationIcon = 'heroicon-o-clipboard-document-list';
-    protected static string|UnitEnum|null $navigationGroup = 'Operations';
+    protected static string|UnitEnum|null $navigationGroup = 'Reliability & Ops';
     protected static ?int $navigationSort = 15;
     protected static ?string $recordTitleAttribute = 'action';
 

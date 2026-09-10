@@ -21,7 +21,7 @@ class WeddingCollaboratorResource extends Resource
 
     protected static ?string $model = WeddingCollaborator::class;
     protected static string|\BackedEnum|null $navigationIcon = 'heroicon-o-user-plus';
-    protected static string|\UnitEnum|null $navigationGroup = 'Platform';
+    protected static string|\UnitEnum|null $navigationGroup = 'Wedding Data';
     protected static ?int $navigationSort = 4;
     protected static ?string $recordTitleAttribute = 'role';
 
