@@ -15,7 +15,12 @@ class OnboardingController extends Controller
         $data = $request->validate([
             // Identity / role
             'couple_name'              => 'nullable|string|max:255',
-            'role'                     => 'required|string',
+            'user_name'                => 'nullable|string|max:255',
+            'partner_name'             => 'nullable|string|max:255',
+            'role'                     => 'nullable|string',
+            // Which optional profile section (or the short first-run flow)
+            // this submission came from — informational, kept in responses.
+            'profile_section'          => 'nullable|string|max:60',
             'decision_style'           => 'nullable|string',
             'collaborators'            => 'nullable|array',
             'collaborators.*.name'     => 'nullable|string',
@@ -148,11 +153,26 @@ class OnboardingController extends Controller
             $user->update(['onboarding_completed' => true]);
         }
 
-        OnboardingResponse::create([
-            'user_id'    => $user->id,
-            'wedding_id' => $wedding->id,
-            'responses'  => $data,
-        ]);
+        // The first-run flow is now three questions and the rest arrive as
+        // separate profile-section submissions, so merge into one row per
+        // user+wedding rather than piling up a row per submission. Nulls are
+        // dropped so a section that leaves a field unanswered can't erase an
+        // earlier answer.
+        $answered = array_filter($data, fn ($value) => $value !== null);
+        $existing = OnboardingResponse::where('user_id', $user->id)
+            ->where('wedding_id', $wedding->id)
+            ->latest('id')
+            ->first();
+
+        if ($existing) {
+            $existing->update(['responses' => array_merge($existing->responses ?? [], $answered)]);
+        } else {
+            OnboardingResponse::create([
+                'user_id'    => $user->id,
+                'wedding_id' => $wedding->id,
+                'responses'  => $answered,
+            ]);
+        }
 
         return response()->json([
             'message'    => 'Onboarding complete.',

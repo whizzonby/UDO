@@ -22,15 +22,15 @@ class AuthController extends Controller
     {
         $data = $request->validate([
             'first_name' => 'required|string|max:100',
-            'last_name'  => 'required|string|max:100',
+            'last_name'  => 'nullable|string|max:100',
             'email'      => 'required|email|unique:users,email',
             'password'   => 'required|string|min:8|confirmed',
         ]);
 
         $user = User::create([
-            'name'       => $data['first_name'] . ' ' . $data['last_name'],
+            'name'       => trim($data['first_name'] . ' ' . ($data['last_name'] ?? '')),
             'first_name' => $data['first_name'],
-            'last_name'  => $data['last_name'],
+            'last_name'  => $data['last_name'] ?? null,
             'email'      => $data['email'],
             'password'   => Hash::make($data['password']),
         ]);
@@ -45,7 +45,7 @@ class AuthController extends Controller
         try {
             Mail::to($user)->send(new TemplatedMail('welcome', [
                 'first_name' => $user->first_name,
-                'last_name'  => $user->last_name,
+                'last_name'  => $user->last_name ?? '',
             ]));
             $user->sendEmailVerificationNotification();
         } catch (\Throwable $e) {
