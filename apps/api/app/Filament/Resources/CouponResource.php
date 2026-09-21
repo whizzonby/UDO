@@ -11,6 +11,7 @@ use Filament\Actions;
 use Filament\Forms;
 use Filament\Infolists;
 use Filament\Resources\Resource;
+use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Schema;
 use Filament\Tables;
 use Filament\Tables\Table;
@@ -45,8 +46,8 @@ class CouponResource extends Resource
                 ->numeric()
                 ->required()
                 ->minValue(1)
-                ->suffix(fn (Forms\Get $get) => $get('type') === 'percent' ? '%' : 'cents')
-                ->helperText(fn (Forms\Get $get) => $get('type') === 'percent'
+                ->suffix(fn (Get $get) => $get('type') === 'percent' ? '%' : 'cents')
+                ->helperText(fn (Get $get) => $get('type') === 'percent'
                     ? 'Whole number 1-100.'
                     : 'Amount off in cents, e.g. 1000 = $10.00 off.'),
             Forms\Components\TextInput::make('max_redemptions')
