@@ -46,7 +46,7 @@ function FeatureList({ features, checkColor }: { features: string[]; checkColor:
 export function Pricing() {
   return (
     <Section id="pricing" tone="white" width="wide">
-      <div className="mx-auto grid max-w-3xl gap-6 md:grid-cols-2">
+      <div className="mx-auto grid max-w-5xl gap-6 md:grid-cols-3">
         {/* Free */}
         <div className="flex flex-col rounded-[28px] p-9" style={{ backgroundColor: C.cream, border: `1.5px solid ${C.line}` }}>
           <p className="text-[13px] uppercase tracking-wide" style={{ color: C.body, fontWeight: 600 }}>
@@ -71,6 +71,27 @@ export function Pricing() {
           <FeatureList features={freeFeatures} checkColor={C.rose} />
         </div>
 
+        {/* Udo Premium */}
+        <div className="flex flex-col rounded-[28px] p-9" style={{ backgroundColor: C.cream, border: `1.5px solid ${C.rose}` }}>
+          <p className="text-[13px] uppercase tracking-wide" style={{ color: C.body, fontWeight: 600 }}>
+            Udo Premium
+          </p>
+          <p className="mt-3 text-[52px] leading-none tracking-tight" style={{ color: C.ink, fontWeight: 700 }}>
+            $4.99<span className="text-[18px] font-medium" style={{ color: C.body }}>/month</span>
+          </p>
+          <p className="mt-2 text-[14px]" style={{ color: C.body }}>
+            Full wedding-planning access. Cancel anytime.
+          </p>
+          <Link
+            href="/checkout?plan=premium"
+            className="mt-6 flex w-full items-center justify-center rounded-full py-3.5 text-[15px] font-medium transition-colors hover:bg-[#EBD9CE]"
+            style={{ border: `1.5px solid ${C.rose}`, color: C.rose }}
+          >
+            Get Udo Premium
+          </Link>
+          <FeatureList features={passFeatures} checkColor={C.rose} />
+        </div>
+
         {/* Wedding Pass */}
         <div className="relative flex flex-col overflow-hidden rounded-[28px] p-9" style={{ backgroundColor: C.tan }}>
           <span
@@ -83,13 +104,13 @@ export function Pricing() {
             Wedding Pass
           </p>
           <p className="mt-3 text-[52px] leading-none tracking-tight" style={{ color: C.ink, fontWeight: 700 }}>
-            $45
+            $49.99
           </p>
           <p className="mt-2 text-[14px]" style={{ color: C.body }}>
-            One-time payment. No subscriptions, ever.
+            One payment. Plan all the way to &ldquo;I do.&rdquo;
           </p>
           <Link
-            href="/checkout"
+            href="/checkout?plan=pass"
             className="mt-6 flex w-full items-center justify-center rounded-full py-3.5 text-[15px] font-medium text-white shadow-md transition-all hover:opacity-95 hover:shadow-lg"
             style={{ backgroundColor: C.rose }}
           >
@@ -100,7 +121,7 @@ export function Pricing() {
       </div>
 
       <div className="mt-8 flex flex-wrap items-center justify-center gap-x-8 gap-y-2 text-[14px]" style={{ color: C.bodyMuted }}>
-        <span className="flex items-center gap-2"><Check className="h-4 w-4" style={{ color: C.roseSoft }} /> No monthly fees</span>
+        <span className="flex items-center gap-2"><Check className="h-4 w-4" style={{ color: C.roseSoft }} /> Cancel anytime</span>
         <span className="flex items-center gap-2"><Check className="h-4 w-4" style={{ color: C.roseSoft }} /> No card to start</span>
         <span className="flex items-center gap-2"><Check className="h-4 w-4" style={{ color: C.roseSoft }} /> Upgrade any time</span>
       </div>

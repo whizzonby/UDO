@@ -33,7 +33,7 @@ export default function DashboardBillingPage() {
     return <div className="w-8 h-8 border-2 border-[#285301] border-t-transparent rounded-full animate-spin" />;
   }
 
-  const isLifetime = entitlements?.plan === 'lifetime';
+  const isLifetime = entitlements?.plan === 'lifetime' || entitlements?.plan === 'premium';
 
   return (
     <div className="max-w-lg space-y-6">
@@ -57,7 +57,7 @@ export default function DashboardBillingPage() {
             className="mt-4 inline-block px-5 py-2.5 rounded-xl text-sm font-semibold text-white"
             style={{ backgroundColor: '#D8909A' }}
           >
-            Get lifetime access — $45
+            Upgrade — from $4.99/month
           </Link>
         )}
       </div>
