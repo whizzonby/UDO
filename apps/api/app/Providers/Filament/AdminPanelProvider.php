@@ -8,6 +8,8 @@ use App\Filament\Resources\BlogPostResource;
 use App\Filament\Resources\BudgetItemResource;
 use App\Filament\Resources\BudgetPaymentScheduleResource;
 use App\Filament\Resources\ContentPageResource;
+use App\Filament\Resources\CouponResource;
+use App\Filament\Resources\InsurancePolicyResource;
 use App\Filament\Resources\EmailTemplateResource;
 use App\Filament\Resources\FailedJobResource;
 use App\Filament\Resources\FaqResource;
@@ -110,6 +112,8 @@ class AdminPanelProvider extends PanelProvider
                 TransportGroupResource::class,
                 // Finance & Support
                 SubscriptionResource::class,
+                CouponResource::class,
+                InsurancePolicyResource::class,
                 RegistryContributionResource::class,
                 ThankYouRecordResource::class,
                 SupportTicketResource::class,
