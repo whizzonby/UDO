@@ -185,6 +185,7 @@ Route::middleware(['auth:sanctum', 'idempotency'])->group(function () {
     Route::get('billing/plans', [BillingController::class, 'plans']);
     Route::post('billing/plan', [BillingController::class, 'changePlan']);
     Route::post('billing/checkout-session', [CheckoutController::class, 'store']);
+    Route::post('billing/coupon-preview', [CheckoutController::class, 'couponPreview']);
     Route::get('billing/checkout-session/{sessionId}', [CheckoutController::class, 'show']);
     Route::post('billing/verify-purchase', [IapController::class, 'verifyPurchase']);
     Route::post('mood-checkins', [MoodController::class, 'store']);

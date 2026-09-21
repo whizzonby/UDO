@@ -30,7 +30,7 @@ class IapController extends Controller
             if (! $verifier->isAppleConfigured()) {
                 return response()->json(['data' => ['configured' => false]]);
             }
-            $result = $verifier->verifyApple($data['receipt_data']);
+            $result = $verifier->verifyApple($data['receipt_data'], $data['product_id']);
         } else {
             if (! $verifier->isGoogleConfigured()) {
                 return response()->json(['data' => ['configured' => false]]);
@@ -42,11 +42,25 @@ class IapController extends Controller
             return response()->json(['message' => $result['error'] ?? 'Could not verify this purchase.'], 422);
         }
 
-        app(SubscriptionEntitlementService::class)->grantLifetime(
-            $request->user(),
-            $data['platform'],
-            $result['transaction_id'] ?? $data['product_id'],
-        );
+        $entitlements = app(SubscriptionEntitlementService::class);
+
+        if (($result['kind'] ?? 'pass') === 'premium') {
+            $entitlements->grantPremium(
+                $request->user(),
+                $data['platform'],
+                $result['transaction_id'] ?? $data['product_id'],
+                $result['expires_at'],
+                metadata: $data['platform'] === 'android' ? ['play_purchase_token' => $data['purchase_token']] : [],
+            );
+            $message = 'Subscription verified. Udo Premium unlocked.';
+        } else {
+            $entitlements->grantLifetime(
+                $request->user(),
+                $data['platform'],
+                $result['transaction_id'] ?? $data['product_id'],
+            );
+            $message = 'Purchase verified. Wedding Pass unlocked.';
+        }
 
         $wedding = $request->user()->activeWedding;
 
@@ -55,7 +69,7 @@ class IapController extends Controller
                 'configured' => true,
                 ...($wedding ? app(SubscriptionEntitlementService::class)->payloadFor($wedding) : []),
             ],
-            'message' => 'Purchase verified. Lifetime access unlocked.',
+            'message' => $message,
         ]);
     }
 }

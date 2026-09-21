@@ -47,6 +47,8 @@ class Subscription extends Model
             'starter' => 'Starter',
             'pro' => 'Pro',
             'elite' => 'Elite',
+            'premium' => 'Udo Premium',
+            'lifetime' => 'Wedding Pass',
             default => 'Free',
         };
     }

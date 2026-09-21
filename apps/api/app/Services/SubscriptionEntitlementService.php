@@ -12,7 +12,8 @@ use Illuminate\Support\Facades\Storage;
 
 class SubscriptionEntitlementService
 {
-    private const LIFETIME_PRICE = 45;
+    private const LIFETIME_PRICE = 49.99;
+    private const PREMIUM_PRICE = 4.99;
     public const PLANS = [
         'free' => [
             'label' => 'Free',
@@ -112,12 +113,37 @@ class SubscriptionEntitlementService
                 'invitations_sent' => null,
             ],
         ],
+        // Granted only after a confirmed Stripe / Apple / Google subscription
+        // payment (see grantPremium) — never self-service via changePlan().
+        'premium' => [
+            'label' => 'Udo Premium',
+            'description' => 'Full wedding-planning access. Cancel anytime.',
+            'monthly_price' => self::PREMIUM_PRICE,
+            'annual_price' => 0,
+            'features' => [
+                'Unlimited guests, vendors & messaging',
+                'Everything in the Wedding Pass',
+                'Cancel anytime',
+            ],
+            'limits' => [
+                'guests' => null,
+                'team_members' => null,
+                'messages_per_month' => null,
+                'gallery_assets' => null,
+                'weddings' => null,
+                'ai_assistant_calls_per_month' => null,
+                'vendors' => null,
+                'wedding_party_members' => null,
+                'meal_options' => null,
+                'invitations_sent' => null,
+            ],
+        ],
         // Only ever granted by CheckoutController after a real, confirmed
         // Stripe payment (see the webhook handler) — deliberately excluded
         // from BillingController::changePlan()'s free self-service switch.
         'lifetime' => [
-            'label' => 'Lifetime',
-            'description' => 'One payment, full access, no subscriptions.',
+            'label' => 'Wedding Pass',
+            'description' => 'One payment. Plan all the way to "I do."',
             'monthly_price' => 0,
             'annual_price' => 0,
             'one_time_price' => self::LIFETIME_PRICE,
@@ -235,6 +261,10 @@ class SubscriptionEntitlementService
     {
         return $user->subscriptions()
             ->whereIn('status', ['active', 'trialing'])
+            // Store-managed monthly subscriptions lapse silently if a renewal
+            // never reaches us, so they carry a 2-day grace past their period end.
+            ->where(fn ($q) => $q->where('plan', '!=', 'premium')
+                ->orWhere('current_period_end', '>', now()->subDays(2)))
             ->latest()
             ->first();
     }
@@ -244,14 +274,14 @@ class SubscriptionEntitlementService
      * platform (Stripe checkout, Apple IAP, Google Play Billing), ends up.
      * Sends a real receipt email with an attached invoice PDF.
      */
-    public function grantLifetime(User $user, string $platform, string $transactionId): Subscription
+    public function grantLifetime(User $user, string $platform, string $transactionId, ?float $amountPaid = null): Subscription
     {
         $subscription = $user->subscriptions()->latest()->first() ?? new Subscription(['user_id' => $user->id]);
         $subscription->fill([
             'plan' => 'lifetime',
             'status' => 'active',
             'billing_cycle' => 'one_time',
-            'amount' => self::LIFETIME_PRICE,
+            'amount' => $amountPaid ?? self::LIFETIME_PRICE,
             'currency' => 'USD',
             'current_period_start' => now(),
             'current_period_end' => null,
@@ -266,6 +296,58 @@ class SubscriptionEntitlementService
         $subscription->save();
 
         $this->sendReceipt($subscription);
+
+        return $subscription;
+    }
+
+    /**
+     * Grants / renews the $4.99 monthly plan. A user who already owns the
+     * Wedding Pass keeps it — a subscription never downgrades lifetime access.
+     *
+     * @param  array<string, mixed>  $attributes  extra Subscription columns (e.g. stripe ids)
+     * @param  array<string, mixed>  $metadata  merged into the subscription's metadata
+     */
+    public function grantPremium(
+        User $user,
+        string $platform,
+        string $transactionId,
+        ?\Carbon\CarbonInterface $periodEnd,
+        array $attributes = [],
+        array $metadata = [],
+        ?float $amountPaid = null,
+    ): Subscription {
+        $subscription = $user->subscriptions()->latest()->first() ?? new Subscription(['user_id' => $user->id]);
+
+        if ($subscription->exists && $subscription->plan === 'lifetime' && $subscription->isActive()) {
+            return $subscription;
+        }
+
+        $isNew = ! $subscription->exists || $subscription->plan !== 'premium' || ! $subscription->isActive();
+
+        $subscription->fill([
+            'plan' => 'premium',
+            'status' => 'active',
+            'billing_cycle' => 'monthly',
+            'amount' => $amountPaid ?? self::PREMIUM_PRICE,
+            'currency' => 'USD',
+            'current_period_start' => $subscription->current_period_start && ! $isNew ? $subscription->current_period_start : now(),
+            'current_period_end' => $periodEnd,
+            'cancelled_at' => null,
+            'ends_at' => null,
+            'platform' => $platform,
+            'platform_transaction_id' => $transactionId,
+            ...$attributes,
+            'metadata' => [
+                ...($subscription->metadata ?? []),
+                ...$metadata,
+                'premium_updated_at' => now()->toISOString(),
+            ],
+        ]);
+        $subscription->save();
+
+        if ($isNew) {
+            $this->sendReceipt($subscription);
+        }
 
         return $subscription;
     }

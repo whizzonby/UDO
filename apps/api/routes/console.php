@@ -10,3 +10,4 @@ Artisan::command('inspire', function () {
 
 Schedule::command('messages:dispatch-scheduled')->everyMinute();
 Schedule::command('automations:send-rsvp-reminders')->daily();
+Schedule::command('billing:sync-play-subscriptions')->hourly();

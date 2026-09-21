@@ -92,12 +92,14 @@ return [
     'apple_iap' => [
         'shared_secret' => env('APPLE_IAP_SHARED_SECRET'),
         'product_id' => env('IOS_LIFETIME_PRODUCT_ID'),
+        'premium_product_id' => env('IOS_PREMIUM_PRODUCT_ID', 'udo_premium_monthly'),
     ],
 
     'google_play' => [
         'service_account_json' => env('GOOGLE_PLAY_SERVICE_ACCOUNT_JSON'),
         'package_name' => env('GOOGLE_PLAY_PACKAGE_NAME'),
         'product_id' => env('ANDROID_LIFETIME_PRODUCT_ID'),
+        'premium_product_id' => env('ANDROID_PREMIUM_PRODUCT_ID', 'udo_premium_monthly'),
     ],
 
     'guest_tokens' => [

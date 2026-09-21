@@ -30,6 +30,10 @@ class BillingController extends Controller
                     'ios' => config('services.apple_iap.product_id'),
                     'android' => config('services.google_play.product_id'),
                 ],
+                'premium_product_id' => [
+                    'ios' => config('services.apple_iap.premium_product_id'),
+                    'android' => config('services.google_play.premium_product_id'),
+                ],
             ],
         ]);
     }
