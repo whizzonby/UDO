@@ -42,6 +42,12 @@
 		<string>Udo uses the camera so you can take photos to add to your wedding gallery, memories, and planning boards.</string>
 		<key>NSPhotoLibraryUsageDescription</key>
 		<string>Udo needs access to your photos so you can add images to your wedding gallery, memories, invitations, and vision board.</string>
+		<key>NSPhotoLibraryAddUsageDescription</key>
+		<string>Udo saves wedding photos and invitations you choose to download to your photo library.</string>
+		<key>NSMicrophoneUsageDescription</key>
+		<string>Udo uses the microphone when you record a video to add to your wedding gallery or memories.</string>
+		<key>NSAppleMusicUsageDescription</key>
+		<string>Udo lets you choose audio files from your device to add to your wedding memories and plans.</string>
 		<key>ITSAppUsesNonExemptEncryption</key>
 		<false/>
 		<!--
