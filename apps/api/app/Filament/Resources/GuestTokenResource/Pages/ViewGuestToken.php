@@ -3,7 +3,6 @@
 namespace App\Filament\Resources\GuestTokenResource\Pages;
 
 use App\Filament\Resources\GuestTokenResource;
-use Filament\Actions;
 use Filament\Resources\Pages\ViewRecord;
 
 class ViewGuestToken extends ViewRecord
@@ -12,6 +11,10 @@ class ViewGuestToken extends ViewRecord
 
     protected function getHeaderActions(): array
     {
-        return [Actions\EditAction::make()];
+        return [
+            GuestTokenResource::extendAction(),
+            GuestTokenResource::revokeAction(),
+            GuestTokenResource::restoreAction(),
+        ];
     }
 }

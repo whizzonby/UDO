@@ -8,13 +8,13 @@ use App\Filament\Resources\GuestTokenResource\Pages;
 use App\Models\GuestToken;
 use BackedEnum;
 use Filament\Actions;
-use Filament\Forms;
 use Filament\Infolists;
 use Filament\Notifications\Notification;
 use Filament\Resources\Resource;
 use Filament\Schemas\Schema;
 use Filament\Tables;
 use Filament\Tables\Table;
+use Illuminate\Database\Eloquent\Model;
 use UnitEnum;
 
 class GuestTokenResource extends Resource
@@ -29,31 +29,18 @@ class GuestTokenResource extends Resource
     protected static ?int $navigationSort = 6;
     protected static ?string $recordTitleAttribute = 'token';
 
-    public static function form(Schema $schema): Schema
+    /**
+     * Tokens are created when couples send invitations; admins only inspect,
+     * revoke/restore or extend them — never create or rewrite a guest's link.
+     */
+    public static function canCreate(): bool
     {
-        return $schema->schema([
-            \Filament\Schemas\Components\Section::make('Token')->columns(2)->schema([
-                Forms\Components\Select::make('wedding_id')
-                    ->relationship('wedding', 'couple_name_primary')
-                    ->searchable()
-                    ->required(),
-                Forms\Components\Select::make('guest_id')
-                    ->relationship('guest', 'email')
-                    ->searchable()
-                    ->required(),
-                Forms\Components\Select::make('view_type')
-                    ->options([
-                        'attending' => 'Attending',
-                        'travelling' => 'Travelling',
-                        'wedding_party' => 'Wedding party',
-                        'pending' => 'Pending',
-                    ])
-                    ->default('attending')
-                    ->required(),
-                Forms\Components\DateTimePicker::make('expires_at')->native(false),
-                Forms\Components\Toggle::make('revoked'),
-            ]),
-        ]);
+        return false;
+    }
+
+    public static function canEdit(Model $record): bool
+    {
+        return false;
     }
 
     public static function infolist(Schema $schema): Schema
@@ -114,27 +101,9 @@ class GuestTokenResource extends Resource
             ])
             ->actions([
                 Actions\ViewAction::make(),
-                Actions\EditAction::make(),
-                Actions\Action::make('revoke')
-                    ->label('Revoke')
-                    ->icon('heroicon-o-x-circle')
-                    ->color('danger')
-                    ->requiresConfirmation()
-                    ->visible(fn (GuestToken $record) => ! $record->revoked)
-                    ->action(function (GuestToken $record): void {
-                        $record->update(['revoked' => true]);
-                        Notification::make()->title('Guest token revoked')->success()->send();
-                    }),
-                Actions\Action::make('restore')
-                    ->label('Restore')
-                    ->icon('heroicon-o-check-circle')
-                    ->color('success')
-                    ->requiresConfirmation()
-                    ->visible(fn (GuestToken $record) => $record->revoked)
-                    ->action(function (GuestToken $record): void {
-                        $record->update(['revoked' => false]);
-                        Notification::make()->title('Guest token restored')->success()->send();
-                    }),
+                static::extendAction(),
+                static::revokeAction(),
+                static::restoreAction(),
             ])
             ->bulkActions([]);
     }
@@ -143,10 +112,57 @@ class GuestTokenResource extends Resource
     {
         return [
             'index' => Pages\ListGuestTokens::route('/'),
-            'create' => Pages\CreateGuestToken::route('/create'),
             'view' => Pages\ViewGuestToken::route('/{record}'),
-            'edit' => Pages\EditGuestToken::route('/{record}/edit'),
         ];
+    }
+
+    /** Push the expiry out 30 days (from now if already expired). */
+    public static function extendAction(): Actions\Action
+    {
+        return Actions\Action::make('extend')
+            ->label('Extend 30 days')
+            ->icon('heroicon-o-clock')
+            ->color('warning')
+            ->requiresConfirmation()
+            ->modalDescription("The guest's link will work for 30 more days.")
+            ->visible(fn (GuestToken $record) => ! $record->revoked && $record->expires_at !== null)
+            ->action(function (GuestToken $record): void {
+                $from = $record->expires_at->isPast() ? now() : $record->expires_at;
+                $record->update(['expires_at' => $from->copy()->addDays(30)]);
+                Notification::make()
+                    ->title('Link extended to ' . $record->expires_at->toFormattedDateString())
+                    ->success()
+                    ->send();
+            });
+    }
+
+    public static function revokeAction(): Actions\Action
+    {
+        return Actions\Action::make('revoke')
+            ->label('Revoke')
+            ->icon('heroicon-o-x-circle')
+            ->color('danger')
+            ->requiresConfirmation()
+            ->modalDescription("The guest's link stops working immediately.")
+            ->visible(fn (GuestToken $record) => ! $record->revoked)
+            ->action(function (GuestToken $record): void {
+                $record->update(['revoked' => true]);
+                Notification::make()->title('Guest token revoked')->success()->send();
+            });
+    }
+
+    public static function restoreAction(): Actions\Action
+    {
+        return Actions\Action::make('restore')
+            ->label('Restore')
+            ->icon('heroicon-o-check-circle')
+            ->color('success')
+            ->requiresConfirmation()
+            ->visible(fn (GuestToken $record) => $record->revoked)
+            ->action(function (GuestToken $record): void {
+                $record->update(['revoked' => false]);
+                Notification::make()->title('Guest token restored')->success()->send();
+            });
     }
 
     public static function getNavigationBadge(): ?string
