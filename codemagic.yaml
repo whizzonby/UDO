@@ -1,0 +1,54 @@
+# Codemagic CI for the Udo iOS app.
+# The Flutter app lives in apps/mobile (monorepo), so every step runs there.
+workflows:
+  ios-release:
+    name: iOS release (TestFlight)
+    instance_type: mac_mini_m2
+    max_build_duration: 60
+    working_directory: apps/mobile
+
+    integrations:
+      # Must match the name of the App Store Connect API key added in
+      # Codemagic → Team settings → Integrations → Developer Portal.
+      app_store_connect: Udo ASC
+
+    environment:
+      # Pinned on purpose: pubspec caps Dart < 3.13 (see its environment
+      # comment); Flutter 3.38.x ships Dart 3.10.
+      flutter: 3.38.7
+      xcode: latest
+      cocoapods: default
+      ios_signing:
+        distribution_type: app_store
+        bundle_identifier: com.udowedding.udoMobile
+
+    # No automatic trigger: this repo also holds the API and web app, so
+    # start iOS builds manually from Codemagic (Start new build → master).
+
+    scripts:
+      - name: Get Flutter packages
+        script: flutter pub get
+
+      - name: Install CocoaPods
+        script: cd ios && pod install --repo-update
+
+      - name: Apply code signing profiles
+        script: xcode-project use-profiles
+
+      - name: Build IPA
+        # Version name (1.0.0) comes from pubspec; the build number is
+        # Codemagic's per-app counter, so every upload is strictly higher.
+        script: |
+          flutter build ipa --release \
+            --build-number=$BUILD_NUMBER \
+            --export-options-plist=/Users/builder/export_options.plist
+
+    artifacts:
+      - build/ios/ipa/*.ipa
+      - /tmp/xcodebuild_logs/*.log
+      - flutter_drive.log
+
+    publishing:
+      app_store_connect:
+        auth: integration
+        submit_to_testflight: true
