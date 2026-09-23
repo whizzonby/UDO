@@ -2,7 +2,7 @@
 
 namespace App\Filament\Widgets;
 
-use App\Filament\Resources\MessageResource;
+use App\Filament\Resources\GuestMessageDeliveryResource;
 use App\Filament\Resources\SupportTicketResource;
 use App\Filament\Resources\WeddingResource;
 use App\Models\GuestToken;
@@ -43,7 +43,7 @@ class OperationsHealthWidget extends BaseWidget
                 ->description($queue['failed_deliveries'] . ' failed, ' . $queue['stale_sending_messages'] . ' stale sending')
                 ->color(($queue['failed_deliveries'] + $queue['stale_sending_messages']) > 0 ? 'danger' : 'success')
                 ->icon('heroicon-o-envelope')
-                ->url(MessageResource::getUrl('index')),
+                ->url(GuestMessageDeliveryResource::getUrl('index')),
 
             Stat::make('Guest token risk', $tokens['expired_active'] + $expiringTokens)
                 ->description($tokens['expired_active'] . ' expired active, ' . $expiringTokens . ' expiring soon')

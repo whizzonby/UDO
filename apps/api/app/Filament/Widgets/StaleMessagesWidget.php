@@ -2,7 +2,7 @@
 
 namespace App\Filament\Widgets;
 
-use App\Filament\Resources\MessageResource;
+use App\Filament\Resources\GuestMessageDeliveryResource;
 use App\Models\Message;
 use Filament\Tables;
 use Filament\Tables\Table;
@@ -29,7 +29,7 @@ class StaleMessagesWidget extends BaseWidget
             ->columns([
                 Tables\Columns\TextColumn::make('wedding.couple_name_primary')
                     ->label('Wedding')
-                    ->url(fn (Message $message) => $message->wedding ? MessageResource::getUrl('edit', ['record' => $message]) : null),
+                    ->url(GuestMessageDeliveryResource::getUrl('index')),
                 Tables\Columns\TextColumn::make('subject')->limit(40)->default('(no subject)'),
                 Tables\Columns\TextColumn::make('channel')->badge()->color('gray'),
                 Tables\Columns\TextColumn::make('recipient_count')->label('Recipients'),
