@@ -87,7 +87,8 @@ final routerProvider = Provider<GoRouter>((ref) {
       if (loc == '/splash' ||
           loc == '/login' ||
           loc == '/register' ||
-          loc == '/two-factor') {
+          loc == '/two-factor' ||
+          loc == '/onboarding') {
         return '/home';
       }
       return null;

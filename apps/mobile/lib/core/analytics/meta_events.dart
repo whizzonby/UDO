@@ -15,6 +15,11 @@ import 'package:shared_preferences/shared_preferences.dart';
 ///
 /// Every call is best-effort: analytics must never break a user flow, so all
 /// failures are swallowed (surfaced only via `debugPrint` in debug builds).
+/// Tags every funnel event with the onboarding design that produced it, so
+/// the short 3-step flow can be compared against the old 24-screen flow
+/// (whose events carry no tag, i.e. `long_v1`).
+const String kOnboardingFlow = 'quick_v2';
+
 class MetaEvents {
   MetaEvents._();
 
@@ -87,7 +92,10 @@ class MetaEvents {
   /// up). Useful as a Meta custom-conversion between install and purchase.
   Future<void> onboardingCompleted() => _safe(
         'onboardingCompleted',
-        () => _fb.logEvent(name: 'onboarding_completed'),
+        () => _fb.logEvent(
+          name: 'onboarding_completed',
+          parameters: {'flow': kOnboardingFlow},
+        ),
       );
 
   /// Fired right before a sign-up/sign-in network call is made, so the
@@ -131,7 +139,11 @@ class MetaEvents {
         'onboardingStepViewed',
         () => _fb.logEvent(
           name: 'onboarding_step_viewed',
-          parameters: {'step_index': index, 'total_steps': totalSteps},
+          parameters: {
+            'step_index': index,
+            'total_steps': totalSteps,
+            'flow': kOnboardingFlow,
+          },
         ),
       );
 
@@ -146,7 +158,54 @@ class MetaEvents {
         'onboardingAbandoned',
         () => _fb.logEvent(
           name: 'onboarding_abandoned',
-          parameters: {'last_index': lastIndex, 'total_steps': totalSteps},
+          parameters: {
+            'last_index': lastIndex,
+            'total_steps': totalSteps,
+            'flow': kOnboardingFlow,
+          },
         ),
       );
+
+  /// The user chose "Add later" / "I haven't decided yet" on onboarding step
+  /// [index] instead of answering.
+  Future<void> onboardingStepSkipped({required int index}) => _safe(
+        'onboardingStepSkipped',
+        () => _fb.logEvent(
+          name: 'onboarding_step_skipped',
+          parameters: {'step_index': index, 'flow': kOnboardingFlow},
+        ),
+      );
+
+  /// The register screen was shown — the top of the signup funnel
+  /// (installs → this → [registrationAttempted] → [registrationCompleted]).
+  Future<void> registrationScreenViewed() => _safe(
+        'registrationScreenViewed',
+        () => _fb.logEvent(
+          name: 'registration_screen_viewed',
+          parameters: {'flow': kOnboardingFlow},
+        ),
+      );
+
+  /// An optional "Complete your wedding profile" section was finished.
+  Future<void> profileSectionCompleted({required String section}) => _safe(
+        'profileSectionCompleted',
+        () => _fb.logEvent(
+          name: 'profile_section_completed',
+          parameters: {'section': section},
+        ),
+      );
+
+  /// The user created their first real piece of planning data (guest, task,
+  /// vendor, budget or timeline item). Fires once per device.
+  Future<void> firstMeaningfulAction({required String type}) =>
+      _safe('firstMeaningfulAction', () async {
+        final prefs = await SharedPreferences.getInstance();
+        const key = 'meta_first_action_logged';
+        if (prefs.getBool(key) ?? false) return;
+        await prefs.setBool(key, true);
+        await _fb.logEvent(
+          name: 'first_meaningful_action',
+          parameters: {'type': type, 'flow': kOnboardingFlow},
+        );
+      });
 }

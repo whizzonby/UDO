@@ -28,34 +28,36 @@ class AuthExperienceShell extends StatelessWidget {
       backgroundColor: UdoDesign.bg,
       body: SafeArea(
         child: SingleChildScrollView(
-          padding: const EdgeInsets.fromLTRB(20, 18, 20, 28),
+          padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              if (leading != null) leading!,
-              SizedBox(height: leading == null ? 26 : 18),
-              const AuthMark(),
-              const SizedBox(height: 22),
+              const SizedBox(height: 8),
+              Row(children: [
+                if (leading != null) ...[leading!, const SizedBox(width: 12)],
+                const Expanded(child: AuthMark()),
+              ]),
+              const SizedBox(height: 18),
               Text(eyebrow.toUpperCase(),
                   style: UdoDesign.sans(
                       size: 11,
                       weight: FontWeight.w700,
                       color: UdoDesign.gold)),
-              const SizedBox(height: 8),
+              const SizedBox(height: 6),
               Text(title,
-                  style: UdoDesign.serif(size: 42, color: UdoDesign.text)),
-              const SizedBox(height: 8),
+                  style: UdoDesign.serif(size: 30, color: UdoDesign.text)),
+              const SizedBox(height: 6),
               Text(subtitle,
                   style: UdoDesign.sans(
-                      size: 15, color: UdoDesign.sub, height: 1.45)),
-              const SizedBox(height: 26),
+                      size: 14, color: UdoDesign.sub, height: 1.4)),
+              const SizedBox(height: 18),
               UdoCard(
                 radius: 24,
-                padding: const EdgeInsets.all(20),
+                padding: const EdgeInsets.all(18),
                 child: child,
               ),
               if (footer != null) ...[
-                const SizedBox(height: 24),
+                const SizedBox(height: 18),
                 Center(child: footer!),
               ],
             ],
@@ -74,11 +76,11 @@ class AuthMark extends StatelessWidget {
     return Row(
       children: [
         Container(
-          width: 58,
-          height: 58,
+          width: 44,
+          height: 44,
           decoration: BoxDecoration(
             color: Colors.white,
-            borderRadius: BorderRadius.circular(20),
+            borderRadius: BorderRadius.circular(15),
             border: Border.all(color: UdoDesign.border),
             boxShadow: [
               BoxShadow(
@@ -88,13 +90,13 @@ class AuthMark extends StatelessWidget {
               ),
             ],
           ),
-          child: const Icon(Icons.favorite, color: authAccent, size: 28),
+          child: const Icon(Icons.favorite, color: authAccent, size: 22),
         ),
-        const SizedBox(width: 12),
+        const SizedBox(width: 10),
         Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Udo', style: UdoDesign.serif(size: 26)),
+            Text('Udo', style: UdoDesign.serif(size: 22)),
             Text('Wedding operating system',
                 style: UdoDesign.sans(size: 11, color: UdoDesign.muted)),
           ],

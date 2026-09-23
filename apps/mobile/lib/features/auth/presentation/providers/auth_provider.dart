@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/services.dart' show PlatformException;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:sign_in_with_apple/sign_in_with_apple.dart';
@@ -8,6 +9,12 @@ import '../../../../core/errors/app_exception.dart';
 import '../../../../core/network/auth_service.dart';
 
 enum AuthStatus { loading, authenticated, unauthenticated }
+
+const _googleUnavailable =
+    "Google sign-in isn't working right now. Please try again, or sign in with your email and password.";
+
+/// The backend answers 401 when it can't verify a Google/Apple token.
+bool _isRejectedToken(Object e) => e is ServerException && e.statusCode == 401;
 
 class AuthState {
   final AuthStatus status;
@@ -37,7 +44,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
     // makes the launch feel intentional instead of a flicker — real slow
     // paths (the 3s/8s timeouts below) are unaffected since they already
     // take longer than this floor.
-    final minSplash = Future.delayed(const Duration(milliseconds: 1800));
+    final minSplash = Future.delayed(const Duration(milliseconds: 900));
     try {
       final user =
           await _bootstrapSavedSession().timeout(const Duration(seconds: 14));
@@ -107,10 +114,8 @@ class AuthNotifier extends StateNotifier<AuthState> {
       MetaEvents.instance.identify(res.user.id);
       return result;
     } catch (e) {
-      final message = e.toString().contains('Null check operator')
-          ? 'Google sign-in is not fully configured yet. Please sign in with email and password.'
-          : humanizeError(e);
-      state = AuthState(status: AuthStatus.unauthenticated, error: message);
+      state = AuthState(
+          status: AuthStatus.unauthenticated, error: humanizeError(e));
       return null;
     }
   }
@@ -166,7 +171,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
 
   Future<void> register({
     required String firstName,
-    required String lastName,
+    String lastName = '',
     required String email,
     required String password,
   }) async {
@@ -213,7 +218,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
       }
       final googleAuth = await googleUser.authentication;
       final idToken = googleAuth.idToken;
-      if (idToken == null) throw Exception('Google sign-in: no ID token');
+      if (idToken == null) throw const AppException(_googleUnavailable);
 
       final res = await _authService.socialLogin(
         provider: 'google',
@@ -224,11 +229,28 @@ class AuthNotifier extends StateNotifier<AuthState> {
       MetaEvents.instance.identify(res.user.id);
       MetaEvents.instance
           .registrationCompleted(userId: res.user.id, method: 'google');
+    } on PlatformException catch (e) {
+      if (e.code == GoogleSignIn.kSignInCanceledError) {
+        state = AuthState.unauthenticated;
+        return;
+      }
+      MetaEvents.instance.registrationFailed(
+          method: 'google', reason: 'PlatformException:${e.code}:${e.message}');
+      state = AuthState(
+        status: AuthStatus.unauthenticated,
+        error: e.code == GoogleSignIn.kNetworkError
+            ? "You're not connected to the internet. Check your connection and try again."
+            : _googleUnavailable,
+      );
     } catch (e) {
       MetaEvents.instance.registrationFailed(
           method: 'google', reason: e.runtimeType.toString());
       state = AuthState(
-          status: AuthStatus.unauthenticated, error: humanizeError(e));
+        status: AuthStatus.unauthenticated,
+        error: _isRejectedToken(e)
+            ? "We couldn't verify your Google account. Please try again."
+            : humanizeError(e),
+      );
     }
   }
 
@@ -254,11 +276,27 @@ class AuthNotifier extends StateNotifier<AuthState> {
       MetaEvents.instance.identify(res.user.id);
       MetaEvents.instance
           .registrationCompleted(userId: res.user.id, method: 'apple');
+    } on SignInWithAppleAuthorizationException catch (e) {
+      if (e.code == AuthorizationErrorCode.canceled) {
+        state = AuthState.unauthenticated;
+        return;
+      }
+      MetaEvents.instance.registrationFailed(
+          method: 'apple', reason: 'AppleAuth:${e.code.name}:${e.message}');
+      state = const AuthState(
+        status: AuthStatus.unauthenticated,
+        error:
+            "Apple sign-in didn't complete. Please try again, or sign in with your email and password.",
+      );
     } catch (e) {
       MetaEvents.instance.registrationFailed(
           method: 'apple', reason: e.runtimeType.toString());
       state = AuthState(
-          status: AuthStatus.unauthenticated, error: humanizeError(e));
+        status: AuthStatus.unauthenticated,
+        error: _isRejectedToken(e)
+            ? "We couldn't verify your Apple ID. Please try again."
+            : humanizeError(e),
+      );
     }
   }
 
@@ -277,6 +315,25 @@ class AuthNotifier extends StateNotifier<AuthState> {
       state = AuthState(status: AuthStatus.authenticated, user: user);
     } catch (e) {
       state = state.copyWith(error: humanizeError(e));
+    }
+  }
+
+  /// Re-reads the user after onboarding is saved so the router lets them into
+  /// the app. Unlike invalidating the provider, this never passes through
+  /// `AuthStatus.loading`, so it doesn't bounce the user through the splash.
+  /// Returns null on success, or a message to show if it didn't take.
+  Future<String?> finishOnboardingRefresh() async {
+    try {
+      final token = await _authService.getToken();
+      if (token == null) return 'You need to be signed in.';
+      final user = await _authService.me();
+      await _authService.saveSession(token, user);
+      state = AuthState(status: AuthStatus.authenticated, user: user);
+      return user.onboardingCompleted
+          ? null
+          : "We couldn't finish setting up your wedding. Please try again.";
+    } catch (e) {
+      return humanizeError(e);
     }
   }
 

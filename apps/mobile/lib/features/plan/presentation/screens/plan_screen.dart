@@ -1359,7 +1359,7 @@ class _PlanLandingTab extends ConsumerWidget {
             onTap: () => onTabJump(2)),
         const SizedBox(height: 4),
         const Text('Your next planning tasks, sorted by due date and priority.',
-            style: TextStyle(fontSize: 13, color: Color(0xFF7B7771))),
+            style: TextStyle(fontSize: 13, color: UdoDesign.sub)),
         const SizedBox(height: 12),
         _UpcomingTasksPanel(
             tasks: upcomingTasks.take(3).toList(), onTap: () => onTabJump(2)),
@@ -1450,7 +1450,7 @@ class _GreetingCard extends StatelessWidget {
                       style: TextStyle(
                           fontSize: 13,
                           height: 1.55,
-                          color: Color(0xFF6D6A66))),
+                          color: UdoDesign.sub)),
                 ])),
             const Icon(Icons.chevron_right, color: Color(0xFF7B7771)),
           ]),
@@ -1491,7 +1491,7 @@ class _WeddingDayCard extends StatelessWidget {
                         style: TextStyle(
                             fontSize: 12,
                             fontWeight: FontWeight.w700,
-                            color: Color(0xFF6D6A66))),
+                            color: UdoDesign.sub)),
                     const SizedBox(height: 16),
                     Text(date,
                         style: const TextStyle(
@@ -1504,7 +1504,7 @@ class _WeddingDayCard extends StatelessWidget {
                     const SizedBox(height: 12),
                     Text(days,
                         style: const TextStyle(
-                            fontSize: 18, color: Color(0xFF6D6A66))),
+                            fontSize: 18, color: UdoDesign.sub)),
                     const Spacer(),
                     Row(children: [
                       const Icon(Icons.location_on_outlined,
@@ -1544,7 +1544,7 @@ class _TitleRow extends StatelessWidget {
               child: Row(children: [
                 Text(action!,
                     style: const TextStyle(
-                        fontSize: 13, color: Color(0xFF82765E))),
+                        fontSize: 13, color: UdoDesign.sub)),
                 const SizedBox(width: 4),
                 const Icon(Icons.chevron_right,
                     size: 18, color: Color(0xFF82765E)),
@@ -1592,7 +1592,7 @@ class _ProgressGlanceCard extends StatelessWidget {
           const SizedBox(height: 8),
           Text('$completed of $total tasks\ncompleted',
               style: const TextStyle(
-                  fontSize: 11, height: 1.2, color: Color(0xFF6D6A66))),
+                  fontSize: 11, height: 1.2, color: UdoDesign.sub)),
           const Spacer(),
           const _StatusPill(text: 'On Track', color: Color(0xFF11745A)),
         ]),
@@ -1626,7 +1626,7 @@ class _GlanceCard extends StatelessWidget {
               child: Icon(icon, size: 18, color: const Color(0xFF1D594D))),
           const SizedBox(height: 9),
           Text(title,
-              style: const TextStyle(fontSize: 11, color: Color(0xFFB9B2AA))),
+              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: UdoDesign.muted)),
           const SizedBox(height: 4),
           FittedBox(
               alignment: Alignment.centerLeft,
@@ -1641,7 +1641,7 @@ class _GlanceCard extends StatelessWidget {
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
               style: const TextStyle(
-                  fontSize: 11, height: 1.2, color: Color(0xFF6D6A66))),
+                  fontSize: 11, height: 1.2, color: UdoDesign.sub)),
           const Spacer(),
           _StatusPill(text: status, color: statusColor),
         ]),
@@ -1660,7 +1660,7 @@ class _UpcomingTasksPanel extends StatelessWidget {
             ? const Padding(
                 padding: EdgeInsets.all(18),
                 child: Text('No upcoming tasks.',
-                    style: TextStyle(fontSize: 13, color: Color(0xFF6D6A66))))
+                    style: TextStyle(fontSize: 13, color: UdoDesign.sub)))
             : Column(children: [
                 for (var i = 0; i < tasks.length; i++)
                   _LandingTaskRow(
@@ -1725,7 +1725,7 @@ class _LandingTaskRow extends StatelessWidget {
                 const SizedBox(height: 4),
                 Text(due == null ? 'No due date set' : 'Due $due',
                     style: const TextStyle(
-                        fontSize: 12, color: Color(0xFF6D6A66))),
+                        fontSize: 12, color: UdoDesign.sub)),
               ])),
           _StatusPill(
               text: urgent ? 'Urgent' : 'Soon',
@@ -2522,7 +2522,7 @@ class _YourVisionTab extends ConsumerWidget {
                 style: TextStyle(
                     fontSize: 15,
                     fontWeight: FontWeight.w600,
-                    color: AppTheme.udoCrimson)),
+                    color: AppTheme.udoCrimsonText)),
             const SizedBox(height: 6),
             Text(state.timelineError!,
                 style: const TextStyle(
@@ -2682,7 +2682,7 @@ class _YourVisionTab extends ConsumerWidget {
                           style: TextStyle(
                               fontSize: 12,
                               fontWeight: FontWeight.w700,
-                              color: AppTheme.udoCrimson)),
+                              color: AppTheme.udoCrimsonText)),
                       const SizedBox(height: 2),
                       Text(item['title'] as String? ?? '',
                           style: const TextStyle(
@@ -3537,7 +3537,7 @@ class _TimelineTabState extends State<_TimelineTab> {
                 style: TextStyle(
                     fontSize: 15,
                     fontWeight: FontWeight.w600,
-                    color: AppTheme.udoCrimson)),
+                    color: AppTheme.udoCrimsonText)),
             const SizedBox(height: 6),
             Text(state.timelineError!,
                 style: const TextStyle(
@@ -3863,7 +3863,7 @@ class _AddTimelineEventSheetState extends State<_AddTimelineEventSheet> {
           TextButton(
             onPressed: () => Navigator.of(dialogContext).pop(true),
             child: const Text('Delete',
-                style: TextStyle(color: AppTheme.udoCrimson)),
+                style: TextStyle(color: AppTheme.udoCrimsonText)),
           ),
         ],
       ),
@@ -4028,7 +4028,7 @@ class _AddTimelineEventSheetState extends State<_AddTimelineEventSheet> {
                   const SizedBox(height: 12),
                   Text(_error!,
                       style: const TextStyle(
-                          color: AppTheme.udoCrimson, fontSize: 13)),
+                          color: AppTheme.udoCrimsonText, fontSize: 13)),
                 ],
                 const SizedBox(height: 20),
                 SizedBox(
@@ -4594,7 +4594,7 @@ class _PlanRegistryTabState extends ConsumerState<_PlanRegistryTab> {
                 style: TextStyle(
                     fontSize: 15,
                     fontWeight: FontWeight.w600,
-                    color: AppTheme.udoCrimson)),
+                    color: AppTheme.udoCrimsonText)),
             const SizedBox(height: 6),
             Text(state.error!,
                 style: const TextStyle(
@@ -7824,7 +7824,7 @@ class _AddTaskSheetState extends State<_AddTaskSheet> {
             const SizedBox(height: 12),
             Text(_error!,
                 style:
-                    const TextStyle(color: AppTheme.udoCrimson, fontSize: 13)),
+                    const TextStyle(color: AppTheme.udoCrimsonText, fontSize: 13)),
           ],
           const SizedBox(height: 20),
           SizedBox(
@@ -7883,7 +7883,7 @@ class _TasksTabState extends State<_TasksTab> {
                 style: TextStyle(
                     fontSize: 15,
                     fontWeight: FontWeight.w600,
-                    color: AppTheme.udoCrimson)),
+                    color: AppTheme.udoCrimsonText)),
             const SizedBox(height: 6),
             Text(widget.state.tasksError!,
                 style: const TextStyle(
@@ -8465,7 +8465,7 @@ class _TaskDetailsSheetState extends State<_TaskDetailsSheet> {
           TextButton(
               onPressed: () => Navigator.of(dialogContext).pop(true),
               child: const Text('Delete',
-                  style: TextStyle(color: AppTheme.udoCrimson))),
+                  style: TextStyle(color: AppTheme.udoCrimsonText))),
         ],
       ),
     );
@@ -8522,7 +8522,7 @@ class _TaskDetailsSheetState extends State<_TaskDetailsSheet> {
             const SizedBox(height: 12),
             Text(_error!,
                 style:
-                    const TextStyle(color: AppTheme.udoCrimson, fontSize: 13)),
+                    const TextStyle(color: AppTheme.udoCrimsonText, fontSize: 13)),
           ],
         ],
       ),
@@ -8863,7 +8863,7 @@ class _BudgetTabState extends State<_BudgetTab> {
                 borderRadius: BorderRadius.circular(14)),
             child: const Text(
                 "Couldn't load your budget. Pull to refresh or try again later.",
-                style: TextStyle(fontSize: 13, color: AppTheme.udoCrimson)),
+                style: TextStyle(fontSize: 13, color: AppTheme.udoCrimsonText)),
           ),
         Container(
           padding: const EdgeInsets.all(18),
@@ -9032,7 +9032,7 @@ class _BudgetTabState extends State<_BudgetTab> {
                       style: TextStyle(
                           fontSize: 11,
                           color: payment['status'] == 'overdue'
-                              ? AppTheme.udoCrimson
+                              ? AppTheme.udoCrimsonText
                               : AppTheme.udoGreen)),
                 ]),
               ]),
@@ -9309,7 +9309,7 @@ class _BudgetHeroCard extends StatelessWidget {
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Text('BUDGET REMAINING',
             style: UdoDesign.sans(
-                size: 12, weight: FontWeight.w700, color: UdoDesign.gold)),
+                size: 12, weight: FontWeight.w700, color: UdoDesign.goldOnDark)),
         const SizedBox(height: 8),
         Text(_money(remaining),
             style: UdoDesign.serif(size: 44, color: Colors.white)),
@@ -10204,7 +10204,7 @@ class _AddBudgetItemSheetState extends State<_AddBudgetItemSheet> {
               const SizedBox(height: 12),
               Text(_error!,
                   style: const TextStyle(
-                      color: AppTheme.udoCrimson, fontSize: 13)),
+                      color: AppTheme.udoCrimsonText, fontSize: 13)),
             ],
             const SizedBox(height: 20),
             SizedBox(
@@ -10571,7 +10571,7 @@ class _VendorsTabState extends State<_VendorsTab> {
                 style: TextStyle(
                     fontSize: 15,
                     fontWeight: FontWeight.w600,
-                    color: AppTheme.udoCrimson)),
+                    color: AppTheme.udoCrimsonText)),
             const SizedBox(height: 6),
             Text(state.vendorsError!,
                 style: const TextStyle(
@@ -11752,7 +11752,7 @@ class _VendorDetailsSheetState extends State<_VendorDetailsSheet> {
           TextButton(
               onPressed: () => Navigator.of(dialogContext).pop(true),
               child: const Text('Delete',
-                  style: TextStyle(color: AppTheme.udoCrimson))),
+                  style: TextStyle(color: AppTheme.udoCrimsonText))),
         ],
       ),
     );
@@ -13427,7 +13427,7 @@ class _AddReminderSheetState extends State<_AddReminderSheet> {
                 const SizedBox(height: 10),
                 Text(_error!,
                     style: const TextStyle(
-                        fontSize: 12, color: AppTheme.udoCrimson))
+                        fontSize: 12, color: AppTheme.udoCrimsonText))
               ],
               const SizedBox(height: 16),
               ElevatedButton(
@@ -14287,7 +14287,7 @@ class _AddInsuranceSheetState extends State<_AddInsuranceSheet> {
                         const SizedBox(height: 10),
                         Text(_error!,
                             style: const TextStyle(
-                                fontSize: 12, color: AppTheme.udoCrimson))
+                                fontSize: 12, color: AppTheme.udoCrimsonText))
                       ],
                       const SizedBox(height: 20),
                     ]),
@@ -15637,7 +15637,7 @@ class _FoodTab extends ConsumerWidget {
                 borderRadius: BorderRadius.circular(14)),
             child: const Text(
                 "Couldn't load your menu. Pull to refresh or try again later.",
-                style: TextStyle(fontSize: 13, color: AppTheme.udoCrimson)),
+                style: TextStyle(fontSize: 13, color: AppTheme.udoCrimsonText)),
           ),
         Container(
           padding: const EdgeInsets.all(18),
@@ -16731,7 +16731,7 @@ class _EditCourseSheetState extends State<_EditCourseSheet> {
                 const SizedBox(height: 10),
                 Text(_error!,
                     style: const TextStyle(
-                        fontSize: 12, color: AppTheme.udoCrimson))
+                        fontSize: 12, color: AppTheme.udoCrimsonText))
               ],
               const SizedBox(height: 20),
               Row(children: [
@@ -17037,7 +17037,7 @@ class _AddCourseSheetState extends State<_AddCourseSheet> {
               const SizedBox(height: 10),
               Text(_error!,
                   style:
-                      const TextStyle(fontSize: 12, color: AppTheme.udoCrimson))
+                      const TextStyle(fontSize: 12, color: AppTheme.udoCrimsonText))
             ],
             const SizedBox(height: 20),
             SizedBox(
@@ -17137,7 +17137,7 @@ class _AddCourseSheetState extends State<_AddCourseSheet> {
               const SizedBox(height: 10),
               Text(_error!,
                   style:
-                      const TextStyle(fontSize: 12, color: AppTheme.udoCrimson))
+                      const TextStyle(fontSize: 12, color: AppTheme.udoCrimsonText))
             ],
             const SizedBox(height: 20),
             SizedBox(
@@ -17287,7 +17287,7 @@ class _AddOptionSheetState extends State<_AddOptionSheet> {
                 const SizedBox(height: 10),
                 Text(_error!,
                     style: const TextStyle(
-                        fontSize: 12, color: AppTheme.udoCrimson))
+                        fontSize: 12, color: AppTheme.udoCrimsonText))
               ],
               const SizedBox(height: 20),
               SizedBox(
@@ -17411,7 +17411,7 @@ class _AddDrinkSheetState extends State<_AddDrinkSheet> {
                               fontFamily: 'Playfair',
                               fontSize: 20,
                               fontWeight: FontWeight.w600,
-                              color: UdoDesign.amber)),
+                              color: UdoDesign.amberText)),
                     ),
                     IconButton(
                       onPressed: () => Navigator.pop(context),
@@ -17560,7 +17560,7 @@ class _AddDrinkSheetState extends State<_AddDrinkSheet> {
                     const SizedBox(height: 12),
                     Text(_error!,
                         style: const TextStyle(
-                            fontSize: 12, color: AppTheme.udoCrimson)),
+                            fontSize: 12, color: AppTheme.udoCrimsonText)),
                   ],
                   const SizedBox(height: 20),
                   SizedBox(
@@ -17688,7 +17688,7 @@ class _AddServiceSheetState extends State<_AddServiceSheet> {
                             fontFamily: 'Playfair',
                             fontSize: 20,
                             fontWeight: FontWeight.w600,
-                            color: UdoDesign.amber)),
+                            color: UdoDesign.amberText)),
                   ),
                   IconButton(
                     onPressed: () => Navigator.pop(context),
@@ -17921,7 +17921,7 @@ class _AddServiceSheetState extends State<_AddServiceSheet> {
                   const SizedBox(height: 12),
                   Text(_error!,
                       style: const TextStyle(
-                          fontSize: 12, color: AppTheme.udoCrimson)),
+                          fontSize: 12, color: AppTheme.udoCrimsonText)),
                 ],
                 const SizedBox(height: 20),
                 SizedBox(
@@ -18059,7 +18059,7 @@ class _EditOptionSheetState extends State<_EditOptionSheet> {
                 const SizedBox(height: 10),
                 Text(_error!,
                     style: const TextStyle(
-                        fontSize: 12, color: AppTheme.udoCrimson))
+                        fontSize: 12, color: AppTheme.udoCrimsonText))
               ],
               const SizedBox(height: 20),
               Row(children: [
@@ -18378,7 +18378,7 @@ class _DietaryTagPickerSheetState
                   const SizedBox(height: 12),
                   Text(_error!,
                       style: const TextStyle(
-                          fontSize: 12, color: AppTheme.udoCrimson)),
+                          fontSize: 12, color: AppTheme.udoCrimsonText)),
                 ],
                 const SizedBox(height: 20),
                 SizedBox(
@@ -18623,7 +18623,7 @@ class _WeddingWeekendTabState extends ConsumerState<_WeddingWeekendTab> {
                 '$needsAttention event${needsAttention == 1 ? '' : 's'} need attention',
                 style: const TextStyle(
                     fontSize: 13,
-                    color: AppTheme.udoCrimson,
+                    color: AppTheme.udoCrimsonText,
                     fontWeight: FontWeight.w500)),
           ),
         Wrap(spacing: 8, runSpacing: 8, children: [
@@ -19338,7 +19338,7 @@ class _WeekendEventCard extends StatelessWidget {
                   style: TextStyle(
                       fontSize: 12,
                       color: missingTime
-                          ? AppTheme.udoCrimson
+                          ? AppTheme.udoCrimsonText
                           : AppTheme.udoTextSecondary),
                 ),
                 Text(
@@ -19348,7 +19348,7 @@ class _WeekendEventCard extends StatelessWidget {
                     style: TextStyle(
                         fontSize: 12,
                         color: missingVenue
-                            ? AppTheme.udoCrimson
+                            ? AppTheme.udoCrimsonText
                             : AppTheme.udoTextSecondary)),
                 if (audience != null) ...[
                   const SizedBox(height: 6),
@@ -19562,7 +19562,7 @@ class _AddWeekendEventSheetState extends State<_AddWeekendEventSheet> {
                         const SizedBox(height: 10),
                         Text(_error!,
                             style: const TextStyle(
-                                fontSize: 12, color: AppTheme.udoCrimson))
+                                fontSize: 12, color: AppTheme.udoCrimsonText))
                       ],
                       const SizedBox(height: 16),
                       ElevatedButton(
@@ -19702,7 +19702,7 @@ class _WeekendSendUpdateSheetState
               const SizedBox(height: 12),
               Text(_error!,
                   style: const TextStyle(
-                      color: AppTheme.udoCrimson, fontSize: 13)),
+                      color: AppTheme.udoCrimsonText, fontSize: 13)),
             ],
             const SizedBox(height: 20),
             SizedBox(
@@ -20725,7 +20725,7 @@ class _AddHoneymoonPlanScreenState
                       const SizedBox(height: 12),
                       Text(_error!,
                           style: const TextStyle(
-                              fontSize: 12, color: AppTheme.udoCrimson)),
+                              fontSize: 12, color: AppTheme.udoCrimsonText)),
                     ],
                     const SizedBox(height: 20),
                     SizedBox(
@@ -21229,7 +21229,7 @@ class _AddHoneymoonTravelerSheetState
                     const SizedBox(height: 10),
                     Text(_error!,
                         style: const TextStyle(
-                            fontSize: 12, color: AppTheme.udoCrimson)),
+                            fontSize: 12, color: AppTheme.udoCrimsonText)),
                   ],
                   const SizedBox(height: 16),
                   ElevatedButton(
@@ -21681,7 +21681,7 @@ class _EditTripSheetState extends State<_EditTripSheet> {
                     const SizedBox(height: 10),
                     Text(_error!,
                         style: const TextStyle(
-                            fontSize: 12, color: AppTheme.udoCrimson)),
+                            fontSize: 12, color: AppTheme.udoCrimsonText)),
                   ],
                   const SizedBox(height: 16),
                   ElevatedButton(

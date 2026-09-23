@@ -1928,7 +1928,7 @@ Widget _errorBox(String title, String message) => Center(
               style: const TextStyle(
                   fontSize: 15,
                   fontWeight: FontWeight.w600,
-                  color: AppTheme.udoCrimson)),
+                  color: AppTheme.udoCrimsonText)),
           const SizedBox(height: 6),
           Text(message,
               style: const TextStyle(
@@ -2090,7 +2090,7 @@ class _RsvpDeadlineCard extends StatelessWidget {
                           fontSize: 15,
                           fontWeight: FontWeight.w600,
                           color: days < 0
-                              ? AppTheme.udoCrimson
+                              ? AppTheme.udoCrimsonText
                               : AppTheme.udoTextPrimary),
                     );
                   }),
@@ -2168,7 +2168,7 @@ class _AttentionRequiredCard extends StatelessWidget {
                 style: TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.w600,
-                    color: AppTheme.udoCrimson)),
+                    color: AppTheme.udoCrimsonText)),
           ]),
           const SizedBox(height: 10),
           if (pending > 0)
@@ -2209,7 +2209,7 @@ class _AttentionRow extends StatelessWidget {
             Expanded(
                 child: Text(text,
                     style: const TextStyle(
-                        fontSize: 13, color: AppTheme.udoCrimson))),
+                        fontSize: 13, color: AppTheme.udoCrimsonText))),
             const Icon(Icons.chevron_right,
                 size: 16, color: AppTheme.udoCrimson),
           ]),
@@ -2710,7 +2710,7 @@ class _GuestListTab extends StatelessWidget {
                         'Filtered: ${_infoFilterLabels[infoFilter] ?? infoFilter}',
                         style: const TextStyle(
                             fontSize: 12,
-                            color: AppTheme.udoCrimson,
+                            color: AppTheme.udoCrimsonText,
                             fontWeight: FontWeight.w500))),
                 GestureDetector(
                     onTap: () => onInfoFilterChanged(null),
@@ -3867,7 +3867,7 @@ class _EditGuestModalState extends ConsumerState<_EditGuestModal> {
                       const SizedBox(height: 12),
                       Text(_error!,
                           style: const TextStyle(
-                              fontSize: 12, color: AppTheme.udoCrimson)),
+                              fontSize: 12, color: AppTheme.udoCrimsonText)),
                     ],
                     const SizedBox(height: 20),
                     ElevatedButton(
@@ -4114,7 +4114,7 @@ class _AddGuestModalState extends State<_AddGuestModal> {
                     const SizedBox(height: 12),
                     Text(_error!,
                         style: const TextStyle(
-                            fontSize: 12, color: AppTheme.udoCrimson)),
+                            fontSize: 12, color: AppTheme.udoCrimsonText)),
                   ],
                   const SizedBox(height: 20),
                   ElevatedButton(
@@ -9932,7 +9932,7 @@ class _EditRoomLabelsSheetState extends State<_EditRoomLabelsSheet> {
                       const SizedBox(height: 10),
                       Text(_error!,
                           style: const TextStyle(
-                              fontSize: 12, color: AppTheme.udoCrimson))
+                              fontSize: 12, color: AppTheme.udoCrimsonText))
                     ],
                     const SizedBox(height: 16),
                     ElevatedButton(
@@ -10509,7 +10509,7 @@ class _AddHotelModalState extends State<AddHotelModal> {
                 const SizedBox(height: 10),
                 Text(_error!,
                     style: const TextStyle(
-                        fontSize: 12, color: AppTheme.udoCrimson))
+                        fontSize: 12, color: AppTheme.udoCrimsonText))
               ],
               const SizedBox(height: 16),
               ElevatedButton.icon(
@@ -10752,7 +10752,7 @@ class _AddTransportModalState extends State<AddTransportModal> {
                         const SizedBox(height: 10),
                         Text(_error!,
                             style: const TextStyle(
-                                fontSize: 12, color: AppTheme.udoCrimson))
+                                fontSize: 12, color: AppTheme.udoCrimsonText))
                       ],
                       const SizedBox(height: 16),
                       ElevatedButton(

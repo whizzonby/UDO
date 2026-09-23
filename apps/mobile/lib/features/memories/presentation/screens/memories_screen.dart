@@ -1383,7 +1383,7 @@ class _GuestbookEntryRow extends StatelessWidget {
                   onPressed: () =>
                       notifier.deleteGuestbookEntry(entry['id'] as int),
                   child: const Text('Remove',
-                      style: TextStyle(color: AppTheme.udoCrimson))),
+                      style: TextStyle(color: AppTheme.udoCrimsonText))),
             ]),
           ],
         ]),

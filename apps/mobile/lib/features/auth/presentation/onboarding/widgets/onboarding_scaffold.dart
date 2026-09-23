@@ -2,6 +2,32 @@ import 'package:flutter/material.dart';
 import '../../../../../shared/widgets/udo_button.dart';
 import '../../../../../shared/widgets/udo_design_system.dart';
 
+/// Lets a host that reuses the onboarding pages (the "Complete your wedding
+/// profile" sections) replace their hard-coded "step n of 24" progress with
+/// its own, and relabel the final page's button.
+class OnboardingProgressOverride extends InheritedWidget {
+  final int currentStep;
+  final int totalSteps;
+  final String? lastStepLabel;
+
+  const OnboardingProgressOverride({
+    super.key,
+    required this.currentStep,
+    required this.totalSteps,
+    this.lastStepLabel,
+    required super.child,
+  });
+
+  static OnboardingProgressOverride? maybeOf(BuildContext context) => context
+      .dependOnInheritedWidgetOfExactType<OnboardingProgressOverride>();
+
+  @override
+  bool updateShouldNotify(OnboardingProgressOverride old) =>
+      currentStep != old.currentStep ||
+      totalSteps != old.totalSteps ||
+      lastStepLabel != old.lastStepLabel;
+}
+
 /// Mirrors the design system's `ScreenLayout` component: a title + preamble
 /// header, an optional quote nugget, a scrollable body, a progress bar, and
 /// a back/next/skip footer.
@@ -35,6 +61,14 @@ class OnboardingScaffold extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final override = OnboardingProgressOverride.maybeOf(context);
+    final step = override?.currentStep ?? currentStep;
+    final total = override?.totalSteps ?? totalSteps;
+    final isLastOverridden = override != null && step == total;
+    final buttonLabel =
+        isLastOverridden && override.lastStepLabel != null
+            ? override.lastStepLabel!
+            : nextLabel;
     return Scaffold(
       backgroundColor: UdoDesign.bg,
       body: SafeArea(
@@ -45,7 +79,7 @@ class OnboardingScaffold extends StatelessWidget {
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(100),
                 child: LinearProgressIndicator(
-                  value: currentStep / totalSteps,
+                  value: step / total,
                   minHeight: 4,
                   backgroundColor: UdoDesign.border,
                   valueColor:
@@ -127,7 +161,7 @@ class OnboardingScaffold extends StatelessWidget {
             Padding(
               padding: const EdgeInsets.fromLTRB(24, 0, 24, 20),
               child: UdoButton(
-                  label: nextLabel, onPressed: nextEnabled ? onNext : null),
+                  label: buttonLabel, onPressed: nextEnabled ? onNext : null),
             ),
           ],
         ),

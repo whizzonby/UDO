@@ -1,15 +1,25 @@
 class AppConstants {
   static const String appName = 'Udo';
 
-  /// The lifetime-access product id registered in App Store Connect and
-  /// Google Play Console — must match IOS_LIFETIME_PRODUCT_ID /
+  /// The Wedding Pass (one-time) product id registered in App Store Connect
+  /// and Google Play Console — must match IOS_LIFETIME_PRODUCT_ID /
   /// ANDROID_LIFETIME_PRODUCT_ID in the API's .env.
   static const String lifetimeProductId = 'udo_lifetime_access';
 
-  /// List price of the lifetime unlock in USD. Only a fallback for analytics
-  /// when the store's localized `ProductDetails` price isn't available — the
-  /// actual charge always comes from the store.
-  static const double lifetimePriceUsd = 45.0;
+  /// The Udo Premium monthly subscription product id — must match
+  /// IOS_PREMIUM_PRODUCT_ID / ANDROID_PREMIUM_PRODUCT_ID in the API's .env.
+  static const String premiumProductId = 'udo_premium_monthly';
+
+  /// List prices in USD. Only fallbacks for analytics when the store's
+  /// localized `ProductDetails` price isn't available — the actual charge
+  /// always comes from the store.
+  static const double lifetimePriceUsd = 49.99;
+  static const double premiumPriceUsd = 4.99;
+
+  /// Linked from the paywall — Apple requires Terms (EULA) and Privacy links
+  /// next to any auto-renewing subscription.
+  static const String termsUrl = 'https://udowedding.com/terms';
+  static const String privacyUrl = 'https://udowedding.com/privacy';
 
   static String get apiBaseUrl {
     const env = String.fromEnvironment('API_BASE_URL');

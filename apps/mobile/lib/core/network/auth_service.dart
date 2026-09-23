@@ -72,14 +72,14 @@ class AuthService {
 
   Future<AuthResponse> register({
     required String firstName,
-    required String lastName,
+    String lastName = '',
     required String email,
     required String password,
     required String passwordConfirmation,
   }) async {
     final data = await _api.post('/auth/register', data: {
       'first_name': firstName,
-      'last_name': lastName,
+      if (lastName.isNotEmpty) 'last_name': lastName,
       'email': email,
       'password': password,
       'password_confirmation': passwordConfirmation,

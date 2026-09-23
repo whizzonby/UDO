@@ -309,7 +309,7 @@ class _InvitationWizardScreenState extends ConsumerState<InvitationWizardScreen>
               const SizedBox(height: 8),
               GestureDetector(
                 onTap: () => Navigator.of(context).pop(),
-                child: const Text('Fix missing information', style: TextStyle(fontSize: 12, color: AppTheme.udoCrimson, fontWeight: FontWeight.w500, decoration: TextDecoration.underline)),
+                child: const Text('Fix missing information', style: TextStyle(fontSize: 12, color: AppTheme.udoCrimsonText, fontWeight: FontWeight.w500, decoration: TextDecoration.underline)),
               ),
             ],
           ],
@@ -774,7 +774,7 @@ class _InvitationWizardScreenState extends ConsumerState<InvitationWizardScreen>
         decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(14), border: Border.all(color: AppTheme.udoBorder)),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Text('$successful sent successfully', style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: AppTheme.udoGreen)),
-          if (failed > 0) Text('$failed could not be delivered', style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: AppTheme.udoCrimson)),
+          if (failed > 0) Text('$failed could not be delivered', style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: AppTheme.udoCrimsonText)),
         ]),
       ),
       const SizedBox(height: 16),
@@ -903,7 +903,7 @@ class _StepIndicator extends StatelessWidget {
                     : Text('${i + 1}', style: TextStyle(fontSize: 12, color: active ? Colors.white : AppTheme.udoTextSecondary)),
               ),
               const SizedBox(height: 4),
-              Text(_stepTitles[i], style: TextStyle(fontSize: 10, color: active ? AppTheme.udoCrimson : AppTheme.udoTextSecondary, fontWeight: active ? FontWeight.w600 : FontWeight.normal)),
+              Text(_stepTitles[i], style: TextStyle(fontSize: 10, color: active ? AppTheme.udoCrimsonText : AppTheme.udoTextSecondary, fontWeight: active ? FontWeight.w600 : FontWeight.normal)),
             ]),
           ));
         })),

@@ -534,7 +534,7 @@ class _ThankYouTracker extends StatelessWidget {
             child: Text('${thanked.length}/$giftedCount sent',
                 style: const TextStyle(
                     fontSize: 11,
-                    color: AppTheme.udoCrimson,
+                    color: AppTheme.udoCrimsonText,
                     fontWeight: FontWeight.w500)),
           ),
         ]),

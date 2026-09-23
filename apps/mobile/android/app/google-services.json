@@ -22,6 +22,30 @@
           }
         },
         {
+          "client_id": "563593264357-5uk7kmoh7m5jpg09u6710l7cq74b9t9n.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.udowedding.udo_mobile",
+            "certificate_hash": "5db2c2902bc1e5ecd1332d11162c4e0c756d80e7"
+          }
+        },
+        {
+          "client_id": "563593264357-d4at3jlkomshs17dhtgbl3p5bp9bfbl6.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.udowedding.udo_mobile",
+            "certificate_hash": "802d404f4ca6a3e10f17796816ff457c5261a03d"
+          }
+        },
+        {
+          "client_id": "563593264357-s8gvos1e5rhhljl78fngv2rbttc8d7s1.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.udowedding.udo_mobile",
+            "certificate_hash": "7ecb7e6e0179b6cdde28a50498ad0640cf22ce2b"
+          }
+        },
+        {
           "client_id": "563593264357-sjodk68eg21bto6nm5idsduct3r6ud3p.apps.googleusercontent.com",
           "client_type": 3
         }
@@ -37,6 +61,13 @@
             {
               "client_id": "563593264357-sjodk68eg21bto6nm5idsduct3r6ud3p.apps.googleusercontent.com",
               "client_type": 3
+            },
+            {
+              "client_id": "563593264357-m73b7h4m1cvv0inbnk505rd59ap96mpl.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.udowedding.udoMobile"
+              }
             }
           ]
         }

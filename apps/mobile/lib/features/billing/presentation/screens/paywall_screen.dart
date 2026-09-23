@@ -1,7 +1,11 @@
+import 'package:flutter/foundation.dart'
+    show TargetPlatform, defaultTargetPlatform;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:url_launcher/url_launcher.dart';
 
+import '../../../../core/constants/app_constants.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../shared/widgets/udo_design_system.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
@@ -16,8 +20,6 @@ class PaywallScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final billing = ref.watch(billingProvider);
-    final product = billing.product;
-    final price = product?.price ?? 'one payment';
     final limitMessage = GoRouterState.of(context).extra as String?;
 
     return Scaffold(
@@ -61,7 +63,7 @@ class PaywallScreen extends ConsumerWidget {
               ],
             ),
             const SizedBox(height: 34),
-            Text('Wedding Pass', style: UdoDesign.serif(size: 48)),
+            Text('Choose your plan', style: UdoDesign.serif(size: 44)),
             const SizedBox(height: 10),
             Text(
               'Unlock the full operating system before the planning gets serious.',
@@ -69,35 +71,39 @@ class PaywallScreen extends ConsumerWidget {
                   UdoDesign.sans(size: 16, color: UdoDesign.sub, height: 1.45),
             ),
             const SizedBox(height: 24),
+            _PlanOption(
+              selected: billing.selected == BillingPlan.premium,
+              title: 'Udo Premium',
+              price: billing.premiumProduct?.price ?? r'$4.99',
+              cadence: '/ month',
+              detail: 'Full wedding-planning access. Cancel anytime.',
+              onTap: () => ref
+                  .read(billingProvider.notifier)
+                  .select(BillingPlan.premium),
+            ),
+            const SizedBox(height: 12),
+            _PlanOption(
+              selected: billing.selected == BillingPlan.pass,
+              title: 'Wedding Pass',
+              price: billing.passProduct?.price ?? r'$49.99',
+              cadence: 'one time',
+              detail: 'One payment. Plan all the way to "I do."',
+              badge: 'Best value',
+              onTap: () =>
+                  ref.read(billingProvider.notifier).select(BillingPlan.pass),
+            ),
+            const SizedBox(height: 18),
             UdoCard(
               padding: const EdgeInsets.all(20),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text('Lifetime access',
-                              style: UdoDesign.sans(
-                                  size: 14,
-                                  weight: FontWeight.w700,
-                                  color: _billingInk)),
-                          const SizedBox(height: 8),
-                          Text(price,
-                              style: UdoDesign.serif(
-                                  size: 38, color: UdoDesign.text, height: 1)),
-                          const SizedBox(height: 6),
-                          Text('No subscriptions. No monthly planning tax.',
-                              style: UdoDesign.sans(
-                                  size: 13, color: UdoDesign.muted)),
-                        ],
-                      ),
-                    ),
-                    const UdoBadge(label: 'Lifetime', color: _billingAccent),
-                  ]),
-                  const SizedBox(height: 20),
+                  Text('Everything included',
+                      style: UdoDesign.sans(
+                          size: 14,
+                          weight: FontWeight.w700,
+                          color: _billingInk)),
+                  const SizedBox(height: 16),
                   const _PassDivider(),
                   const SizedBox(height: 18),
                   for (final feature in const [
@@ -130,8 +136,89 @@ class PaywallScreen extends ConsumerWidget {
             _StoreStatePanel(billing: billing),
             const SizedBox(height: 18),
             _PurchaseActions(billing: billing, ref: ref),
+            const SizedBox(height: 18),
+            _SubscriptionTerms(
+                premiumPrice: billing.premiumProduct?.price ?? r'$4.99'),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _PlanOption extends StatelessWidget {
+  final bool selected;
+  final String title;
+  final String price;
+  final String cadence;
+  final String detail;
+  final String? badge;
+  final VoidCallback onTap;
+
+  const _PlanOption({
+    required this.selected,
+    required this.title,
+    required this.price,
+    required this.cadence,
+    required this.detail,
+    required this.onTap,
+    this.badge,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(20),
+      child: Container(
+        padding: const EdgeInsets.all(18),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: selected ? _billingInk : UdoDesign.border,
+            width: selected ? 2 : 1,
+          ),
+        ),
+        child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Icon(
+            selected ? Icons.radio_button_checked : Icons.radio_button_off,
+            color: selected ? _billingInk : UdoDesign.muted,
+            size: 22,
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child:
+                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Row(children: [
+                Flexible(
+                  child: Text(title,
+                      style: UdoDesign.sans(
+                          size: 15,
+                          weight: FontWeight.w700,
+                          color: _billingInk)),
+                ),
+                if (badge != null) ...[
+                  const SizedBox(width: 8),
+                  UdoBadge(label: badge!, color: _billingAccent),
+                ],
+              ]),
+              const SizedBox(height: 4),
+              Text(detail,
+                  style: UdoDesign.sans(
+                      size: 12, color: UdoDesign.muted, height: 1.35)),
+            ]),
+          ),
+          const SizedBox(width: 12),
+          Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
+            Text(price,
+                style: UdoDesign.serif(
+                    size: 24, color: UdoDesign.text, height: 1)),
+            const SizedBox(height: 4),
+            Text(cadence,
+                style: UdoDesign.sans(size: 11, color: UdoDesign.muted)),
+          ]),
+        ]),
       ),
     );
   }
@@ -164,7 +251,7 @@ class _PassMark extends StatelessWidget {
       const SizedBox(width: 12),
       Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Text('Udo', style: UdoDesign.serif(size: 24)),
-        Text('Wedding Pass',
+        Text('Premium & Wedding Pass',
             style: UdoDesign.sans(size: 11, color: UdoDesign.muted)),
       ]),
     ]);
@@ -255,7 +342,7 @@ class _StoreStatePanel extends StatelessWidget {
     final detail = billing.isLoading
         ? 'Udo is checking the app store before purchase.'
         : ready
-            ? 'Lifetime access is available on this device.'
+            ? 'Purchases are available on this device.'
             : billing.error ??
                 'The store is not available on this device right now.';
     final icon = billing.isLoading
@@ -310,7 +397,7 @@ class _PurchaseActions extends StatelessWidget {
     return Column(children: [
       ElevatedButton(
         onPressed: canBuy
-            ? () => ref.read(billingProvider.notifier).buyLifetime()
+            ? () => ref.read(billingProvider.notifier).buySelected()
             : null,
         style: ElevatedButton.styleFrom(
           minimumSize: const Size(double.infinity, 54),
@@ -328,7 +415,10 @@ class _PurchaseActions extends StatelessWidget {
                 child: CircularProgressIndicator(
                     strokeWidth: 2, color: Colors.white),
               )
-            : Text('Unlock Udo',
+            : Text(
+                billing.selected == BillingPlan.premium
+                    ? 'Start Udo Premium'
+                    : 'Get the Wedding Pass',
                 style: UdoDesign.sans(
                     size: 15, weight: FontWeight.w700, color: Colors.white)),
       ),
@@ -352,8 +442,50 @@ class _PurchaseActions extends StatelessWidget {
         const SizedBox(height: 12),
         Text(billing.error!,
             textAlign: TextAlign.center,
-            style: const TextStyle(color: AppTheme.udoCrimson, fontSize: 13)),
+            style: const TextStyle(color: AppTheme.udoCrimsonText, fontSize: 13)),
       ],
+    ]);
+  }
+}
+
+/// Auto-renewal disclosure plus Terms / Privacy links — required by App
+/// Store guideline 3.1.2 (and Play policy) wherever a subscription is sold.
+class _SubscriptionTerms extends StatelessWidget {
+  final String premiumPrice;
+  const _SubscriptionTerms({required this.premiumPrice});
+
+  @override
+  Widget build(BuildContext context) {
+    final store = defaultTargetPlatform == TargetPlatform.iOS
+        ? 'App Store account settings'
+        : 'Google Play subscriptions';
+    final small = UdoDesign.sans(size: 12, color: UdoDesign.sub, height: 1.45);
+    final link = UdoDesign.sans(
+        size: 12, weight: FontWeight.w700, color: UdoDesign.plan);
+
+    return Column(children: [
+      Text(
+        'Udo Premium renews automatically at $premiumPrice per month until '
+        'cancelled. Cancel anytime in your $store at least 24 hours before '
+        'the end of the current period. The Wedding Pass is a single '
+        'payment and never renews.',
+        textAlign: TextAlign.center,
+        style: small,
+      ),
+      const SizedBox(height: 8),
+      Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+        TextButton(
+          onPressed: () => launchUrl(Uri.parse(AppConstants.termsUrl),
+              mode: LaunchMode.externalApplication),
+          child: Text('Terms of Use', style: link),
+        ),
+        Text('·', style: small),
+        TextButton(
+          onPressed: () => launchUrl(Uri.parse(AppConstants.privacyUrl),
+              mode: LaunchMode.externalApplication),
+          child: Text('Privacy Policy', style: link),
+        ),
+      ]),
     ]);
   }
 }

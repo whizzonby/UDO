@@ -194,7 +194,7 @@ class _NavItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = isActive ? UdoDesign.plan : UdoDesign.muted;
+    final color = isActive ? UdoDesign.plan : UdoDesign.sub;
 
     return GestureDetector(
       onTap: onTap,
@@ -219,7 +219,7 @@ class _NavItem extends StatelessWidget {
                     borderRadius: BorderRadius.circular(15),
                   ),
                   child: Icon(isActive ? tab.activeIcon : tab.icon,
-                      color: color, size: 21),
+                      color: color, size: 22),
                 ),
                 const SizedBox(height: 3),
                 Text(
@@ -227,9 +227,9 @@ class _NavItem extends StatelessWidget {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: UdoDesign.sans(
-                    size: 10,
+                    size: 11,
                     color: color,
-                    weight: isActive ? FontWeight.w700 : FontWeight.w500,
+                    weight: isActive ? FontWeight.w700 : FontWeight.w600,
                     height: 1,
                   ),
                 ),

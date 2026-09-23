@@ -10,6 +10,7 @@ import '../../../../core/network/api_client.dart';
 import '../../../../shared/utils/date_formatters.dart' as udo_dates;
 import '../../../../shared/widgets/place_search_field.dart';
 import '../../../../shared/widgets/udo_design_system.dart';
+import '../../../../shared/widgets/upgrade_card.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
 import '../providers/about_provider.dart';
 import '../providers/ai_assistant_provider.dart';
@@ -65,6 +66,9 @@ class MoreScreen extends ConsumerWidget {
     final planLabel = operations.entitlements?['label']?.toString() ??
         user?.subscription?['label']?.toString() ??
         'Free';
+    final hasPaidPlan = (user?.hasPaidPlan ?? false) ||
+        const {'premium', 'lifetime'}
+            .contains(operations.entitlements?['plan']);
     final activeWedding = operations.activeWedding ??
         (operations.weddings
                 .where((wedding) => wedding['is_active'] == true)
@@ -128,6 +132,10 @@ class MoreScreen extends ConsumerWidget {
             planLabel: planLabel,
             onTap: () => _showProfile(context, user),
           ),
+          if (!hasPaidPlan) ...[
+            const SizedBox(height: 16),
+            const UpgradeCard(),
+          ],
           const SizedBox(height: 24),
           _HubStatusStrip(
             items: [
@@ -446,7 +454,7 @@ class MoreScreen extends ConsumerWidget {
               ref.read(authProvider.notifier).logout();
             },
             child: const Text('Log out',
-                style: TextStyle(color: AppTheme.udoCrimson)),
+                style: TextStyle(color: AppTheme.udoCrimsonText)),
           ),
         ],
       ),
@@ -1319,7 +1327,7 @@ class _LiveSubscriptionSheet extends StatelessWidget {
                     context.push('/paywall');
                   },
                   icon: const Icon(Icons.workspace_premium, size: 18),
-                  label: const Text('Upgrade to Wedding Pass'),
+                  label: const Text('See plans'),
                   style: ElevatedButton.styleFrom(
                       minimumSize: const Size(double.infinity, 48),
                       backgroundColor: AppTheme.udoGreen,
@@ -1473,7 +1481,7 @@ class _WeddingWorkspacesSheetState
                 const SizedBox(height: 10),
                 Text(operations.error!,
                     style: const TextStyle(
-                        fontSize: 12, color: AppTheme.udoCrimson)),
+                        fontSize: 12, color: AppTheme.udoCrimsonText)),
               ],
               const SizedBox(height: 16),
               const Text('Create another wedding',
@@ -1883,7 +1891,7 @@ class _WeddingSettingsSheetState extends ConsumerState<WeddingSettingsSheet> {
                   const SizedBox(height: 10),
                   Text(operations.error!,
                       style: const TextStyle(
-                          fontSize: 12, color: AppTheme.udoCrimson)),
+                          fontSize: 12, color: AppTheme.udoCrimsonText)),
                 ],
                 const SizedBox(height: 12),
                 ElevatedButton.icon(
@@ -2137,7 +2145,7 @@ class _CollaboratorsSheetState extends ConsumerState<_CollaboratorsSheet> {
                     padding: const EdgeInsets.only(bottom: 8),
                     child: Text(operations.error!,
                         style: const TextStyle(
-                            fontSize: 12, color: AppTheme.udoCrimson)),
+                            fontSize: 12, color: AppTheme.udoCrimsonText)),
                   ),
                 ElevatedButton.icon(
                   onPressed: _saving ? null : _addCollaborator,
@@ -2973,7 +2981,7 @@ class _ProfileSheetState extends ConsumerState<_ProfileSheet> {
               const SizedBox(height: 10),
               Text(_error!,
                   style: const TextStyle(
-                      fontSize: 12.5, color: AppTheme.udoCrimson)),
+                      fontSize: 12.5, color: AppTheme.udoCrimsonText)),
             ],
             const SizedBox(height: 16),
             ElevatedButton.icon(
@@ -3429,7 +3437,7 @@ class _ChangePasswordSheetState extends ConsumerState<_ChangePasswordSheet> {
                     const SizedBox(height: 10),
                     Text(_error!,
                         style: const TextStyle(
-                            fontSize: 12.5, color: AppTheme.udoCrimson)),
+                            fontSize: 12.5, color: AppTheme.udoCrimsonText)),
                   ],
                   const SizedBox(height: 20),
                   ElevatedButton(
@@ -3535,7 +3543,7 @@ class _TwoFactorSheetState extends ConsumerState<_TwoFactorSheet> {
                   const SizedBox(height: 10),
                   Text(_error!,
                       style: const TextStyle(
-                          fontSize: 12.5, color: AppTheme.udoCrimson)),
+                          fontSize: 12.5, color: AppTheme.udoCrimsonText)),
                 ],
                 const SizedBox(height: 20),
                 if (enabled)
@@ -3629,7 +3637,7 @@ class _DeleteAccountSheetState extends ConsumerState<_DeleteAccountSheet> {
                             style: TextStyle(
                                 fontSize: 18,
                                 fontWeight: FontWeight.w600,
-                                color: AppTheme.udoCrimson))),
+                                color: AppTheme.udoCrimsonText))),
                     IconButton(
                         onPressed: () => Navigator.pop(context),
                         icon: const Icon(Icons.close),
@@ -3660,7 +3668,7 @@ class _DeleteAccountSheetState extends ConsumerState<_DeleteAccountSheet> {
                     const SizedBox(height: 10),
                     Text(_error!,
                         style: const TextStyle(
-                            fontSize: 12.5, color: AppTheme.udoCrimson)),
+                            fontSize: 12.5, color: AppTheme.udoCrimsonText)),
                   ],
                   const SizedBox(height: 20),
                   ElevatedButton(

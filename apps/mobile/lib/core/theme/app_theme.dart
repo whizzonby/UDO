@@ -12,8 +12,11 @@ class AppTheme {
   static const Color udoSurface = Color(0xFFFFFFFF);
   static const Color udoCardFill = Color(0xFFFFFFFF);
   static const Color udoTextPrimary = Color(0xFF1C1917);
-  static const Color udoTextSecondary = Color(0xFF6B6159);
-  static const Color udoMuted = Color(0xFF9A9088);
+  static const Color udoTextSecondary = Color(0xFF5A514A);
+  static const Color udoMuted = Color(0xFF756B63);
+  // Text-safe versions of the accents (see UdoDesign.goldText etc.).
+  static const Color udoCrimsonText = Color(0xFF9C5446);
+  static const Color udoGoldText = Color(0xFF8C6A32);
   static const Color udoStone = Color(0xFFEAE4DB);
   static const Color udoBorder = udoStone;
 

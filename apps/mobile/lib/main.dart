@@ -1,3 +1,5 @@
+import 'package:flutter/foundation.dart'
+    show LicenseEntryWithLineBreaks, LicenseRegistry;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -12,6 +14,15 @@ import 'shared/widgets/app_scaffold_messenger.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
+  LicenseRegistry.addLicense(() async* {
+    for (final (pkg, file) in [
+      ('DM Sans', 'OFL-DMSans.txt'),
+      ('DM Serif Display', 'OFL-DMSerifDisplay.txt'),
+    ]) {
+      yield LicenseEntryWithLineBreaks(
+          [pkg], await rootBundle.loadString('assets/fonts/$file'));
+    }
+  });
 
   final dsn = AppConstants.sentryDsn;
   if (dsn.isEmpty) {

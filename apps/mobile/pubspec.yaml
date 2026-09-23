@@ -1,7 +1,7 @@
 name: udo_mobile
 description: "Udo — Wedding Planning & Coordination"
 publish_to: 'none'
-version: 1.0.0+7
+version: 1.0.0+13
 
 environment:
   # Upper bound is deliberate: Dart >= 3.13 introduces dot-shorthand syntax that
@@ -94,6 +94,9 @@ flutter:
     - assets/images/
     - assets/animations/
     - assets/branding/
+    # Bundled so google_fonts loads DM Sans / DM Serif Display offline on
+    # first launch instead of downloading them (and flashing Roboto).
+    - assets/fonts/
 
 # Regenerate after changing assets/branding/*: dart run flutter_launcher_icons
 flutter_launcher_icons:

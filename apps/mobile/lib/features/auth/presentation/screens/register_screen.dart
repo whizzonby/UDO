@@ -2,12 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../../core/analytics/meta_events.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../shared/widgets/app_scaffold_messenger.dart';
 import '../../../../shared/widgets/udo_button.dart';
 import '../../../../shared/widgets/udo_text_field.dart';
 import '../providers/auth_provider.dart';
 import '../widgets/auth_experience_shell.dart';
+import '../widgets/social_auth_buttons.dart';
 
 class RegisterScreen extends ConsumerStatefulWidget {
   const RegisterScreen({super.key});
@@ -19,14 +21,19 @@ class RegisterScreen extends ConsumerStatefulWidget {
 class _RegisterScreenState extends ConsumerState<RegisterScreen> {
   final _formKey = GlobalKey<FormState>();
   final _firstCtrl = TextEditingController();
-  final _lastCtrl = TextEditingController();
   final _emailCtrl = TextEditingController();
   final _passCtrl = TextEditingController();
   bool _obscure = true;
 
   @override
+  void initState() {
+    super.initState();
+    MetaEvents.instance.registrationScreenViewed();
+  }
+
+  @override
   void dispose() {
-    for (final controller in [_firstCtrl, _lastCtrl, _emailCtrl, _passCtrl]) {
+    for (final controller in [_firstCtrl, _emailCtrl, _passCtrl]) {
       controller.dispose();
     }
     super.dispose();
@@ -36,7 +43,6 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
     if (!_formKey.currentState!.validate()) return;
     await ref.read(authProvider.notifier).register(
           firstName: _firstCtrl.text.trim(),
-          lastName: _lastCtrl.text.trim(),
           email: _emailCtrl.text.trim(),
           password: _passCtrl.text,
         );
@@ -52,10 +58,9 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
     final isLoading = auth.status == AuthStatus.loading;
 
     return AuthExperienceShell(
-      eyebrow: 'Start the workspace',
-      title: 'Build the wedding operating room',
-      subtitle:
-          'Create your account first. Udo will guide the workspace setup right after this.',
+      eyebrow: 'Free to start',
+      title: 'Plan your wedding, calmly',
+      subtitle: 'Create your free account in seconds.',
       leading: AuthBackButton(onTap: () => context.go('/login')),
       footer: GestureDetector(
         onTap: () => context.go('/login'),
@@ -76,23 +81,12 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(children: [
-              Expanded(
-                child: UdoTextField(
-                  label: 'First name',
-                  controller: _firstCtrl,
-                  validator: (v) => v == null || v.isEmpty ? 'Required' : null,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: UdoTextField(
-                  label: 'Last name',
-                  controller: _lastCtrl,
-                  validator: (v) => v == null || v.isEmpty ? 'Required' : null,
-                ),
-              ),
-            ]),
+            UdoTextField(
+              label: 'Your first name',
+              controller: _firstCtrl,
+              validator: (v) =>
+                  v == null || v.trim().isEmpty ? 'Required' : null,
+            ),
             const SizedBox(height: 16),
             UdoTextField(
               label: 'Email',
@@ -131,7 +125,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                   Expanded(
                     child: Text(auth.error!,
                         style: const TextStyle(
-                            color: AppTheme.udoCrimson, fontSize: 13)),
+                            color: AppTheme.udoCrimsonText, fontSize: 13)),
                   ),
                 ]),
               ),
@@ -141,6 +135,11 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                 label: 'Create account',
                 onPressed: _submit,
                 isLoading: isLoading),
+            const SizedBox(height: 18),
+            SocialAuthButtons(
+              isLoading: isLoading,
+              toastMessage: 'Welcome to Udo.',
+            ),
           ],
         ),
       ),

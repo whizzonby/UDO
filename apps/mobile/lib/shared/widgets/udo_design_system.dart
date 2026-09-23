@@ -13,13 +13,38 @@ class UdoDesign {
   static const live = Color(0xFF295E61);
   static const stone = Color(0xFFEAE4DB);
   static const text = Color(0xFF1C1917);
-  static const muted = Color(0xFF9A9088);
-  static const sub = Color(0xFF6B6159);
+  // Both clear WCAG AA (4.5:1) on `bg` — the old #9A9088 / #6B6159 read as
+  // faint, especially at small sizes.
+  static const muted = Color(0xFF756B63);
+  static const sub = Color(0xFF5A514A);
   static const sage = Color(0xFF8A9E8A);
   static const rose = Color(0xFFC9867A);
   static const amber = Color(0xFFD4924A);
   static const blue = Color(0xFF7A9EC9);
   static const border = stone;
+
+  // The accents above are too light for text (~2.2–2.9:1), so sans()/serif()
+  // swap in these darker variants (≥4.5:1 on light surfaces). The originals
+  // stay as-is for icons, fills and borders.
+  static const goldText = Color(0xFF8C6A32);
+  static const sageText = Color(0xFF56705A);
+  static const roseText = Color(0xFF9C5446);
+  static const amberText = Color(0xFF9A5E1C);
+  static const blueText = Color(0xFF3F6590);
+
+  /// Gold for text on dark surfaces (navy/green cards, Live). Not swapped.
+  static const goldOnDark = Color(0xFFD9B77F);
+
+  static final Map<Color, Color> _textVariants = {
+    gold: goldText,
+    sage: sageText,
+    rose: roseText,
+    amber: amberText,
+    blue: blueText,
+  };
+
+  /// The readable text variant of [color], or [color] itself.
+  static Color textSafe(Color color) => _textVariants[color] ?? color;
 
   static TextStyle serif({
     double size = 28,
@@ -30,7 +55,7 @@ class UdoDesign {
       GoogleFonts.dmSerifDisplay(
         fontSize: size,
         fontWeight: weight,
-        color: color,
+        color: textSafe(color),
         height: height,
       );
 
@@ -43,7 +68,7 @@ class UdoDesign {
       GoogleFonts.dmSans(
         fontSize: size,
         fontWeight: weight,
-        color: color,
+        color: textSafe(color),
         height: height,
       );
 }

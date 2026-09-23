@@ -53,9 +53,8 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
   Widget build(BuildContext context) {
     return AuthExperienceShell(
       eyebrow: 'Account recovery',
-      title: 'Reset access without losing momentum',
-      subtitle:
-          'Enter the email on your account and Udo will send a secure reset link.',
+      title: 'Reset your password',
+      subtitle: "Enter your account email and we'll send you a reset link.",
       leading: AuthBackButton(onTap: () => context.pop()),
       child: _sent ? _sentState(context) : _formState(),
     );
@@ -114,7 +113,7 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
             const SizedBox(height: 12),
             Text(_error!,
                 style:
-                    const TextStyle(color: AppTheme.udoCrimson, fontSize: 13)),
+                    const TextStyle(color: AppTheme.udoCrimsonText, fontSize: 13)),
           ],
           const SizedBox(height: 24),
           UdoButton(

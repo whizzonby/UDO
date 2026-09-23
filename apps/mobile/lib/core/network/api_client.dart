@@ -4,6 +4,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../analytics/meta_events.dart';
 import '../constants/app_constants.dart';
 import '../errors/app_exception.dart';
 
@@ -37,6 +38,15 @@ class ApiClient {
   /// the paywall, instead of the action just failing with a generic error.
   void Function(String message)? onLimitReached;
 
+  static const _signInPaths = {
+    '/auth/login',
+    '/auth/register',
+    '/auth/two-factor/verify',
+    '/auth/two-factor/resend',
+    '/auth/mobile/google',
+    '/auth/mobile/apple',
+  };
+
   ApiClient() {
     final hostHeader = AppConstants.apiHostHeader;
     _dio = Dio(BaseOptions(
@@ -59,7 +69,10 @@ class ApiClient {
         handler.next(options);
       },
       onError: (error, handler) {
-        if (error.response?.statusCode == 401) {
+        // A 401 from a sign-in endpoint means "wrong credentials / invalid
+        // token", not an expired session — let its server message through.
+        if (error.response?.statusCode == 401 &&
+            !_signInPaths.contains(error.requestOptions.path)) {
           onUnauthorized?.call();
           handler.reject(DioException(
             requestOptions: error.requestOptions,
@@ -94,14 +107,28 @@ class ApiClient {
 
   Future<dynamic> post(String path,
       {dynamic data, Duration? receiveTimeout, Map<String, dynamic>? headers}) async {
-    return _request(() => _dio.post(
+    final res = await _request(() => _dio.post(
           path,
           data: data,
           options: (receiveTimeout != null || headers != null)
               ? Options(receiveTimeout: receiveTimeout, headers: headers)
               : null,
         ));
+    final action = _firstActionTypes[path];
+    if (action != null) MetaEvents.instance.firstMeaningfulAction(type: action);
+    return res;
   }
+
+  /// Successful creates that count as the "first meaningful action" in the
+  /// signup funnel (the user actually started planning, beyond onboarding).
+  static const _firstActionTypes = {
+    '/guests': 'guest',
+    '/guests/bulk-import': 'guest',
+    '/plan/tasks': 'task',
+    '/plan/vendors': 'vendor',
+    '/plan/budget': 'budget_item',
+    '/plan/timeline': 'timeline_item',
+  };
 
   Future<dynamic> patch(String path, {dynamic data}) async {
     return _request(() => _dio.patch(path, data: data));
@@ -120,9 +147,12 @@ class ApiClient {
       final res = await call();
       return res.data;
     } on DioException catch (e) {
-      if (e.error is AppException) rethrow;
+      final inner = e.error;
+      if (inner is AppException) throw inner;
       final statusCode = e.response?.statusCode;
-      final message = _extractMessage(e.response?.data) ?? _networkMessage(e);
+      final message = statusCode == 429
+          ? 'Too many attempts. Please wait a minute and try again.'
+          : _extractMessage(e.response?.data) ?? _networkMessage(e);
       if (statusCode == 402) {
         onLimitReached?.call(message);
       }

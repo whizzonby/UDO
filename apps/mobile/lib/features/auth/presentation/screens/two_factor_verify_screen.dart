@@ -154,7 +154,7 @@ class _TwoFactorVerifyScreenState extends ConsumerState<TwoFactorVerifyScreen> {
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(_error!,
-                        style: const TextStyle(color: AppTheme.udoCrimson, fontSize: 13)),
+                        style: const TextStyle(color: AppTheme.udoCrimsonText, fontSize: 13)),
                   ),
                 ],
               ),

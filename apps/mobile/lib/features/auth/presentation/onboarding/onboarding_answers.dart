@@ -169,6 +169,16 @@ class OnboardingAnswers {
         'insurance': insurance,
       };
 
+  /// Only the given keys of [toJson] — a profile section posts just the
+  /// answers it actually asked, never the untouched defaults of other pages.
+  Map<String, dynamic> toJsonFor(Iterable<String> keys) {
+    final all = toJson();
+    return {
+      for (final k in keys)
+        if (all.containsKey(k)) k: all[k],
+    };
+  }
+
   /// Toggle helpers used by list-based steps.
   void toggle(List<String> list, String value, {int? max}) {
     if (list.contains(value)) {

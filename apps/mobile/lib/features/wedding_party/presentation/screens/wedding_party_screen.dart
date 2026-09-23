@@ -58,7 +58,7 @@ Widget _errorBox(String title, String message) => Center(
               style: const TextStyle(
                   fontSize: 15,
                   fontWeight: FontWeight.w600,
-                  color: AppTheme.udoCrimson)),
+                  color: AppTheme.udoCrimsonText)),
           const SizedBox(height: 6),
           Text(message,
               style: const TextStyle(
@@ -1428,7 +1428,7 @@ class _GroupTaskSheetState extends ConsumerState<_GroupTaskSheet> {
                   const SizedBox(height: 12),
                   Text(_error!,
                       style: const TextStyle(
-                          fontSize: 12, color: AppTheme.udoCrimson)),
+                          fontSize: 12, color: AppTheme.udoCrimsonText)),
                 ],
                 const SizedBox(height: 16),
                 ElevatedButton(
@@ -2156,7 +2156,7 @@ class _ResponsibilityEditorSheetState
                         const SizedBox(height: 12),
                         Text(_error!,
                             style: const TextStyle(
-                                fontSize: 12, color: AppTheme.udoCrimson)),
+                                fontSize: 12, color: AppTheme.udoCrimsonText)),
                       ],
                       const SizedBox(height: 24),
                     ]))),
@@ -2451,7 +2451,7 @@ class _BuzzesTabState extends ConsumerState<_BuzzesTab> {
           icon: const Icon(Icons.warning_amber_outlined,
               size: 18, color: AppTheme.udoCrimson),
           label: const Text('Send emergency broadcast',
-              style: TextStyle(color: AppTheme.udoCrimson)),
+              style: TextStyle(color: AppTheme.udoCrimsonText)),
           style: OutlinedButton.styleFrom(
               minimumSize: const Size(double.infinity, 48),
               side: const BorderSide(color: AppTheme.udoCrimson)),
@@ -2513,7 +2513,7 @@ class _BuzzesTabState extends ConsumerState<_BuzzesTab> {
                           child: const Text('Emergency',
                               style: TextStyle(
                                   fontSize: 10,
-                                  color: AppTheme.udoCrimson,
+                                  color: AppTheme.udoCrimsonText,
                                   fontWeight: FontWeight.w600)),
                         ),
                         const SizedBox(width: 6),
@@ -2677,7 +2677,7 @@ class BuzzComposerSheetState extends ConsumerState<BuzzComposerSheet> {
                           child: const Text(
                               'Marked urgent — you\'ll be asked to confirm before this sends.',
                               style: TextStyle(
-                                  fontSize: 12, color: AppTheme.udoCrimson)),
+                                  fontSize: 12, color: AppTheme.udoCrimsonText)),
                         ),
                       TextField(
                         controller: _ctrl,
@@ -2790,7 +2790,7 @@ class BuzzComposerSheetState extends ConsumerState<BuzzComposerSheet> {
             TextButton(
                 onPressed: () => Navigator.pop(dialogContext, true),
                 child: const Text('Send',
-                    style: TextStyle(color: AppTheme.udoCrimson))),
+                    style: TextStyle(color: AppTheme.udoCrimsonText))),
           ],
         ),
       );
@@ -2935,7 +2935,7 @@ class _TravelTab extends ConsumerWidget {
                         style: const TextStyle(
                             fontSize: 13,
                             fontWeight: FontWeight.w500,
-                            color: AppTheme.udoCrimson))),
+                            color: AppTheme.udoCrimsonText))),
               ]),
               const SizedBox(height: 10),
               ElevatedButton.icon(
@@ -4313,7 +4313,7 @@ class _AddRehearsalSheetState extends ConsumerState<_AddRehearsalSheet> {
                         const SizedBox(height: 10),
                         Text(_error!,
                             style: const TextStyle(
-                                fontSize: 12, color: AppTheme.udoCrimson)),
+                                fontSize: 12, color: AppTheme.udoCrimsonText)),
                       ],
                       const SizedBox(height: 24),
                     ]),

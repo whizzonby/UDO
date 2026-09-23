@@ -255,7 +255,7 @@ class _SeatingScreenState extends ConsumerState<SeatingScreen> {
                     const SizedBox(height: 8),
                     Text(seating.error!,
                         style: const TextStyle(
-                            fontSize: 12, color: AppTheme.udoCrimson)),
+                            fontSize: 12, color: AppTheme.udoCrimsonText)),
                   ],
                   const SizedBox(height: 16),
                   _RulesCard(
@@ -353,7 +353,7 @@ class _SeatingScreenState extends ConsumerState<SeatingScreen> {
                           style: TextStyle(
                               fontSize: 13,
                               height: 1.5,
-                              color: AppTheme.udoCrimson)),
+                              color: AppTheme.udoCrimsonText)),
                     )
                   else ...[
                     Row(children: [
@@ -1554,7 +1554,7 @@ class _AddTableManualSheetState extends ConsumerState<_AddTableManualSheet> {
                 const SizedBox(height: 10),
                 Text(_error!,
                     style: const TextStyle(
-                        color: AppTheme.udoCrimson, fontSize: 12)),
+                        color: AppTheme.udoCrimsonText, fontSize: 12)),
               ],
               const SizedBox(height: 14),
               ElevatedButton.icon(
@@ -2449,7 +2449,7 @@ class _EditTableSheetState extends State<_EditTableSheet> {
                 const SizedBox(height: 10),
                 Text(_error!,
                     style: const TextStyle(
-                        fontSize: 12, color: AppTheme.udoCrimson)),
+                        fontSize: 12, color: AppTheme.udoCrimsonText)),
               ],
               const SizedBox(height: 16),
               ElevatedButton(

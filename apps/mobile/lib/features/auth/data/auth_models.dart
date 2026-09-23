@@ -33,6 +33,10 @@ class AuthUser {
 
   String get fullName => '$firstName $lastName'.trim();
 
+  /// True on a paid plan: monthly Premium or the one-time Wedding Pass.
+  bool get hasPaidPlan =>
+      const {'premium', 'lifetime'}.contains(subscription?['plan']);
+
   factory AuthUser.fromJson(Map<String, dynamic> json) => AuthUser(
     id: json['id'] as int,
     email: json['email'] as String,

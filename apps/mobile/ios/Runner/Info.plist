@@ -47,15 +47,11 @@
 		<!--
 		  Google Sign-In (iOS). GIDClientID = the OAuth iOS client id for bundle
 		  com.udowedding.udoMobile; the URL scheme below is the same id reversed.
-		  NOTE: this client lives in Google Cloud project 766006747222, which is
-		  NOT the project android/app/google-services.json uses (udoapp-64663 /
-		  563593264357). That works for sign-in (the API accepts both audiences
-		  and Google's `sub` is stable across projects) BUT the OAuth consent
-		  screen in project 766006747222 MUST be published to "In production" or
-		  only test users can sign in. See docs/APP_STORE_SUBMISSION.md section 3c.
+		  Same Google project as android/app/google-services.json (udoapp-64663 /
+		  563593264357); matches GoogleService-Info.plist CLIENT_ID.
 		-->
 		<key>GIDClientID</key>
-		<string>766006747222-iqa0ji0fgdj8snujti0jqr4565t7vgmi.apps.googleusercontent.com</string>
+		<string>563593264357-m73b7h4m1cvv0inbnk505rd59ap96mpl.apps.googleusercontent.com</string>
 		<key>CFBundleURLTypes</key>
 		<array>
 			<dict>
@@ -63,7 +59,7 @@
 				<string>Editor</string>
 				<key>CFBundleURLSchemes</key>
 				<array>
-					<string>com.googleusercontent.apps.766006747222-iqa0ji0fgdj8snujti0jqr4565t7vgmi</string>
+					<string>com.googleusercontent.apps.563593264357-m73b7h4m1cvv0inbnk505rd59ap96mpl</string>
 				</array>
 			</dict>
 			<dict>

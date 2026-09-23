@@ -1180,7 +1180,7 @@ class _LiveHeroMoment extends StatelessWidget {
             width: 44,
             child: Text(label,
                 style: UdoDesign.sans(
-                    size: 11, weight: FontWeight.w800, color: UdoDesign.gold)),
+                    size: 11, weight: FontWeight.w800, color: UdoDesign.goldOnDark)),
           ),
           Expanded(
               child: Column(
@@ -1202,7 +1202,7 @@ class _LiveHeroMoment extends StatelessWidget {
             const SizedBox(width: 10),
             Text(statusText!,
                 style: UdoDesign.sans(
-                    size: 11, weight: FontWeight.w800, color: UdoDesign.gold)),
+                    size: 11, weight: FontWeight.w800, color: UdoDesign.goldOnDark)),
           ],
         ]),
       );
@@ -3222,7 +3222,7 @@ class _UpdatesTabState extends ConsumerState<_UpdatesTab> {
           if (state.updatesError != null)
             Text(state.updatesError!,
                 style:
-                    const TextStyle(color: AppTheme.udoCrimson, fontSize: 12))
+                    const TextStyle(color: AppTheme.udoCrimsonText, fontSize: 12))
           else if (filteredUpdates.isEmpty)
             Text(
                 state.updates.isEmpty
@@ -4115,7 +4115,7 @@ Widget _errorBox(String title, String message) => Center(
               style: const TextStyle(
                   fontSize: 15,
                   fontWeight: FontWeight.w600,
-                  color: AppTheme.udoCrimson)),
+                  color: AppTheme.udoCrimsonText)),
           const SizedBox(height: 6),
           Text(message,
               style: const TextStyle(

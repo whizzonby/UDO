@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -6,6 +7,9 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../../../core/constants/app_constants.dart';
 import '../../../../shared/utils/date_formatters.dart' as udo_dates;
 import '../../../../shared/widgets/udo_design_system.dart';
+import '../../../../shared/widgets/upgrade_card.dart';
+import '../../../auth/presentation/providers/auth_provider.dart';
+import '../../../wedding_profile/profile_checklist_card.dart';
 import '../providers/home_provider.dart';
 
 class EditorialHome extends StatelessWidget {
@@ -48,6 +52,7 @@ class EditorialHome extends StatelessWidget {
           padding: const EdgeInsets.fromLTRB(18, 18, 18, 110),
           child:
               Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            const ProfileChecklistCard(),
             _TodayFocusCard(
               title: _focusTitle,
               subtitle: _focusSubtitle,
@@ -57,6 +62,15 @@ class EditorialHome extends StatelessWidget {
               onTap: () => context.go(_focusRoute),
             ),
             const SizedBox(height: 24),
+            Consumer(builder: (context, ref, _) {
+              final paid = ref.watch(authProvider
+                  .select((auth) => auth.user?.hasPaidPlan ?? false));
+              return paid
+                  ? const SizedBox.shrink()
+                  : const Padding(
+                      padding: EdgeInsets.only(bottom: 24),
+                      child: UpgradeCard());
+            }),
             _WeddingInvitationCard(
               state: state,
               onOpenPortal: () => _openGuestPortal(context),

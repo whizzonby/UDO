@@ -10,6 +10,9 @@ import '../../../../core/constants/app_constants.dart';
 import '../../../../core/network/api_client.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
 
+/// The two things a user can buy: the monthly subscription or the one-time pass.
+enum BillingPlan { premium, pass }
+
 class BillingState {
   final bool isLoading;
   final bool isPurchasing;
@@ -18,7 +21,9 @@ class BillingState {
   /// Whether the API has in-app purchases wired up for this platform.
   /// `null` until `/billing/config` has been checked.
   final bool? serverConfigured;
-  final ProductDetails? product;
+  final ProductDetails? premiumProduct;
+  final ProductDetails? passProduct;
+  final BillingPlan selected;
   final String? error;
 
   const BillingState({
@@ -26,9 +31,15 @@ class BillingState {
     this.isPurchasing = false,
     this.storeAvailable = false,
     this.serverConfigured,
-    this.product,
+    this.premiumProduct,
+    this.passProduct,
+    this.selected = BillingPlan.pass,
     this.error,
   });
+
+  /// The product for the plan currently selected on the paywall.
+  ProductDetails? get product =>
+      selected == BillingPlan.premium ? premiumProduct : passProduct;
 
   bool get canPurchase =>
       storeAvailable && product != null && serverConfigured != false && !isPurchasing;
@@ -38,7 +49,9 @@ class BillingState {
     bool? isPurchasing,
     bool? storeAvailable,
     bool? serverConfigured,
-    ProductDetails? product,
+    ProductDetails? premiumProduct,
+    ProductDetails? passProduct,
+    BillingPlan? selected,
     String? error,
   }) =>
       BillingState(
@@ -46,13 +59,15 @@ class BillingState {
         isPurchasing: isPurchasing ?? this.isPurchasing,
         storeAvailable: storeAvailable ?? this.storeAvailable,
         serverConfigured: serverConfigured ?? this.serverConfigured,
-        product: product ?? this.product,
+        premiumProduct: premiumProduct ?? this.premiumProduct,
+        passProduct: passProduct ?? this.passProduct,
+        selected: selected ?? this.selected,
         error: error,
       );
 }
 
-/// Drives the native purchase flow (StoreKit / Play Billing) for the $45
-/// lifetime unlock, and hands the resulting receipt/purchase token to the
+/// Drives the native purchase flow (StoreKit / Play Billing) for the $4.99
+/// monthly Udo Premium subscription and the $49.99 one-time Wedding Pass, and hands the resulting receipt/purchase token to the
 /// backend's PurchaseVerificationService before treating anything as paid.
 class BillingNotifier extends StateNotifier<BillingState> {
   final ApiClient _api;
@@ -84,20 +99,33 @@ class BillingNotifier extends StateNotifier<BillingState> {
       return;
     }
 
-    final response = await _iap.queryProductDetails({AppConstants.lifetimeProductId});
-    final product =
-        response.productDetails.isNotEmpty ? response.productDetails.first : null;
+    final response = await _iap.queryProductDetails({
+      AppConstants.lifetimeProductId,
+      AppConstants.premiumProductId,
+    });
+    ProductDetails? byId(String id) {
+      for (final p in response.productDetails) {
+        if (p.id == id) return p;
+      }
+      return null;
+    }
+
+    final pass = byId(AppConstants.lifetimeProductId);
+    final premium = byId(AppConstants.premiumProductId);
 
     state = state.copyWith(
       isLoading: false,
       storeAvailable: true,
       serverConfigured: serverConfigured,
-      product: product,
-      error: product != null
+      passProduct: pass,
+      premiumProduct: premium,
+      // Fall back to whichever plan is actually available in the store.
+      selected: pass == null && premium != null ? BillingPlan.premium : BillingPlan.pass,
+      error: pass != null || premium != null
           ? null
           : serverConfigured == false
               ? 'Payments are being set up — check back soon.'
-              : 'Lifetime access isn\'t available in the store yet.',
+              : 'Udo isn\'t available in the store yet.',
     );
   }
 
@@ -116,7 +144,12 @@ class BillingNotifier extends StateNotifier<BillingState> {
     }
   }
 
-  Future<void> buyLifetime() async {
+  void select(BillingPlan plan) {
+    if (state.isPurchasing) return;
+    state = state.copyWith(selected: plan, error: null);
+  }
+
+  Future<void> buySelected() async {
     final product = state.product;
     if (product == null) return;
     state = state.copyWith(isPurchasing: true, error: null);
@@ -185,14 +218,24 @@ class BillingNotifier extends StateNotifier<BillingState> {
 
       if (!isRestore) {
         MetaEvents.instance.purchaseCompleted(
-          amount: state.product?.rawPrice ?? AppConstants.lifetimePriceUsd,
-          currency: state.product?.currencyCode ?? 'USD',
+          amount: _purchasedProduct(purchase)?.rawPrice ?? AppConstants.lifetimePriceUsd,
+          currency: _purchasedProduct(purchase)?.currencyCode ?? 'USD',
           transactionId: purchase.purchaseID,
         );
       }
     } catch (e) {
       state = state.copyWith(isPurchasing: false, error: e.toString());
     }
+  }
+
+  ProductDetails? _purchasedProduct(PurchaseDetails purchase) {
+    if (purchase.productID == AppConstants.premiumProductId) {
+      return state.premiumProduct;
+    }
+    if (purchase.productID == AppConstants.lifetimeProductId) {
+      return state.passProduct;
+    }
+    return null;
   }
 
   @override
