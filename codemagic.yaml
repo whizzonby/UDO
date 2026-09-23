@@ -18,7 +18,7 @@ workflows:
       flutter: 3.38.7
       xcode: latest
       cocoapods: default
-      # Provides CERTIFICATE_PRIVATE_KEY (Codemagic → app → Environment
+      # Provides the "Certificate" private key (Codemagic → app → Environment
       # variables → group "ios_signing"). Used to find/create the Apple
       # Distribution certificate, so no Mac or manual profile is needed.
       groups:
@@ -46,7 +46,7 @@ workflows:
         script: |
           app-store-connect fetch-signing-files "$BUNDLE_ID" \
             --type IOS_APP_STORE \
-            --certificate-key=@env:CERTIFICATE_PRIVATE_KEY \
+            --certificate-key=@env:Certificate \
             --create
 
       - name: Add certificates to keychain
