@@ -72,4 +72,6 @@ workflows:
     publishing:
       app_store_connect:
         auth: integration
-        submit_to_testflight: true
+        # Upload only: builds go straight to App Store review, not external
+        # TestFlight beta review (which needs separate beta test info).
+        submit_to_testflight: false
