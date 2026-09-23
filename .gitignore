@@ -79,3 +79,9 @@ GoogleService-Info.plist
 
 # Claude Code local state
 .claude/
+
+# Apple signing secrets (App Store Connect API keys, certificates)
+*.p8
+*.p12
+*.cer
+*.mobileprovision

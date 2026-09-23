@@ -18,9 +18,13 @@ workflows:
       flutter: 3.38.7
       xcode: latest
       cocoapods: default
-      ios_signing:
-        distribution_type: app_store
-        bundle_identifier: com.udowedding.udoMobile
+      # Provides CERTIFICATE_PRIVATE_KEY (Codemagic → app → Environment
+      # variables → group "ios_signing"). Used to find/create the Apple
+      # Distribution certificate, so no Mac or manual profile is needed.
+      groups:
+        - ios_signing
+      vars:
+        BUNDLE_ID: com.udowedding.udoMobile
 
     # No automatic trigger: this repo also holds the API and web app, so
     # start iOS builds manually from Codemagic (Start new build → master).
@@ -31,6 +35,22 @@ workflows:
 
       - name: Install CocoaPods
         script: cd ios && pod install --repo-update
+
+      - name: Set up keychain
+        script: keychain initialize
+
+      - name: Fetch or create signing certificate and App Store profile
+        # Uses the Udo ASC integration for Apple API access. --create makes
+        # the certificate/profile when missing (or when the App ID's
+        # capabilities, e.g. Sign in with Apple, changed).
+        script: |
+          app-store-connect fetch-signing-files "$BUNDLE_ID" \
+            --type IOS_APP_STORE \
+            --certificate-key=@env:CERTIFICATE_PRIVATE_KEY \
+            --create
+
+      - name: Add certificates to keychain
+        script: keychain add-certificates
 
       - name: Apply code signing profiles
         script: xcode-project use-profiles
