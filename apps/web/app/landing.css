@@ -1,0 +1,54 @@
+/* Editorial landing page — scoped under .landing so the dashboard is untouched. */
+
+.landing {
+  font-family: var(--font-landing-sans), ui-sans-serif, system-ui, sans-serif;
+  background-color: #f8f6f1;
+  color: #252925;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  overflow-x: clip;
+}
+
+.landing .font-display {
+  font-family: var(--font-landing-display), Georgia, 'Times New Roman', serif;
+}
+
+/* Fluid type scale (mobile-first, clamps at large displays). */
+.landing .t-hero { font-size: clamp(2.9rem, 1.9rem + 4vw, 5.4rem); }
+.landing .t-h2 { font-size: clamp(2.5rem, 1.75rem + 3.1vw, 4.6rem); }
+.landing .t-h3 { font-size: clamp(2.15rem, 1.7rem + 1.9vw, 3.4rem); }
+.landing .t-lead { font-size: clamp(1.0625rem, 1rem + 0.3vw, 1.25rem); }
+
+.landing ::selection { background: #ebcdd0; color: #243b35; }
+
+.landing a:focus-visible,
+.landing button:focus-visible {
+  outline: 2px solid #243b35;
+  outline-offset: 4px;
+}
+
+html:has(.landing) { scroll-behavior: smooth; }
+
+/* Staged hero entrance — CSS only, so it runs before hydration. */
+@keyframes landing-rise {
+  from { opacity: 0; transform: translateY(18px); }
+  to { opacity: 1; transform: none; }
+}
+.landing .rise { animation: landing-rise 1s cubic-bezier(0.22, 1, 0.36, 1) both; }
+.landing .rise-1 { animation-delay: 0.08s; }
+.landing .rise-2 { animation-delay: 0.18s; }
+.landing .rise-3 { animation-delay: 0.3s; }
+.landing .rise-4 { animation-delay: 0.45s; }
+
+/* FAQ open/close (Radix exposes the content height as a CSS variable). */
+@keyframes faq-open { from { height: 0; opacity: 0; } to { height: var(--radix-accordion-content-height); opacity: 1; } }
+@keyframes faq-close { from { height: var(--radix-accordion-content-height); opacity: 1; } to { height: 0; opacity: 0; } }
+.landing .faq-content[data-state='open'] { animation: faq-open 0.35s cubic-bezier(0.22, 1, 0.36, 1); }
+.landing .faq-content[data-state='closed'] { animation: faq-close 0.25s ease-in; }
+
+@media (prefers-reduced-motion: reduce) {
+  html:has(.landing) { scroll-behavior: auto; }
+  .landing .rise,
+  .landing .faq-content { animation: none !important; }
+  .landing * { transition-duration: 0.01ms !important; }
+}

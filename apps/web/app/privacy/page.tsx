@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { Shell } from '@/components/landing/editorial/Shell';
 
 export const metadata = {
   title: 'Privacy Policy | Udo Weddings',
@@ -9,15 +10,15 @@ const LAST_UPDATED = 'August 12, 2026';
 
 export default function PrivacyPolicyPage() {
   return (
-    <main className="min-h-screen bg-[#fbf7f4] px-6 py-16 text-[#2d2729]">
+    <Shell finalCta={false}>
+    <article className="px-5 pb-24 pt-[calc(68px+3.5rem)] text-[#252925] sm:px-8" style={{ backgroundColor: '#F8F6F1' }}>
       <div className="mx-auto max-w-2xl">
-        <Link href="/" className="text-sm text-[#8c5367]">&larr; Back</Link>
-        <h1 className="mt-6 font-serif text-4xl">Privacy Policy</h1>
-        <p className="mt-2 text-xs uppercase tracking-wider text-[#9b6a75]">
+        <h1 className="font-display text-[clamp(2.6rem,2rem+2.4vw,3.8rem)] font-medium leading-[1.05] text-[#243B35]">Privacy Policy</h1>
+        <p className="mt-2 text-xs uppercase tracking-wider text-[#94586A]">
           Last updated {LAST_UPDATED}
         </p>
 
-        <div className="mt-8 space-y-8 text-sm leading-7 text-[#4f4648]">
+        <div className="mt-8 space-y-8 text-[16px] leading-[1.75] text-[#4A4F49]">
           <p>
             Udo (&ldquo;Udo&rdquo;, &ldquo;we&rdquo;, &ldquo;us&rdquo;, or &ldquo;our&rdquo;) provides a wedding
             planning platform — a mobile app and website — that helps couples plan their wedding and lets their
@@ -32,9 +33,9 @@ export default function PrivacyPolicyPage() {
           </p>
 
           <section>
-            <h2 className="font-serif text-xl text-[#2d2729]">1. Information we collect</h2>
+            <h2 className="font-display text-[28px] font-medium text-[#243B35]">1. Information we collect</h2>
 
-            <h3 className="mt-4 text-[13px] font-semibold uppercase tracking-wide text-[#9b6a75]">
+            <h3 className="mt-4 text-[13px] font-semibold uppercase tracking-wide text-[#94586A]">
               Account information
             </h3>
             <p className="mt-2">
@@ -44,7 +45,7 @@ export default function PrivacyPolicyPage() {
               profile photo.
             </p>
 
-            <h3 className="mt-4 text-[13px] font-semibold uppercase tracking-wide text-[#9b6a75]">
+            <h3 className="mt-4 text-[13px] font-semibold uppercase tracking-wide text-[#94586A]">
               Wedding planning data
             </h3>
             <p className="mt-2">
@@ -53,7 +54,7 @@ export default function PrivacyPolicyPage() {
               files, or photos added to the workspace.
             </p>
 
-            <h3 className="mt-4 text-[13px] font-semibold uppercase tracking-wide text-[#9b6a75]">
+            <h3 className="mt-4 text-[13px] font-semibold uppercase tracking-wide text-[#94586A]">
               Guest information
             </h3>
             <p className="mt-2">
@@ -66,7 +67,7 @@ export default function PrivacyPolicyPage() {
               &ldquo;Your rights and choices&rdquo; below).
             </p>
 
-            <h3 className="mt-4 text-[13px] font-semibold uppercase tracking-wide text-[#9b6a75]">
+            <h3 className="mt-4 text-[13px] font-semibold uppercase tracking-wide text-[#94586A]">
               Content you upload
             </h3>
             <p className="mt-2">
@@ -74,7 +75,7 @@ export default function PrivacyPolicyPage() {
               gallery or memory book.
             </p>
 
-            <h3 className="mt-4 text-[13px] font-semibold uppercase tracking-wide text-[#9b6a75]">
+            <h3 className="mt-4 text-[13px] font-semibold uppercase tracking-wide text-[#94586A]">
               Payment information
             </h3>
             <p className="mt-2">
@@ -84,7 +85,7 @@ export default function PrivacyPolicyPage() {
               store your full card number.
             </p>
 
-            <h3 className="mt-4 text-[13px] font-semibold uppercase tracking-wide text-[#9b6a75]">
+            <h3 className="mt-4 text-[13px] font-semibold uppercase tracking-wide text-[#94586A]">
               Location and weather data
             </h3>
             <p className="mt-2">
@@ -93,7 +94,7 @@ export default function PrivacyPolicyPage() {
               track a device&rsquo;s real-time GPS location.
             </p>
 
-            <h3 className="mt-4 text-[13px] font-semibold uppercase tracking-wide text-[#9b6a75]">
+            <h3 className="mt-4 text-[13px] font-semibold uppercase tracking-wide text-[#94586A]">
               Usage and device data
             </h3>
             <p className="mt-2">
@@ -105,7 +106,7 @@ export default function PrivacyPolicyPage() {
           </section>
 
           <section>
-            <h2 className="font-serif text-xl text-[#2d2729]">2. How we use your information</h2>
+            <h2 className="font-display text-[28px] font-medium text-[#243B35]">2. How we use your information</h2>
             <ul className="mt-2 list-disc space-y-1.5 pl-5">
               <li>To provide and operate Udo&rsquo;s features — guest management, RSVPs, budgeting, vendor
                 tracking, timelines, seating, messaging, and the guest-facing wedding portal.</li>
@@ -122,7 +123,7 @@ export default function PrivacyPolicyPage() {
           </section>
 
           <section>
-            <h2 className="font-serif text-xl text-[#2d2729]">3. Third-party services we use</h2>
+            <h2 className="font-display text-[28px] font-medium text-[#243B35]">3. Third-party services we use</h2>
             <p className="mt-2">
               We work with the following categories of service providers to run Udo. Each only receives the
               information it needs to perform its function, and none are permitted to use your data for their own
@@ -144,7 +145,7 @@ export default function PrivacyPolicyPage() {
           </section>
 
           <section>
-            <h2 className="font-serif text-xl text-[#2d2729]">4. How we share information</h2>
+            <h2 className="font-display text-[28px] font-medium text-[#243B35]">4. How we share information</h2>
             <p className="mt-2">
               We don&rsquo;t sell your personal information, ever. We share it only in these situations:
             </p>
@@ -161,7 +162,7 @@ export default function PrivacyPolicyPage() {
           </section>
 
           <section>
-            <h2 className="font-serif text-xl text-[#2d2729]">5. Data retention</h2>
+            <h2 className="font-display text-[28px] font-medium text-[#243B35]">5. Data retention</h2>
             <p className="mt-2">
               We keep wedding and account data for as long as the account is active, so Planners and Guests can
               keep using it before and after the wedding date (many couples want to keep photos and guestbook
@@ -172,12 +173,12 @@ export default function PrivacyPolicyPage() {
           </section>
 
           <section>
-            <h2 className="font-serif text-xl text-[#2d2729]">6. Your rights and choices</h2>
+            <h2 className="font-display text-[28px] font-medium text-[#243B35]">6. Your rights and choices</h2>
             <ul className="mt-2 list-disc space-y-1.5 pl-5">
               <li><strong>Access and export:</strong> you can export your account data from Settings at any time.</li>
               <li><strong>Correction and deletion:</strong> you can update your account from Settings, or delete
                 your account and data at any time — see{' '}
-                <Link href="/delete-account" className="text-[#8c5367] underline">how to delete your account</Link>.</li>
+                <Link href="/delete-account" className="text-[#94586A] underline">how to delete your account</Link>.</li>
               <li><strong>Communication preferences:</strong> Guests can opt out of email, SMS, or WhatsApp
                 messages for a given wedding from their guest portal.</li>
               <li><strong>Guests without an account:</strong> if a Planner has added your details but you&rsquo;ve
@@ -189,7 +190,7 @@ export default function PrivacyPolicyPage() {
           </section>
 
           <section>
-            <h2 className="font-serif text-xl text-[#2d2729]">7. Children&rsquo;s privacy</h2>
+            <h2 className="font-display text-[28px] font-medium text-[#243B35]">7. Children&rsquo;s privacy</h2>
             <p className="mt-2">
               Udo is not directed at children, and we don&rsquo;t knowingly collect personal information from
               anyone under 13 (or the relevant minimum age in your region). If you believe a child has provided us
@@ -198,7 +199,7 @@ export default function PrivacyPolicyPage() {
           </section>
 
           <section>
-            <h2 className="font-serif text-xl text-[#2d2729]">8. Data security</h2>
+            <h2 className="font-display text-[28px] font-medium text-[#243B35]">8. Data security</h2>
             <p className="mt-2">
               We use industry-standard measures to protect your information, including encryption in transit,
               hashed passwords, and access controls limiting who inside Udo can see your data. No method of
@@ -208,7 +209,7 @@ export default function PrivacyPolicyPage() {
           </section>
 
           <section>
-            <h2 className="font-serif text-xl text-[#2d2729]">9. International users</h2>
+            <h2 className="font-display text-[28px] font-medium text-[#243B35]">9. International users</h2>
             <p className="mt-2">
               Udo is used by couples and guests around the world. Your information may be processed and stored in
               countries other than the one you live in, including the United States, by us or our service
@@ -218,7 +219,7 @@ export default function PrivacyPolicyPage() {
           </section>
 
           <section>
-            <h2 className="font-serif text-xl text-[#2d2729]">10. Changes to this policy</h2>
+            <h2 className="font-display text-[28px] font-medium text-[#243B35]">10. Changes to this policy</h2>
             <p className="mt-2">
               We may update this policy as Udo changes. If we make a material change, we&rsquo;ll notify you by
               email or an in-app notice before it takes effect. The &ldquo;Last updated&rdquo; date above always
@@ -227,15 +228,16 @@ export default function PrivacyPolicyPage() {
           </section>
 
           <section>
-            <h2 className="font-serif text-xl text-[#2d2729]">Contact us</h2>
+            <h2 className="font-display text-[28px] font-medium text-[#243B35]">Contact us</h2>
             <p className="mt-2">
               Questions about this policy, or requests to access, correct, or delete your information, can be sent
               to{' '}
-              <a href={`mailto:${SUPPORT_EMAIL}`} className="text-[#8c5367] underline">{SUPPORT_EMAIL}</a>.
+              <a href={`mailto:${SUPPORT_EMAIL}`} className="text-[#94586A] underline">{SUPPORT_EMAIL}</a>.
             </p>
           </section>
         </div>
       </div>
-    </main>
+    </article>
+    </Shell>
   );
 }
