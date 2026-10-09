@@ -3040,7 +3040,7 @@ class _ProfileSheetState extends ConsumerState<_ProfileSheet> {
             _ProfileActionTile(
                 icon: Icons.delete_outline,
                 title: 'Delete account',
-                subtitle: 'Permanently remove your login and profile details',
+                subtitle: 'Permanently delete your account and weddings',
                 danger: true,
                 onTap: () => _openSheet(const _DeleteAccountSheet())),
           ]),
@@ -3645,7 +3645,7 @@ class _DeleteAccountSheetState extends ConsumerState<_DeleteAccountSheet> {
                   ]),
                   const SizedBox(height: 12),
                   const Text(
-                      'This permanently removes your login and profile details. Your weddings, guest lists and messages are not deleted automatically — transfer ownership first if other collaborators still need access.',
+                      'This permanently deletes your account and every wedding you own, including its guest list, photos, messages and plans. Anyone you invited to help will lose access. This cannot be undone.\n\nDeleting your account does not cancel an App Store or Google Play subscription — cancel that in your store account settings.',
                       style: TextStyle(
                           fontSize: 13, color: AppTheme.udoTextSecondary)),
                   const SizedBox(height: 16),

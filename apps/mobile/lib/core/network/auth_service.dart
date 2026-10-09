@@ -92,10 +92,14 @@ class AuthService {
     required String token,
     String? firstName,
     String? lastName,
+    String? authorizationCode,
   }) async {
     final data = await _api.post('/auth/mobile/$provider', data: {
       if (provider == 'google') 'id_token': token,
       if (provider == 'apple') 'identity_token': token,
+      // Lets the server revoke Sign in with Apple if the account is deleted.
+      if (authorizationCode != null && authorizationCode.isNotEmpty)
+        'authorization_code': authorizationCode,
       if (firstName != null) 'first_name': firstName,
       if (lastName != null) 'last_name': lastName,
     });

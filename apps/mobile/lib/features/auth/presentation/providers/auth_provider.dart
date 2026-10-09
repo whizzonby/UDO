@@ -270,6 +270,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
         token: credential.identityToken ?? '',
         firstName: credential.givenName,
         lastName: credential.familyName,
+        authorizationCode: credential.authorizationCode,
       );
       await _authService.saveSession(res.token, res.user);
       state = AuthState(status: AuthStatus.authenticated, user: res.user);
@@ -409,7 +410,8 @@ class AuthNotifier extends StateNotifier<AuthState> {
   }
 
   /// Returns null on success, or an error message to show inline. On success
-  /// the local session is cleared and the account is anonymized server-side.
+  /// the local session is cleared; server-side the account and every wedding
+  /// it owns are deleted.
   Future<String?> deleteAccount({String? currentPassword}) async {
     try {
       await _authService.deleteAccount(currentPassword: currentPassword);

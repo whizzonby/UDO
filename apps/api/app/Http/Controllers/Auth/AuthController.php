@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Mail\TemplatedMail;
 use App\Models\User;
 use App\Models\Wedding;
+use App\Services\AccountDeletionService;
 use App\Services\SubscriptionEntitlementService;
 use App\Services\WeddingAccessService;
 use Illuminate\Http\JsonResponse;
@@ -417,27 +418,9 @@ class AuthController extends Controller
             ]);
         }
 
-        $user->tokens()->delete();
-        $user->collaborations()->delete();
-        $user->update([
-            'name' => 'Deleted User',
-            'first_name' => 'Deleted',
-            'last_name' => 'User',
-            'email' => "deleted-user-{$user->id}@udo.invalid",
-            'phone' => null,
-            'avatar_url' => null,
-            'auth_provider' => 'deleted',
-            'auth_provider_id' => null,
-            'active_wedding_id' => null,
-            'notification_preferences' => [],
-            'support_preferences' => [
-                ...$this->defaultSupportPreferences(),
-                'account_deleted_at' => now()->toISOString(),
-            ],
-            'password' => Hash::make(Str::random(64)),
-        ]);
+        app(AccountDeletionService::class)->delete($user);
 
-        return response()->json(['message' => 'Account deleted and personal profile data anonymized.']);
+        return response()->json(['message' => 'Account and associated data deleted.']);
     }
 
     private function userPayload(User $user): array

@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Auth;
 use App\Http\Controllers\Controller;
 use App\Mail\TemplatedMail;
 use App\Models\User;
+use App\Services\AppleSignInService;
 use Firebase\JWT\JWT;
 use Firebase\JWT\JWK;
 use Firebase\JWT\Key;
@@ -85,6 +86,7 @@ class MobileSocialAuthController extends Controller
     {
         $request->validate([
             'identity_token' => 'required|string',
+            'authorization_code' => 'nullable|string',
             'first_name'     => 'nullable|string|max:100',
             'last_name'      => 'nullable|string|max:100',
         ]);
@@ -103,6 +105,14 @@ class MobileSocialAuthController extends Controller
             lastName:   $request->last_name ?? '',
             avatarUrl:  null,
         );
+
+        // Kept so the grant can be revoked if the account is later deleted.
+        if ($request->filled('authorization_code')) {
+            $refreshToken = app(AppleSignInService::class)->refreshTokenFor($request->authorization_code);
+            if ($refreshToken) {
+                $user->forceFill(['apple_refresh_token' => $refreshToken])->save();
+            }
+        }
 
         return $this->tokenResponse($user);
     }

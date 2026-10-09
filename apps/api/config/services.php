@@ -48,6 +48,9 @@ return [
         'redirect'      => env('APPLE_REDIRECT_URI'),
         'team_id'       => env('APPLE_TEAM_ID'),
         'key_id'        => env('APPLE_KEY_ID'),
+        // Native-app token exchange + revocation (AppleSignInService).
+        'bundle_id'     => env('APPLE_BUNDLE_ID', env('APPLE_CLIENT_ID')),
+        'private_key'   => env('APPLE_PRIVATE_KEY'),
     ],
 
     'openweather' => [

@@ -2000,10 +2000,21 @@ class WeddingFlowBugFixTest extends TestCase
         $this->assertSame(0, $user->tokens()->count());
     }
 
-    public function test_authenticated_user_can_delete_account_by_anonymizing_profile(): void
+    public function test_authenticated_user_can_delete_account_and_owned_weddings(): void
     {
-        [$user] = $this->userWithWedding();
+        Storage::fake('public');
+        [$user, $wedding] = $this->userWithWedding();
         $user->createToken('api');
+        $guest = $wedding->guests()->create(['first_name' => 'Ava', 'email' => 'ava@example.test']);
+        $planner = User::factory()->create(['active_wedding_id' => $wedding->id]);
+        $wedding->collaborators()->create(['user_id' => $planner->id, 'role' => 'planner', 'permissions' => []]);
+        Storage::disk('public')->put("weddings/{$wedding->id}/gallery/photo.jpg", 'x');
+
+        // A wedding owned by someone else that this user only helps with.
+        [, $otherWedding] = $this->userWithWedding();
+        $otherWedding->collaborators()->create(['user_id' => $user->id, 'role' => 'planner', 'permissions' => []]);
+        $task = Task::create(['wedding_id' => $otherWedding->id, 'created_by' => $user->id, 'title' => 'Book florist']);
+
         Sanctum::actingAs($user);
 
         $this->deleteJson('/api/auth/me', [
@@ -2011,14 +2022,52 @@ class WeddingFlowBugFixTest extends TestCase
             'current_password' => 'password',
         ])
             ->assertOk()
-            ->assertJsonPath('message', 'Account deleted and personal profile data anonymized.');
+            ->assertJsonPath('message', 'Account and associated data deleted.');
 
         $fresh = $user->fresh();
         $this->assertSame("deleted-user-{$user->id}@udo.invalid", $fresh->email);
         $this->assertNull($fresh->active_wedding_id);
         $this->assertNull($fresh->phone);
         $this->assertSame(0, $fresh->tokens()->count());
+        $this->assertSame(0, $fresh->collaborations()->count());
         $this->assertNotNull($fresh->support_preferences['account_deleted_at']);
+
+        $this->assertNull(Wedding::find($wedding->id));
+        $this->assertNull(Guest::find($guest->id));
+        $this->assertNull($planner->fresh()->active_wedding_id);
+        $this->assertSame([], Storage::disk('public')->allFiles("weddings/{$wedding->id}"));
+
+        // Someone else's wedding keeps what this user contributed.
+        $this->assertNotNull(Wedding::find($otherWedding->id));
+        $this->assertNotNull(Task::find($task->id));
+    }
+
+    public function test_account_deletion_revokes_sign_in_with_apple(): void
+    {
+        // Throwaway P-256 key, generated for this test only.
+        $pem = "-----BEGIN PRIVATE KEY-----\n"
+            . "MIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQgOJwzmmwURz49BcaY\n"
+            . "7tqru0Bul/WbA6/o66d9cqhdl7uhRANCAASDDBzJwejmJ2WInVog5AOT7tnghtHE\n"
+            . "TTxK/pOkqgyCwlra1PeIIuqkxV9TSmTXH0m9iFPd6EQn0C/onB4aDmZr\n"
+            . "-----END PRIVATE KEY-----\n";
+        config([
+            'services.apple.bundle_id' => 'com.udowedding.udoMobile',
+            'services.apple.team_id' => 'TEAM123456',
+            'services.apple.key_id' => 'KEY1234567',
+            'services.apple.private_key' => $pem,
+        ]);
+        Http::fake(['appleid.apple.com/auth/revoke' => Http::response('', 200)]);
+
+        $user = User::factory()->create(['auth_provider' => 'apple', 'auth_provider_id' => 'apple-sub']);
+        $user->forceFill(['apple_refresh_token' => 'refresh-token'])->save();
+        Sanctum::actingAs($user);
+
+        $this->deleteJson('/api/auth/me', ['confirmation' => 'DELETE'])->assertOk();
+
+        Http::assertSent(fn ($request) => $request->url() === 'https://appleid.apple.com/auth/revoke'
+            && $request['token'] === 'refresh-token'
+            && $request['client_id'] === 'com.udowedding.udoMobile');
+        $this->assertNull($user->fresh()->apple_refresh_token);
     }
 
     public function test_admin_account_safety_service_exports_revokes_and_anonymizes_with_audit(): void

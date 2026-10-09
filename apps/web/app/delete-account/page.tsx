@@ -26,7 +26,7 @@ export default function DeleteAccountPage() {
             <p className="mt-2">The fastest way, if you still have Udo installed:</p>
             <ol className="mt-2 list-decimal space-y-1.5 pl-5">
               <li>Open the Udo app and go to <strong>More</strong>.</li>
-              <li>Tap <strong>Settings</strong>, then <strong>Delete account</strong>.</li>
+              <li>Tap <strong>Privacy &amp; Security</strong>, then <strong>Delete account</strong>.</li>
               <li>Confirm your password when prompted, then confirm deletion.</li>
             </ol>
             <p className="mt-2">

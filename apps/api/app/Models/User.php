@@ -48,6 +48,7 @@ class User extends Authenticatable implements FilamentUser, MustVerifyEmail
     protected $hidden = [
         'password',
         'remember_token',
+        'apple_refresh_token',
     ];
 
     protected function casts(): array
@@ -55,6 +56,7 @@ class User extends Authenticatable implements FilamentUser, MustVerifyEmail
         return [
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
+            'apple_refresh_token' => 'encrypted',
             'onboarding_completed' => 'boolean',
             'notification_preferences' => 'array',
             'support_preferences' => 'array',
