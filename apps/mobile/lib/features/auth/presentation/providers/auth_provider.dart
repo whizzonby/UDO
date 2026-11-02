@@ -239,7 +239,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
       state = AuthState(
         status: AuthStatus.unauthenticated,
         error: e.code == GoogleSignIn.kNetworkError
-            ? "You're not connected to the internet. Check your connection and try again."
+            ? "You're not connected to the internet. Check your connection and try again.\n(Google: ${e.code}${e.message != null ? ' ${e.message}' : ''})"
             : _googleUnavailable,
       );
     } catch (e) {

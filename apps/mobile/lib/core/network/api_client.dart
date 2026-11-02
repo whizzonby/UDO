@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -166,18 +167,46 @@ class ApiClient {
   /// instead, distinguishing only the cases where the wording actually
   /// helps the user (no connection vs. a slow/unresponsive server).
   String _networkMessage(DioException error) {
+    final String message;
     switch (error.type) {
       case DioExceptionType.connectionError:
-        return "You're not connected to the internet. Check your connection and try again.";
+        message =
+            "You're not connected to the internet. Check your connection and try again.";
       case DioExceptionType.connectionTimeout:
       case DioExceptionType.sendTimeout:
       case DioExceptionType.receiveTimeout:
-        return 'The connection timed out. Check your internet connection and try again.';
+        message =
+            'The connection timed out. Check your internet connection and try again.';
       case DioExceptionType.badCertificate:
-        return "Couldn't establish a secure connection. Please try again.";
+        message = "Couldn't establish a secure connection. Please try again.";
       default:
-        return 'Something went wrong. Please try again.';
+        message = 'Something went wrong. Please try again.';
     }
+    return '$message\n(${networkErrorDetail(error)})';
+  }
+
+  /// A short technical cause appended under network errors, so a screenshot
+  /// from a user or App Review says *why* the request failed (DNS, refused,
+  /// TLS, unreachable...). Deliberately never includes the request URL.
+  static String networkErrorDetail(DioException error) {
+    final inner = error.error;
+    String detail;
+    if (inner is SocketException) {
+      final os = inner.osError;
+      detail = os != null
+          ? 'SocketException: ${os.message} (errno ${os.errorCode})'
+          : 'SocketException: ${inner.message}';
+    } else if (inner is TlsException) {
+      final os = inner.osError;
+      detail = '${inner.runtimeType}: ${inner.message}'
+          '${os != null ? ' / ${os.message}' : ''}';
+    } else if (inner != null) {
+      detail = '${error.type.name}: ${inner.runtimeType}';
+    } else {
+      detail = error.type.name;
+    }
+    detail = detail.replaceAll(RegExp(r'\s+'), ' ').trim();
+    return detail.length > 140 ? '${detail.substring(0, 140)}…' : detail;
   }
 
   String? _extractMessage(dynamic data) {

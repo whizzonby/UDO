@@ -26,5 +26,7 @@ class ServerException extends AppException {
 /// a generic fallback instead of leaking Dart/Flutter internals.
 String humanizeError(Object error) {
   if (error is AppException) return error.message;
-  return 'Something went wrong. Please try again.';
+  // The type name (never the message) makes an unexpected failure
+  // diagnosable from a screenshot without leaking internals.
+  return 'Something went wrong. Please try again.\n(${error.runtimeType})';
 }
